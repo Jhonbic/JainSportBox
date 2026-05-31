@@ -1,12 +1,17 @@
 import os
+from collections import defaultdict
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from models import Asistencia, RolUsuario, Usuario
-from schemas.asistencia import AsistenciaCreate, AsistenciaResponse
+from schemas.asistencia import (
+    AsistenciaCreate, AsistenciaResponse,
+    AsistenteBloqueItem, BloqueHorario, SesionesPorBloqueResponse,
+)
 from security import get_current_user
 
 router = APIRouter(prefix="/asistencia", tags=["Asistencia"])
@@ -36,6 +41,9 @@ def _autorizar_bridge_o_admin(request: Request, db: Session) -> None:
     caller = db.query(Usuario).filter(Usuario.email == email).first()
     if not caller or caller.rol not in (RolUsuario.ADMIN, RolUsuario.COACH):
         raise HTTPException(status_code=403, detail="Sin permisos.")
+
+
+MINUTOS_SESION = 75  # tiempo máximo de una sesión; usado por el job de reset en main.py
 
 
 def _registrar(usuario: Usuario, db: Session) -> AsistenciaResponse:
@@ -150,3 +158,101 @@ def historial_usuario(
 
     fechas = sorted(set(a.fecha_hora.date().isoformat() for a in asistencias))
     return {"fechas": fechas, "total": len(fechas)}
+
+
+@router.get("/en-gym")
+def usuarios_en_gym(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_admin_or_coach),
+):
+    """Usuarios con esta_en_gym=True, con su última entrada y tiempo restante de sesión."""
+    usuarios = db.query(Usuario).filter(Usuario.esta_en_gym == True).all()
+    ahora = datetime.utcnow()
+    resultado = []
+    for u in usuarios:
+        ultima = (
+            db.query(Asistencia)
+            .filter(Asistencia.usuario_id == u.id, Asistencia.tipo == "entrada")
+            .order_by(Asistencia.fecha_hora.desc())
+            .first()
+        )
+        if not ultima:
+            continue
+        minutos_transcurridos = (ahora - ultima.fecha_hora).total_seconds() / 60
+        resultado.append({
+            "usuario_id": u.id,
+            "nombre": u.nombre,
+            "foto_url": u.foto_url,
+            "entrada_desde": ultima.fecha_hora.isoformat(),
+            "minutos_transcurridos": round(minutos_transcurridos, 1),
+            "minutos_restantes": round(max(0, MINUTOS_SESION - minutos_transcurridos), 1),
+            "minutos_sesion": MINUTOS_SESION,
+        })
+    resultado.sort(key=lambda x: x["minutos_transcurridos"], reverse=True)
+    return resultado
+
+
+_BOGOTA = ZoneInfo("America/Bogota")
+
+
+@router.get("/sesiones-por-bloque", response_model=SesionesPorBloqueResponse)
+def sesiones_por_bloque(
+    desde: date = Query(..., description="Fecha inicio YYYY-MM-DD"),
+    hasta: date = Query(..., description="Fecha fin YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_admin_or_coach),
+):
+    if desde > hasta:
+        raise HTTPException(status_code=422, detail="'desde' debe ser anterior o igual a 'hasta'.")
+    if (hasta - desde).days > 31:
+        raise HTTPException(status_code=422, detail="El rango no puede superar 31 días.")
+
+    desde_utc = datetime(desde.year, desde.month, desde.day, 0, 0, 0)
+    hasta_utc = datetime(hasta.year, hasta.month, hasta.day, 23, 59, 59)
+
+    asistencias = (
+        db.query(Asistencia)
+        .options(joinedload(Asistencia.usuario))
+        .filter(
+            Asistencia.tipo == "entrada",
+            Asistencia.fecha_hora >= desde_utc,
+            Asistencia.fecha_hora <= hasta_utc,
+        )
+        .all()
+    )
+
+    # Ordenar por fecha_hora para conservar la primera entrada en caso de duplicado
+    asistencias.sort(key=lambda a: a.fecha_hora)
+
+    vistos: dict[tuple, set[int]] = defaultdict(set)
+    bloques: dict[tuple, list[AsistenteBloqueItem]] = defaultdict(list)
+    for a in asistencias:
+        hora_local = a.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).astimezone(_BOGOTA)
+        key = (hora_local.date().isoformat(), hora_local.hour)
+        if a.usuario_id in vistos[key]:
+            continue  # ya registrado en este bloque, ignorar entradas repetidas
+        vistos[key].add(a.usuario_id)
+        bloques[key].append(
+            AsistenteBloqueItem(
+                usuario_id=a.usuario_id,
+                nombre=a.usuario.nombre,
+                hora_exacta=hora_local.strftime("%H:%M"),
+            )
+        )
+
+    resultado = [
+        BloqueHorario(
+            fecha=fecha_str,
+            bloque=f"{h:02d}:00–{(h + 1) % 24:02d}:00",
+            hora_inicio=h,
+            total=len(v),
+            asistentes=sorted(v, key=lambda x: x.hora_exacta),
+        )
+        for (fecha_str, h), v in sorted(bloques.items())
+    ]
+
+    return SesionesPorBloqueResponse(
+        desde=desde.isoformat(),
+        hasta=hasta.isoformat(),
+        bloques=resultado,
+    )
