@@ -96,6 +96,14 @@
             </svg>
             Alertas WhatsApp
           </router-link>
+          <router-link to="/sesiones" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Sesiones
+          </router-link>
         </template>
 
         <template v-if="!isPendiente && isAdmin">
@@ -155,7 +163,7 @@
           </svg>
           Mi Salud
         </router-link>
-        <router-link v-if="!isPendiente && !membresiaVencida" to="/marcas" @click="sidebarOpen = false"
+        <router-link v-if="!isPendiente && !membresiaVencida && !isAdmin" to="/marcas" @click="sidebarOpen = false"
           class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
           active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">

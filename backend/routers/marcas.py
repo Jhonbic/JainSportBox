@@ -12,6 +12,27 @@ from security import get_current_user
 router = APIRouter(prefix="/marcas", tags=["Marcas RM"])
 
 
+# Clasificación por ejercicio (debe coincidir con frontend/src/data/ejerciciosMarcas.js)
+TIPOS_EJERCICIO = {
+    "Back Squat": "barra",
+    "Deadlift": "barra",
+    "Clean": "barra",
+    "Clean and Jerk": "barra",
+    "Snatch": "barra",
+    "Bench Press": "barra",
+    "Press Militar": "barra",
+    "Dominadas": "corporal_lastre",
+    "Push Up": "reps",
+    "Air Squat": "reps",
+    "Sit Up": "reps",
+    "Test de Léger": "leger",
+}
+
+
+def _tipo_de(ejercicio: str) -> str:
+    return TIPOS_EJERCICIO.get(ejercicio.strip(), "barra")
+
+
 def _calcular_1rm(peso: float, reps: int) -> float:
     w, r = peso, reps
     valores = [
@@ -59,14 +80,57 @@ def crear_marca(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    rm = _calcular_1rm(payload.peso, payload.repeticiones)
+    ejercicio = payload.ejercicio.strip()
+    tipo = _tipo_de(ejercicio)
+
+    peso = None
+    unidad = payload.unidad
+    reps = None
+    rm = None
+    peso_adicional = None
+    nivel = None
+    palier = None
+
+    if tipo == "barra":
+        if payload.peso is None or payload.peso <= 0 or payload.repeticiones is None:
+            raise HTTPException(status_code=422, detail="Este ejercicio requiere peso y repeticiones.")
+        peso = payload.peso
+        reps = payload.repeticiones
+        rm = _calcular_1rm(peso, reps)
+
+    elif tipo == "corporal_lastre":
+        # peso = peso corporal (snapshot) + peso_adicional opcional. Reps obligatorio.
+        if payload.peso is None or payload.peso <= 0 or payload.repeticiones is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Se requiere peso total (corporal + lastre) y repeticiones.",
+            )
+        peso = payload.peso
+        reps = payload.repeticiones
+        peso_adicional = payload.peso_adicional
+        rm = _calcular_1rm(peso, reps)
+
+    elif tipo == "reps":
+        if payload.repeticiones is None or payload.repeticiones < 1:
+            raise HTTPException(status_code=422, detail="Se requiere número de repeticiones.")
+        reps = payload.repeticiones
+
+    elif tipo == "leger":
+        if payload.nivel is None or payload.palier is None:
+            raise HTTPException(status_code=422, detail="Se requiere nivel y palier.")
+        nivel = payload.nivel
+        palier = payload.palier
+
     marca = MarcaRM(
         usuario_id=current_user.id,
-        ejercicio=payload.ejercicio.strip(),
-        peso=payload.peso,
-        unidad=payload.unidad,
-        repeticiones=payload.repeticiones,
+        ejercicio=ejercicio,
+        peso=peso,
+        unidad=unidad,
+        repeticiones=reps,
         rm_calculado=rm,
+        peso_adicional=peso_adicional,
+        nivel=nivel,
+        palier=palier,
         fecha=payload.fecha,
         notas=payload.notas,
     )

@@ -23,6 +23,29 @@
       </div>
     </div>
 
+    <!-- Panel: usuarios en el box ahora con countdown -->
+    <div v-if="enGymConContador.length > 0" class="mb-5 bg-gray-900 rounded-2xl p-4">
+      <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+        En el box ahora &middot; {{ enGymConContador.length }}
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <div
+          v-for="u in enGymConContador" :key="u.usuario_id"
+          class="flex items-center gap-2 bg-gray-800 rounded-xl px-3 py-2">
+          <span class="text-sm font-semibold text-white truncate max-w-[120px]">{{ u.nombre }}</span>
+          <span
+            class="text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+            :class="u.segundos_restantes > u.minutos_sesion * 60 * 0.5
+              ? 'bg-emerald-900 text-emerald-400'
+              : u.segundos_restantes > 0
+                ? 'bg-amber-900 text-amber-400'
+                : 'bg-red-900 text-red-400 animate-pulse'">
+            {{ u.segundos_restantes > 0 ? formatContador(u.segundos_restantes) + ' restante' : 'Expirando…' }}
+          </span>
+        </div>
+      </div>
+    </div>
+
     <!-- Buscador -->
     <div class="relative mb-4">
       <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -919,6 +942,34 @@ const router = useRouter()
 const BRIDGE_URL = 'http://localhost:8001'
 const ENROL_STEPS = 4
 
+// ── En gym: countdown en tiempo real ────────────────────────
+const enGym = ref([])
+const ticker = ref(0)
+let gymInterval = null
+let tickInterval = null
+
+const enGymConContador = computed(() => {
+  ticker.value // dependencia para recomputar cada segundo
+  const ahora = Date.now()
+  return enGym.value
+    .map(u => {
+      const entradaMs = new Date(u.entrada_desde + 'Z').getTime()
+      const transcurridos = (ahora - entradaMs) / 1000
+      const sesionSeg = u.minutos_sesion * 60
+      return { ...u, segundos_restantes: Math.max(0, sesionSeg - transcurridos) }
+    })
+})
+
+function formatContador(seg) {
+  const m = Math.floor(seg / 60)
+  const s = Math.floor(seg % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+const fetchEnGym = async () => {
+  try { enGym.value = (await api.get('/asistencia/en-gym')).data } catch {}
+}
+
 // ── Estado ──────────────────────────────────────────────────
 const usuarios = ref([])
 const pendientes = ref([])
@@ -1432,9 +1483,14 @@ onMounted(() => {
   fetchPlanes()
   fetchPendientes()
   conectarAccesoWS()
+  fetchEnGym()
+  gymInterval  = setInterval(fetchEnGym, 10_000)   // refresca la lista cada 10 s
+  tickInterval = setInterval(() => { ticker.value++ }, 1_000) // tick cada segundo
 })
 onUnmounted(() => {
   clearInterval(enrolPollInterval)
+  clearInterval(gymInterval)
+  clearInterval(tickInterval)
   clearTimeout(accesoReconnectTimer)
   try { accesoWS?.close() } catch {}
 })

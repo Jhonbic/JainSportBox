@@ -53,21 +53,22 @@ There are no test commands — no test suite exists in this project.
 - Bridge: `servicio_biometrico/` — .NET 4.8 Windows app for DigitalPersona U.are.U 4500 fingerprint reader
 
 **Backend layout:**
-- `backend/main.py` — FastAPI app creation, CORS config, router registration. Runs SQLite migrations on startup (ALTER TABLE in try/except; table reconstruction for nullability changes via PRAGMA table_info). Mounts `backend/uploads/` as `/uploads` for static files (user profile photos). Starts APScheduler: alerts job runs at 9 AM Bogotá time AND immediately on startup.
-- `backend/models.py` — All SQLAlchemy models (12 tables): `usuarios`, `planes`, `pagos`, `wods`, `resultados_wod`, `productos`, `ventas`, `asistencias`, `movimientos_financieros`, `medidas_salud`, `marcas_rm`, `alertas_membresia`
+- `backend/main.py` — FastAPI app creation, CORS config, router registration. Runs SQLite migrations on startup (ALTER TABLE in try/except; table reconstruction for nullability changes via PRAGMA table_info). Mounts `backend/uploads/` as `/uploads` for static files (user profile photos). Starts APScheduler with two jobs: alerts job (9 AM Bogotá + on startup) and `_job_reset_gym` (every 5 minutes, resets `esta_en_gym = False` for users whose last entry exceeds `MINUTOS_SESION`).
+- `backend/models.py` — All SQLAlchemy models (13 tables): `usuarios`, `planes`, `pagos`, `wods`, `resultados_wod`, `productos`, `ventas`, `asistencias`, `movimientos_financieros`, `medidas_salud`, `marcas_rm`, `alertas_membresia`, `metodos_pago`
 - `backend/database.py` — SQLite session factory
 - `backend/security.py` — BCrypt password hashing, JWT creation/validation (HS256, 7-day expiry)
-- `backend/routers/` — One file per domain: `auth`, `usuarios`, `pagos`, `planes`, `productos`, `ventas`, `wods`, `asistencia`, `finanzas`, `salud`, `alertas`, `marcas`
+- `backend/routers/` — One file per domain: `auth`, `usuarios`, `pagos`, `planes`, `productos`, `ventas`, `wods`, `asistencia`, `finanzas`, `salud`, `alertas`, `marcas`, `metodos_pago`
 - `backend/schemas/` — Pydantic request/response models; one file per domain except `planes` (schemas defined inline in router): `asistencia`, `alerta`, `finanza`, `pago`, `producto`, `venta`, `wod`, `usuario`, `salud`, `marcas`
 - `backend/seed.py` — Creates default plans and admin user (runs on app startup via `main.py`)
 
 **Frontend layout:**
 - `frontend/src/main.js` — Vue app init; Axios interceptor adds `Authorization: Bearer {token}` from `localStorage`
 - `frontend/src/api.js` — Axios instance with `baseURL: http://127.0.0.1:8000`
-- `frontend/src/router/index.js` — Route guards using `meta.requiresAuth` and `meta.roles`; clients default to `/home`, admin/coach to `/usuarios`
+- `frontend/src/router/index.js` — Route guards using `meta.requiresAuth` and `meta.roles`; clients default to `/home`, admin to `/usuarios`, coach to `/home`. `pendiente` → forzado a `/planes`. Clientes con membresía vencida (`membresiaVencidaFor`) solo acceden a `RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/']`.
 - `frontend/src/composables/useAuth.js` — Reactive role helpers: `isAdmin`, `isCoach`, `isCliente`, `canManage`
-- `frontend/src/views/` — One large SFC per page: `LoginView`, `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `FinanzasView`, `PlanesView`, `AlertasView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`. (`MonitorAccesoView.vue` exists but is not registered in the router.)
+- `frontend/src/views/` — One large SFC per page: `LoginView`, `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `WodsPersonalizadosView`, `FinanzasView`, `PlanesView`, `AlertasView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`, `SesionesView`. (`MonitorAccesoView.vue` exists but is not registered in the router.)
 - `frontend/src/components/Dashboard.vue` — Main layout shell (sidebar + navigation). Does NOT show membership status in the sidebar — that info lives in `HomeView`.
+- `frontend/src/components/BloqueCard.vue` — Tarjeta reutilizable de bloque horario (usado por `SesionesView`). Muestra hora del bloque, lista de asistentes con hora exacta, y botón "+N más" para expandir.
 - `frontend/src/data/` — Shared config files: `saludTipos.js` (5 measurement configs), `ejerciciosMarcas.js` (12 fixed exercises)
 
 ## Key Patterns
@@ -135,13 +136,50 @@ Route `/alertas` (admin/coach). Two tabs: **Pendientes** (grouped by `dias_antic
 
 ## Asistencia routers
 
-`backend/routers/asistencia.py` exposes two GET endpoints:
-- `GET /asistencia/mi-historial?meses=N` — current user's attendance (any authenticated role)
-- `GET /asistencia/historial/{usuario_id}?meses=N` — any user's attendance (admin/coach only)
+`backend/routers/asistencia.py` endpoints:
+- `POST /asistencia/` — registra por `huella_id` (bridge)
+- `POST /asistencia/por-usuario/{usuario_id}` — registra por ID (bridge con `X-Bridge-Secret` o admin/coach JWT); valida membresía vigente en entradas
+- `GET /asistencia/mi-historial?meses=N` — historial propio (cualquier rol autenticado)
+- `GET /asistencia/historial/{usuario_id}?meses=N` — historial de cualquier usuario (admin/coach)
+- `GET /asistencia/en-gym` — usuarios con `esta_en_gym=True`, con `entrada_desde`, `minutos_transcurridos`, `minutos_restantes` y `minutos_sesion` (admin/coach)
+- `GET /asistencia/sesiones-por-bloque?desde=&hasta=` — entradas agrupadas por (fecha, hora) en zona Bogotá; rango máx 31 días; deduplica por `usuario_id` dentro del mismo bloque conservando la primera entrada (admin/coach)
+
+**Constante `MINUTOS_SESION`** (en `asistencia.py`): duración máxima de sesión usada tanto por `GET /en-gym` como por el job `_job_reset_gym` en `main.py`. Cambiar en un solo lugar.
+
+**Auto-reset `esta_en_gym`:** el job `_job_reset_gym` (APScheduler, cada 5 min) busca usuarios con `esta_en_gym=True` cuya última entrada supere `MINUTOS_SESION` y los resetea a `False` sin crear registro de salida. Cubre el caso de usuarios que salen sin pasar por el torniquete.
+
+**Deduplicación en sesiones-por-bloque:** los registros se ordenan por `fecha_hora` antes de agrupar. Si un usuario entró más de una vez en el mismo bloque (salió y volvió), solo aparece la primera entrada. Esto evita duplicados causados por re-entradas dentro del mismo bloque.
+
+## SesionesView — consulta de sesiones por bloque horario
+
+Ruta `/sesiones` (roles: `admin`, `coach`). Dos modos:
+
+**Modo "Esta semana"** (carga automático al entrar):
+- Tabs de los 7 días (Lun–Dom) con badge del total de asistentes por día
+- Día de hoy resaltado en negro; día seleccionado en rojo; días sin asistencias con opacidad reducida
+- Grid de `BloqueCard` del día seleccionado
+- Buscador por nombre en tiempo real
+
+**Modo "Fecha específica":**
+- Selector de fecha + botón "Ver sesiones"
+- Grid de bloques del día elegido + buscador
+
+**`BloqueCard`** (`frontend/src/components/BloqueCard.vue`):
+- Header: bloque horario + badge de personas
+- Lista: nombre · hora exacta de entrada (HH:MM)
+- Botón "+N más" si hay más de 5 asistentes
+
+## UsuariosView — panel "En el box ahora"
+
+`UsuariosView.vue` incluye un panel negro en la parte superior que muestra en tiempo real los usuarios con `esta_en_gym=True`:
+- Se llama `GET /asistencia/en-gym` al montar y se refresca cada 10 segundos
+- Un `setInterval` de 1 segundo incrementa un `ticker` ref que fuerza el recomputed del contador
+- Cada chip muestra nombre + countdown `M:SS restante` cambiando de color: verde (>50% tiempo), ámbar (<50%), rojo parpadeante (expirado)
+- Al expirar permanece visible en rojo hasta que el job de 5 min limpie `esta_en_gym` en la BD
 
 ## Mi Salud — health metrics
 
-Per-measurement routing: each metric has its own page at `/salud/:tipo`.
+Per-measurement routing: each metric has its own page at `/salud/:tipo`. **Excluida del rol `admin`** — el router restringe `/salud` y `/salud/:tipo` a `roles: ['coach', 'cliente']`. El admin no ve esta sección en el sidebar ni puede entrar por URL directa.
 
 **Measurement types** (defined in `frontend/src/data/saludTipos.js`):
 `peso`, `altura`, `cintura`, `cuello`, `cadera`
@@ -159,34 +197,79 @@ Per-measurement routing: each metric has its own page at `/salud/:tipo`.
 - `SaludView.vue` — overview; 5 RouterLink cards + IMC banner, no modal
 - `SaludMedidaView.vue` — detail per tipo; Chart.js line chart, history table with delete, add modal
 
-## Mis Marcas — 1RM personal records
+## Mis Marcas — personal records
 
-Per-exercise routing: each exercise has its own page at `/marcas/:ejercicio`.
+Per-exercise routing: each exercise has its own page at `/marcas/:ejercicio`. **Excluida del rol `admin`** — el router restringe `/marcas` y `/marcas/:ejercicio` a `roles: ['coach', 'cliente']`.
 
-**Fixed exercise list** (defined in `frontend/src/data/ejerciciosMarcas.js`):
-Back Squat, Deadlift, Clean, Clean and Jerk, Snatch, Bench Press, Press Militar, Dominadas, Push Up, Air Squat, Sit Up, Test de Léger
+### Tipos de ejercicio
 
-**1RM formulas** (7 used, averaged):
-Brzycki, Epley, Lander, O'Connor, Lombardi, Mayhew, Wathen.
-The average is stored as `rm_calculado` in the DB. The backend helper `_calcular_1rm(peso, reps)` lives in `backend/routers/marcas.py`.
+No todo se mide igual. La lista en `frontend/src/data/ejerciciosMarcas.js` etiqueta cada ejercicio con un `tipo`, y tanto el frontend como el backend bifurcan la lógica según ese tipo. La fuente de verdad es ese archivo del frontend; el backend duplica la clasificación en `TIPOS_EJERCICIO` dentro de `routers/marcas.py` — **mantener ambos en sincronía**.
 
-**Backend router** (`backend/routers/marcas.py`):
-- `GET /marcas/` — all records for the current user
-- `GET /marcas/{ejercicio}` — records for a specific exercise (URL-encoded name)
-- `POST /marcas/` — creates a record; auto-calculates `rm_calculado`
+| Tipo | Ejercicios | Métrica | Campos usados |
+|---|---|---|---|
+| `barra` | Back Squat, Deadlift, Clean, Clean and Jerk, Snatch, Bench Press, Press Militar | 1RM (fórmulas) | `peso`, `unidad`, `repeticiones`, `rm_calculado` |
+| `corporal_lastre` | Dominadas | 1RM (fórmulas) sobre peso total | `peso` (corporal + lastre, snapshot), `peso_adicional` (lastre opcional), `repeticiones`, `rm_calculado` |
+| `reps` | Push Up, Air Squat, Sit Up | Max reps | solo `repeticiones` |
+| `leger` | Test de Léger | Mayor nivel (desempate por palier) | `nivel`, `palier` |
+
+**Corporal+lastre (Dominadas):** el frontend jala el último `peso_kg` de Mi Salud (`GET /salud/peso`) como peso corporal automático. Si el usuario no tiene registros de salud, lo pide manual. El total `peso_corporal + peso_adicional` se guarda en `peso` como snapshot (no se recalcula a futuro si el usuario cambia de peso). 1RM se calcula sobre ese total.
+
+**1RM formulas** (7 usadas, promediadas, solo para `barra` y `corporal_lastre`): Brzycki, Epley, Lander, O'Connor, Lombardi, Mayhew, Wathen. El promedio se guarda en `rm_calculado`. Helper backend: `_calcular_1rm(peso, reps)` en `routers/marcas.py`.
+
+### Backend
+
+**Router** (`backend/routers/marcas.py`):
+- `GET /marcas/` — todos los registros del usuario actual
+- `GET /marcas/{ejercicio}` — registros del ejercicio (URL-encoded)
+- `POST /marcas/` — payload flexible; el router despacha según `_tipo_de(ejercicio)` y valida los campos requeridos por tipo (rechaza con 422 si faltan). Calcula `rm_calculado` solo para `barra` y `corporal_lastre`.
 - `DELETE /marcas/{marca_id}`
 
-**Model** (`MarcaRM` in `backend/models.py`): `usuario_id`, `ejercicio`, `peso`, `unidad` (kg/lbs), `repeticiones`, `rm_calculado`, `fecha`, `notas`.
+**Modelo** (`MarcaRM` en `models.py`): `usuario_id`, `ejercicio`, `unidad` (default `"kg"`), `fecha`, `notas`, `created_at` son siempre obligatorios. Todos los demás campos son nullable y se llenan según el tipo: `peso`, `repeticiones`, `rm_calculado`, `peso_adicional`, `nivel`, `palier`. La migración en `main.py` reconstruye la tabla para hacer nullable `peso`/`repeticiones`/`rm_calculado` (antes eran NOT NULL) y agrega las 3 columnas nuevas vía `ALTER TABLE`.
 
-**Views:**
-- `MarcasView.vue` — grid of all 12 exercise cards; shows best 1RM and record count per exercise; no modal
-- `MarcasEjercicioView.vue` — detail per exercise:
-  - Summary card: last 1RM + PR + Registrar button
-  - Chart.js line chart (values normalized to `ultimaUnidad`; PR points highlighted in gold)
-  - Rep-max table (1–10 reps, promedio only)
-  - Formula comparison section (individual result per formula + promedio footer)
-  - History table with PR badge
-  - Add modal: peso + unidad + reps + fecha + notas; live 1RM preview + "¡Nuevo PR!" indicator
+**Schema** (`schemas/marcas.py`): `MarcaRMCreate` tiene todos los campos de tipo opcional para soportar los 4 flujos. La validación dura sucede en el router.
+
+### Frontend
+
+**`MarcasView.vue`** — grid de los 12 ejercicios. Cada card muestra:
+- `barra`/`corporal_lastre`: "Mejor 1RM" + valor + unidad (normalizado a kg para comparar entre kg/lbs)
+- `reps`: "Mejor reps" + número
+- `leger`: "Mejor nivel" + `nivel.palier`
+
+**`MarcasEjercicioView.vue`** — UI condicional según `tipo`:
+- Resumen: muestra "Último vs PR" según tipo (1RM, max reps, o nivel.palier)
+- Gráfica: evolución del 1RM, repeticiones, o nivel (puntos PR resaltados en oro)
+- Tabla rep-max y comparación de fórmulas: solo para `barra`/`corporal_lastre`
+- Historial: encabezados y formato de celda cambian por tipo
+- Modal de registro: 4 ramas con campos distintos (`barra`: peso+reps; `corporal_lastre`: corporal-auto/manual + lastre opcional + reps; `reps`: solo reps; `leger`: nivel + palier). Preview de 1RM solo en los dos primeros.
+
+**Helper compartido:** `tipoDe(nombre)` en `ejerciciosMarcas.js`.
+
+## WODs Personalizados
+
+Ruta `/wods/personalizados` (roles: `admin`, `cliente`). WODs filtrados por `es_personalizado = true` y `genero_destino` del usuario.
+
+- **Admin**: ve todos los WODs personalizados agrupados por género (masculino / femenino). Puede crear, editar y desactivar.
+- **Cliente**: solo ve los WODs del día que corresponden a su género. Puede registrar su resultado.
+
+**Campos del modelo `WOD` relevantes:**
+- `es_personalizado: Boolean` — distingue los WODs personalizados de los regulares
+- `genero_destino: String(20)` — `"masculino"` | `"femenino"` (nullable; null = aplica a todos)
+
+El filtro de género en el frontend usa `localStorage.getItem('userGenero')`. El sidebar solo muestra el enlace a clientes y admins (roles con acceso a la ruta).
+
+## Métodos de Pago
+
+Tabla `metodos_pago` — cuentas bancarias / transferencia que el admin expone en la pantalla de planes para que los usuarios sepan a dónde pagar.
+
+**Modelo** (`MetodoPago` en `models.py`): `banco`, `tipo_cuenta` (ahorros, corriente, nequi, daviplata…), `numero_cuenta`, `orden` (int para ordenar), `activo` (bool), `created_at`.
+
+**Router** (`backend/routers/metodos_pago.py`, prefix `/metodos-pago`):
+- `GET /metodos-pago/` — lista los activos ordenados por `orden` asc. Visible para cualquier usuario autenticado.
+- `POST /metodos-pago/` — crea uno nuevo; asigna `orden` al final. Solo admin.
+- `PATCH /metodos-pago/{id}` — actualiza banco, tipo_cuenta, numero_cuenta, orden o activo. Solo admin.
+- `DELETE /metodos-pago/{id}` — elimina. Solo admin.
+
+Los schemas Pydantic (`MetodoPagoCreate`, `MetodoPagoUpdate`) están definidos inline en el router (no hay archivo separado en `schemas/`).
 
 ## Servicio Biométrico (Bridge .NET)
 

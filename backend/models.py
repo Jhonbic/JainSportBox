@@ -294,10 +294,17 @@ class MarcaRM(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     usuario_id: Mapped[int] = mapped_column(Integer, ForeignKey("usuarios.id"), nullable=False)
     ejercicio: Mapped[str] = mapped_column(String(100), nullable=False)
-    peso: Mapped[float] = mapped_column(Float, nullable=False)
+    # peso/repeticiones/rm_calculado: aplican a barra y corporal_lastre.
+    # Para 'reps' solo se usa repeticiones (peso/rm null). Para 'leger' todos null.
+    peso: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     unidad: Mapped[str] = mapped_column(String(5), nullable=False, default="kg")  # kg | lbs
-    repeticiones: Mapped[int] = mapped_column(Integer, nullable=False)
-    rm_calculado: Mapped[float] = mapped_column(Float, nullable=False)
+    repeticiones: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rm_calculado: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # corporal_lastre: peso adicional al cuerpo (chaleco, disco). null si solo peso corporal.
+    peso_adicional: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # leger: nivel + palier alcanzados.
+    nivel: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    palier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

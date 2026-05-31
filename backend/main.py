@@ -20,6 +20,9 @@ _migraciones = [
     "ALTER TABLE wods ADD COLUMN es_personalizado INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE wods ADD COLUMN genero_destino VARCHAR(20)",
     "ALTER TABLE pagos ADD COLUMN duracion_dias INTEGER",
+    "ALTER TABLE marcas_rm ADD COLUMN peso_adicional REAL",
+    "ALTER TABLE marcas_rm ADD COLUMN nivel INTEGER",
+    "ALTER TABLE marcas_rm ADD COLUMN palier INTEGER",
 ]
 with engine.connect() as _conn:
     for _sql in _migraciones:
@@ -78,6 +81,38 @@ with engine.connect() as _conn:
         ))
         _conn.execute(text("DROP TABLE medidas_salud"))
         _conn.execute(text("ALTER TABLE medidas_salud_new RENAME TO medidas_salud"))
+        _conn.commit()
+
+# Migración: hacer peso/repeticiones/rm_calculado nullable en marcas_rm
+# (para tipos 'reps' y 'leger' que no usan estos campos)
+with engine.connect() as _conn:
+    _info_marcas = {row[1]: row[3] for row in _conn.execute(text("PRAGMA table_info(marcas_rm)")).fetchall()}
+    if _info_marcas and _info_marcas.get("peso", 0) == 1:  # notnull=1 → NOT NULL aún activo
+        _conn.execute(text("""
+            CREATE TABLE marcas_rm_new (
+                id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+                ejercicio VARCHAR(100) NOT NULL,
+                peso REAL,
+                unidad VARCHAR(5) NOT NULL DEFAULT 'kg',
+                repeticiones INTEGER,
+                rm_calculado REAL,
+                peso_adicional REAL,
+                nivel INTEGER,
+                palier INTEGER,
+                fecha DATE NOT NULL,
+                notas TEXT,
+                created_at DATETIME NOT NULL
+            )
+        """))
+        _conn.execute(text(
+            "INSERT INTO marcas_rm_new "
+            "(id, usuario_id, ejercicio, peso, unidad, repeticiones, rm_calculado, peso_adicional, nivel, palier, fecha, notas, created_at) "
+            "SELECT id, usuario_id, ejercicio, peso, unidad, repeticiones, rm_calculado, peso_adicional, nivel, palier, fecha, notas, created_at "
+            "FROM marcas_rm"
+        ))
+        _conn.execute(text("DROP TABLE marcas_rm"))
+        _conn.execute(text("ALTER TABLE marcas_rm_new RENAME TO marcas_rm"))
         _conn.commit()
 
 # Migración: hacer plan_id nullable en pagos (para pagos personalizados sin plan)
@@ -149,11 +184,47 @@ def _job_alertas():
     finally:
         db.close()
 
+
+# ── Scheduler: reset esta_en_gym para sesiones vencidas ───────
+def _job_reset_gym():
+    """Cada 5 minutos libera el flag esta_en_gym de usuarios cuya última
+    entrada fue hace más de MINUTOS_SESION. Cubre el caso de quienes salen
+    sin pasar por el torniquete."""
+    from datetime import datetime as _dt
+    from models import Asistencia as _Asistencia
+    from routers.asistencia import MINUTOS_SESION
+    db = SessionLocal()
+    try:
+        from models import Usuario as _Usuario
+        usuarios = db.query(_Usuario).filter(_Usuario.esta_en_gym == True).all()
+        ahora = _dt.utcnow()
+        resetados = 0
+        for u in usuarios:
+            ultima = (
+                db.query(_Asistencia)
+                .filter(_Asistencia.usuario_id == u.id, _Asistencia.tipo == "entrada")
+                .order_by(_Asistencia.fecha_hora.desc())
+                .first()
+            )
+            if ultima:
+                minutos = (ahora - ultima.fecha_hora).total_seconds() / 60
+                if minutos > MINUTOS_SESION:
+                    u.esta_en_gym = False
+                    resetados += 1
+        if resetados:
+            db.commit()
+            print(f"[Scheduler] {resetados} usuario(s) liberado(s) del gym por sesión vencida.")
+    finally:
+        db.close()
+
+
 _scheduler = BackgroundScheduler(timezone="America/Bogota")
 # Ejecuta todos los días a las 9:00 AM
 _scheduler.add_job(_job_alertas, CronTrigger(hour=9, minute=0))
 # También al arrancar para no perder el día actual
 _scheduler.add_job(_job_alertas, "date")
+# Reset de esta_en_gym cada 5 minutos
+_scheduler.add_job(_job_reset_gym, "interval", minutes=5)
 _scheduler.start()
 
 

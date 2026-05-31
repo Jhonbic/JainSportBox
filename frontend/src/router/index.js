@@ -14,6 +14,7 @@ import AlertasView from '../views/AlertasView.vue'
 import WodsPersonalizadosView from '../views/WodsPersonalizadosView.vue'
 import HomeView from '../views/HomeView.vue'
 import UsuarioPerfilView from '../views/UsuarioPerfilView.vue'
+import SesionesView from '../views/SesionesView.vue'
 
 const routes = [
   {
@@ -74,21 +75,25 @@ const routes = [
         path: 'salud',
         name: 'Salud',
         component: SaludView,
+        meta: { roles: ['coach', 'cliente'] },
       },
       {
         path: 'salud/:tipo',
         name: 'SaludMedida',
         component: SaludMedidaView,
+        meta: { roles: ['coach', 'cliente'] },
       },
       {
         path: 'marcas',
         name: 'Marcas',
         component: MarcasView,
+        meta: { roles: ['coach', 'cliente'] },
       },
       {
         path: 'marcas/:ejercicio',
         name: 'MarcasEjercicio',
         component: MarcasEjercicioView,
+        meta: { roles: ['coach', 'cliente'] },
       },
       {
         path: 'alertas',
@@ -107,6 +112,12 @@ const routes = [
         name: 'Home',
         component: HomeView,
         meta: { roles: ['cliente', 'coach'] },
+      },
+      {
+        path: 'sesiones',
+        name: 'Sesiones',
+        component: SesionesView,
+        meta: { roles: ['admin', 'coach'] },
       }
     ]
   }
