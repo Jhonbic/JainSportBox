@@ -482,10 +482,10 @@ function renderChart() {
     const maxV = Math.max(...valores)
     highlightIdx = valores.map(v => v === maxV)
   } else {
-    const unidad = ultimaUnidad.value
-    suffix = ` ${unidad}`
-    valores = registros.value.map(r => round1(normalizar(r.rm_calculado, r.unidad, unidad)))
-    label = `1RM estimado (${unidad})`
+    // Siempre en kg para que la línea sea estable aunque se mezclen registros en kg y lbs.
+    suffix = ' kg'
+    valores = registros.value.map(r => round1(toKg(r.rm_calculado, r.unidad)))
+    label = '1RM estimado (kg)'
     const prKg = mejorRMkg.value
     highlightIdx = registros.value.map(r => toKg(r.rm_calculado, r.unidad) === prKg)
   }
@@ -551,10 +551,6 @@ function toKg(valor, unidad) {
 }
 function fromKg(valorKg, unidad) {
   return unidad === 'lbs' ? valorKg * KG_PER_LB : valorKg
-}
-function normalizar(valor, desde, hacia) {
-  if (desde === hacia) return valor
-  return fromKg(toKg(valor, desde), hacia)
 }
 function round1(v) { return Math.round(v * 10) / 10 }
 
