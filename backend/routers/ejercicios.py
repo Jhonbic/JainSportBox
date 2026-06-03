@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -19,10 +19,14 @@ def _require_admin_or_coach(current_user: Usuario = Depends(get_current_user)):
 
 @router.get("/", response_model=List[EjercicioResponse])
 def listar_ejercicios(
+    categoria: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    return db.query(Ejercicio).order_by(Ejercicio.nombre.asc()).all()
+    q = db.query(Ejercicio)
+    if categoria:
+        q = q.filter(Ejercicio.categoria == categoria)
+    return q.order_by(Ejercicio.nombre.asc()).all()
 
 
 @router.post("/", response_model=EjercicioResponse, status_code=status.HTTP_201_CREATED)
@@ -34,7 +38,12 @@ def crear_ejercicio(
     existe = db.query(Ejercicio).filter(Ejercicio.nombre.ilike(payload.nombre.strip())).first()
     if existe:
         raise HTTPException(status_code=409, detail="Ya existe un ejercicio con ese nombre.")
-    ej = Ejercicio(nombre=payload.nombre.strip(), video_url=(payload.video_url or None))
+    ej = Ejercicio(
+        nombre=payload.nombre.strip(),
+        video_url=(payload.video_url or None),
+        descripcion=(payload.descripcion or None),
+        categoria=(payload.categoria or None),
+    )
     db.add(ej)
     db.commit()
     db.refresh(ej)
@@ -64,6 +73,10 @@ def actualizar_ejercicio(
         ej.nombre = nuevo
     if "video_url" in data:
         ej.video_url = data["video_url"] or None
+    if "descripcion" in data:
+        ej.descripcion = data["descripcion"] or None
+    if "categoria" in data:
+        ej.categoria = data["categoria"] or None
     db.commit()
     db.refresh(ej)
     return ej

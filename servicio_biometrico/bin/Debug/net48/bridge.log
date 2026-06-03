@@ -2392,7 +2392,345 @@ Presiona Ctrl+C para salir.
 [WS] Cliente desconectado
 [WS] Cliente conectado: 127.0.0.1
 [WS] Cliente conectado: 127.0.0.1
+<<<<<<< Updated upstream
 
 ===== Bridge iniciado 2026-06-01 15:42:24 =====
 1/06/2026 3:42:25 p. m. [Info] Server started at ws://0.0.0.0:8765 (actual port 8765) 
 [WS] Escuchando en ws://localhost:8765
+=======
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Lector desconectado: 875af125-1c85-d44f-a69d-4989447cbee0
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+[HUELLERO] Error recargando templates: Error al enviar la solicitud.
+
+===== Bridge iniciado 2026-06-03 07:03:03 =====
+3/06/2026 7:03:03 a. m. [Info] Server started at ws://0.0.0.0:8765 (actual port 8765) 
+[WS] Escuchando en ws://localhost:8765
+[HTTP] API REST escuchando en http://localhost:8001
+[HUELLERO] Capturando. Coloca el dedo en el lector...
+Presiona Ctrl+C para salir.
+[HUELLERO] Lector conectado: 00000000-0000-0000-0000-000000000000
+[HUELLERO] Templates cargados: 5
+[ACCESO] Modo acceso permanente ACTIVO (5 usuarios cargados).
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+Bye.
+>>>>>>> Stashed changes
+
+===== Bridge iniciado 2026-06-03 07:11:45 =====
+3/06/2026 7:11:45 a. m. [Info] Server started at ws://0.0.0.0:8765 (actual port 8765) 
+[WS] Escuchando en ws://localhost:8765
+[HTTP] API REST escuchando en http://localhost:8001
+[HUELLERO] Capturando. Coloca el dedo en el lector...
+Presiona Ctrl+C para salir.
+[HUELLERO] Lector conectado: 00000000-0000-0000-0000-000000000000
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[ACCESO] Modo acceso permanente ACTIVO (5 usuarios cargados).
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Jhon Anderson España Alvarez)
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Jhon Anderson España Alvarez)
+[ACCESO] ENTRADA registrada para Jhon Anderson España Alvarez (#2)
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Jhon Anderson España Alvarez)
+[ACCESO] SALIDA registrada para Jhon Anderson España Alvarez (#2)
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Jhon Anderson España Alvarez)
+[ACCESO] ENTRADA registrada para Jhon Anderson España Alvarez (#2)
+[HUELLERO] Dedo retirado
+[ACCESO] SALIDA registrada para Jhon Anderson España Alvarez (#2)
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Jhon Anderson España Alvarez)
+[ACCESO] ENTRADA registrada para Jhon Anderson España Alvarez (#2)
+[HUELLERO] Dedo retirado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[HUELLERO] Templates cargados: 5
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[WS] Cliente desconectado
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 5 (Juan Perez)
+[HUELLERO] Dedo retirado
+[HUELLERO] Templates cargados: 5
+[ACCESO] Acceso denegado para Juan Perez: Membresía vencida o sin plan activo para Juan Perez.
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 5 (Juan Perez)
+[ACCESO] Acceso denegado para Juan Perez: Membresía vencida o sin plan activo para Juan Perez.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 5 (Juan Perez)
+[ACCESO] Acceso denegado para Juan Perez: Membresía vencida o sin plan activo para Juan Perez.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 5 (Juan Perez)
+[ACCESO] Acceso denegado para Juan Perez: Membresía vencida o sin plan activo para Juan Perez.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Templates cargados: 5
+[HTTP] Verificación iniciada con 5 templates.
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[HUELLERO] Comparando contra 5 templates...
+[HUELLERO] Coincidencia: usuario 5 (Juan Perez)
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 5 (Juan Perez)
+[ACCESO] Acceso denegado para Juan Perez: Membresía vencida o sin plan activo para Juan Perez.
+[HUELLERO] Dedo retirado
+[HTTP] Verificación cancelada
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Templates cargados: 5
+[HTTP] Verificación iniciada con 5 templates.
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[HUELLERO] Comparando contra 5 templates...
+[HUELLERO] Coincidencia: usuario 1 (Jain Admin)
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HTTP] Verificación cancelada
+[HUELLERO] Templates cargados: 5
+[HTTP] Verificación iniciada con 5 templates.
+[HTTP] Verificación cancelada
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 1 (Jain Admin)
+[ACCESO] Acceso denegado para Jain Admin: Membresía vencida o sin plan activo para Jain Admin.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 1 (Jain Admin)
+[ACCESO] Acceso denegado para Jain Admin: Membresía vencida o sin plan activo para Jain Admin.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 1 (Jain Admin)
+[ACCESO] Acceso denegado para Jain Admin: Membresía vencida o sin plan activo para Jain Admin.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 1 (Jain Admin)
+[ACCESO] Acceso denegado para Jain Admin: Membresía vencida o sin plan activo para Jain Admin.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 1 (Jain Admin)
+[ACCESO] Acceso denegado para Jain Admin: Membresía vencida o sin plan activo para Jain Admin.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Templates cargados: 5
+[HTTP] Verificación iniciada con 5 templates.
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[HUELLERO] Comparando contra 5 templates...
+[HUELLERO] Coincidencia: usuario 3 (Rosa Alvarez)
+[HUELLERO] Dedo retirado
+[HTTP] Verificación cancelada
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 3 (Rosa Alvarez)
+[ACCESO] ENTRADA registrada para Rosa Alvarez (#3)
+[HUELLERO] Dedo retirado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Jhon Anderson España Alvarez)
+[ACCESO] ENTRADA registrada para Jhon Anderson España Alvarez (#2)
+[HUELLERO] Dedo retirado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 5
+[HUELLERO] Templates cargados: 5
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado

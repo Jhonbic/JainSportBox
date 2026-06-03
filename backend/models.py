@@ -137,6 +137,7 @@ class WOD(Base):
     coach_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("usuarios.id"), nullable=True)
     es_personalizado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     genero_destino: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # masculino | femenino
+    tipo: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)             # For Time | AMRAP | EMOM | Por Rondas | Fuerza | Otro
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # ── Relaciones ──
@@ -186,6 +187,8 @@ class Ejercicio(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(150), nullable=False, unique=True)
     video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    categoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)        # Cardio | Fuerza | Gimnasia | Olímpico | Otro
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self) -> str:
@@ -200,6 +203,11 @@ class WODEjercicio(Base):
     wod_id: Mapped[int] = mapped_column(Integer, ForeignKey("wods.id"), nullable=False)
     ejercicio_id: Mapped[int] = mapped_column(Integer, ForeignKey("ejercicios.id"), nullable=False)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # reps, peso, esquema...
+    rep_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rep_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rir: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    porcentaje_rm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    tiempo_segundos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     orden: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # ── Relaciones ──
@@ -214,6 +222,10 @@ class WODEjercicio(Base):
     @property
     def video_url(self) -> Optional[str]:
         return self.ejercicio.video_url if self.ejercicio else None
+
+    @property
+    def descripcion(self) -> Optional[str]:
+        return self.ejercicio.descripcion if self.ejercicio else None
 
     def __repr__(self) -> str:
         return f"<WODEjercicio WOD {self.wod_id} → Ejercicio {self.ejercicio_id}>"

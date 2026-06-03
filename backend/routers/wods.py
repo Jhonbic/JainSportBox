@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc
@@ -40,6 +40,11 @@ def _aplicar_ejercicios(wod: WOD, items, db: Session) -> None:
             WODEjercicio(
                 ejercicio_id=item.ejercicio_id,
                 notas=(item.notas or None),
+                rep_min=item.rep_min,
+                rep_max=item.rep_max,
+                rir=item.rir,
+                porcentaje_rm=item.porcentaje_rm,
+                tiempo_segundos=item.tiempo_segundos,
                 orden=item.orden if item.orden is not None else idx,
             )
         )
@@ -60,16 +65,15 @@ def _tiene_plan_personalizado(usuario_id: int, db: Session) -> bool:
 
 @router.get("/personalizados", response_model=List[WODResponse])
 def listar_wods_personalizados(
+    activo: Optional[bool] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
     if current_user.rol == RolUsuario.ADMIN:
-        return (
-            db.query(WOD)
-            .filter(WOD.es_personalizado == True)
-            .order_by(WOD.fecha.desc(), WOD.id.desc())
-            .all()
-        )
+        q = db.query(WOD).filter(WOD.es_personalizado == True)
+        if activo is not None:
+            q = q.filter(WOD.activo == activo)
+        return q.order_by(WOD.fecha.desc(), WOD.id.desc()).all()
     if not _tiene_plan_personalizado(current_user.id, db):
         raise HTTPException(status_code=403, detail="Tu plan no incluye WODs personalizados.")
     if not current_user.genero:
@@ -173,12 +177,16 @@ def wods_de_hoy(
 
 @router.get("/", response_model=List[WODResponse])
 def listar_wods(
+    activo: Optional[bool] = None,
+    skip: int = Query(0, ge=0),
     limit: int = Query(30, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
     es_staff = current_user.rol in (RolUsuario.ADMIN, RolUsuario.COACH)
     q = db.query(WOD).filter(WOD.es_personalizado == False)
-    if not es_staff:
+    if activo is not None:
+        q = q.filter(WOD.activo == activo)
+    elif not es_staff:
         q = q.filter(WOD.activo == True)
-    return q.order_by(WOD.fecha.desc(), WOD.id.desc()).limit(limit).all()
+    return q.order_by(WOD.fecha.desc(), WOD.id.desc()).offset(skip).limit(limit).all()

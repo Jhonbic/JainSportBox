@@ -16,6 +16,7 @@ import HomeView from '../views/HomeView.vue'
 import UsuarioPerfilView from '../views/UsuarioPerfilView.vue'
 import SesionesView from '../views/SesionesView.vue'
 import EjerciciosView from '../views/EjerciciosView.vue'
+import WodFormView from '../views/WodFormView.vue'
 
 const routes = [
   {
@@ -65,6 +66,30 @@ const routes = [
         path: 'wods',
         name: 'WODs',
         component: WodsView
+      },
+      {
+        path: 'wods/nuevo',
+        name: 'WodNuevo',
+        component: WodFormView,
+        meta: { roles: ['admin', 'coach'], personalizado: false },
+      },
+      {
+        path: 'wods/:id/editar',
+        name: 'WodEditar',
+        component: WodFormView,
+        meta: { roles: ['admin', 'coach'], personalizado: false },
+      },
+      {
+        path: 'wods/personalizados/nuevo',
+        name: 'WodPersonalizadoNuevo',
+        component: WodFormView,
+        meta: { roles: ['admin'], personalizado: true },
+      },
+      {
+        path: 'wods/personalizados/:id/editar',
+        name: 'WodPersonalizadoEditar',
+        component: WodFormView,
+        meta: { roles: ['admin'], personalizado: true },
       },
       {
         path: 'finanzas',

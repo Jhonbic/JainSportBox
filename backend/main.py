@@ -24,6 +24,14 @@ _migraciones = [
     "ALTER TABLE marcas_rm ADD COLUMN nivel INTEGER",
     "ALTER TABLE marcas_rm ADD COLUMN palier INTEGER",
     "ALTER TABLE usuarios ADD COLUMN fecha_nacimiento DATE",
+    "ALTER TABLE ejercicios ADD COLUMN descripcion TEXT",
+    "ALTER TABLE wod_ejercicios ADD COLUMN rep_min INTEGER",
+    "ALTER TABLE wod_ejercicios ADD COLUMN rep_max INTEGER",
+    "ALTER TABLE wod_ejercicios ADD COLUMN rir INTEGER",
+    "ALTER TABLE wod_ejercicios ADD COLUMN porcentaje_rm REAL",
+    "ALTER TABLE wod_ejercicios ADD COLUMN tiempo_segundos INTEGER",
+    "ALTER TABLE wods ADD COLUMN tipo VARCHAR(50)",
+    "ALTER TABLE ejercicios ADD COLUMN categoria VARCHAR(50)",
 ]
 with engine.connect() as _conn:
     for _sql in _migraciones:

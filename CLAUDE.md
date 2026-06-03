@@ -264,18 +264,71 @@ No todo se mide igual. La lista en `frontend/src/data/ejerciciosMarcas.js` etiqu
 
 **Helper compartido:** `tipoDe(nombre)` en `ejerciciosMarcas.js`.
 
-## WODs Personalizados
+## WODs — módulo completo
 
-Ruta `/wods/personalizados` (roles: `admin`, `cliente`). WODs filtrados por `es_personalizado = true` y `genero_destino` del usuario.
+### Modelo `WOD` — campos relevantes
 
-- **Admin**: ve todos los WODs personalizados agrupados por género (masculino / femenino). Puede crear, editar y desactivar.
-- **Cliente**: solo ve los WODs del día que corresponden a su género. Puede registrar su resultado.
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `activo` | `Boolean` (default `True`) | `True` → aparece en "WODs Activos"; `False` → aparece en "Historial de WODs" |
+| `es_personalizado` | `Boolean` (default `False`) | Distingue WODs regulares de personalizados |
+| `genero_destino` | `String(20)`, nullable | `"masculino"` \| `"femenino"` — solo para personalizados |
+| `tipo` | `String(50)`, nullable | Formato del WOD: `"For Time"` \| `"AMRAP"` \| `"EMOM"` \| `"Por Rondas"` \| `"Fuerza"` \| `"Otro"` |
 
-**Campos del modelo `WOD` relevantes:**
-- `es_personalizado: Boolean` — distingue los WODs personalizados de los regulares
-- `genero_destino: String(20)` — `"masculino"` | `"femenino"` (nullable; null = aplica a todos)
+### Separación activo / historial
 
-El filtro de género en el frontend usa `localStorage.getItem('userGenero')`. El sidebar solo muestra el enlace a clientes y admins (roles con acceso a la ruta).
+El campo `activo` es la distinción principal entre secciones (NO la fecha):
+- `activo=True` → sección **"WODs Activos"** (visible para todos los roles)
+- `activo=False` → sección **"Historial de WODs"** (solo admin/coach)
+
+Al hacer toggle, el WOD se mueve entre secciones instantáneamente en el frontend sin recargar.
+
+**`GET /wods/`** acepta `activo: Optional[bool]` y `skip: int` para filtrar y paginar. Sin el parámetro `activo`, staff ve todos; clientes solo ven `activo=True`.
+
+### WodsView — vista regular
+
+Ruta `/wods` (todos los roles autenticados).
+
+**Sección "WODs Activos":** fetch `GET /wods/?activo=true&limit=50`. Dark cards con badge del tipo (si existe). Staff ve botones de toggle (mover a historial), editar y eliminar.
+
+**Sección "Historial de WODs":** solo staff. Fetch `GET /wods/?activo=false&limit=30`. Lista plana con "Última fecha" bajo el nombre, badge del tipo, buscador por nombre y chips de filtro por tipo. Paginado con "Cargar más" (skip/limit). El botón de toggle restaura el WOD a activos.
+
+**Chips de filtro en historial:** Todos / For Time / AMRAP / EMOM / Por Rondas / Fuerza / Otro. Se combinan con el buscador de texto. "Cargar más" se oculta cuando hay filtro activo.
+
+### WodsPersonalizadosView — vista personalizada
+
+Ruta `/wods/personalizados` (roles: `admin`, `cliente`). `GET /wods/personalizados` acepta `activo: Optional[bool]` para el admin.
+
+**Vista Admin:**
+- Stats: conteo de WODs activos por género (masculino / femenino)
+- Sección "WODs Personalizados Activos": dark cards con badge de género + badge de tipo
+- Sección "Historial de Personalizados": lista plana con badge de género + badge de tipo, buscador y chips de filtro por tipo
+
+**Vista Cliente:** solo ve WODs activos filtrados por su género (el backend filtra). Sección "Tu WOD de Hoy" (fecha actual) + "Historial" (fechas anteriores). Sin cambios respecto al comportamiento anterior.
+
+El filtro de género en el frontend usa `localStorage.getItem('userGenero')`. El sidebar muestra el enlace a clientes y admins.
+
+### WodFormView — formulario
+
+Ruta `/wods/nuevo` y `/wods/:id/editar` (admin/coach). Soporta WODs regulares y personalizados vía `route.meta.personalizado`.
+
+Campos del form: `titulo`, `fecha`, **`tipo`** (select con 6 opciones, opcional), `descripcion`, `activo` (toggle), `ejercicios` (via `WodEjerciciosEditor`). Para personalizados en modo creación: selección múltiple de género (masculino / femenino), crea un WOD por género seleccionado.
+
+### Catálogo de ejercicios
+
+**Modelo `Ejercicio`** — campo nuevo:
+- `categoria: String(50)`, nullable — `"Cardio"` \| `"Fuerza"` \| `"Gimnasia"` \| `"Olímpico"` \| `"Otro"`
+
+**`GET /ejercicios/`** acepta `categoria: Optional[str]` para filtrar por categoría en el backend.
+
+**`EjerciciosView.vue`** (admin/coach):
+- Chips de filtro por categoría encima del grid (se combinan con el buscador)
+- Badge de color en cada card: Cardio → rojo, Fuerza → azul, Gimnasia → púrpura, Olímpico → ámbar, Otro → gris
+- Campo select de categoría en el modal de crear/editar
+
+**`WodEjerciciosEditor.vue`** (componente de selección al crear/editar un WOD):
+- Chips de filtro por categoría encima del select de ejercicios — facilita encontrar el ejercicio al armar el WOD
+- Muestra la categoría del ejercicio como badge junto al nombre en la lista de ejercicios del WOD
 
 ## Métodos de Pago
 

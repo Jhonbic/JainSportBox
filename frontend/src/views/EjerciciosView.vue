@@ -19,7 +19,7 @@
     </div>
 
     <!-- Buscador -->
-    <div class="mb-5 relative max-w-sm">
+    <div class="mb-4 relative max-w-sm">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
@@ -29,6 +29,21 @@
         placeholder="Buscar ejercicio..."
         class="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm"
       />
+    </div>
+
+    <!-- Filtro por categoría -->
+    <div class="flex flex-wrap gap-2 mb-5">
+      <button
+        v-for="cat in ['', 'Cardio', 'Fuerza', 'Gimnasia', 'Olímpico', 'Otro']"
+        :key="cat"
+        @click="categoriaFiltro = cat"
+        class="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors"
+        :class="categoriaFiltro === cat
+          ? 'bg-gray-800 text-white border-gray-800'
+          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'"
+      >
+        {{ cat || 'Todas' }}
+      </button>
     </div>
 
     <!-- Loading -->
@@ -45,9 +60,9 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
       <p class="text-gray-500 font-medium">
-        {{ busqueda ? 'No se encontraron ejercicios.' : 'Aún no hay ejercicios registrados.' }}
+        {{ (busqueda || categoriaFiltro) ? 'No se encontraron ejercicios.' : 'Aún no hay ejercicios registrados.' }}
       </p>
-      <button v-if="puedeEditar && !busqueda" @click="abrirFormulario()" class="mt-4 text-red-600 font-semibold hover:underline text-sm">
+      <button v-if="puedeEditar && !busqueda && !categoriaFiltro" @click="abrirFormulario()" class="mt-4 text-red-600 font-semibold hover:underline text-sm">
         + Crear el primero
       </button>
     </div>
@@ -62,6 +77,10 @@
         <div class="flex items-start justify-between gap-3 mb-3">
           <div class="flex-1 min-w-0">
             <h3 class="font-black text-gray-800 truncate">{{ ej.nombre }}</h3>
+            <span v-if="ej.categoria" class="inline-block text-xs font-semibold px-2 py-0.5 rounded-full mt-1 mb-0.5" :class="categoriaCss(ej.categoria)">
+              {{ ej.categoria }}
+            </span>
+            <p v-if="ej.descripcion" class="text-xs text-gray-500 mt-1 line-clamp-2">{{ ej.descripcion }}</p>
             <p v-if="ej.video_url" class="text-xs text-gray-400 truncate mt-0.5">{{ ej.video_url }}</p>
             <p v-else class="text-xs text-gray-300 italic mt-0.5">Sin video</p>
           </div>
@@ -133,6 +152,29 @@
               class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
             />
           </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Descripción <span class="text-gray-400 font-normal">(opcional)</span></label>
+            <textarea
+              v-model="form.descripcion"
+              rows="3"
+              placeholder="Explica la técnica, puntos clave, variantes…"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all resize-none text-sm"
+            ></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Categoría <span class="text-gray-400 font-normal">(opcional)</span></label>
+            <select
+              v-model="form.categoria"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all bg-white text-sm"
+            >
+              <option value="">Sin categoría</option>
+              <option value="Cardio">Cardio</option>
+              <option value="Fuerza">Fuerza</option>
+              <option value="Gimnasia">Gimnasia</option>
+              <option value="Olímpico">Olímpico</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
           <div v-if="errorForm" class="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100">
             {{ errorForm }}
           </div>
@@ -155,22 +197,34 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '../api'
 
-const ejercicios = ref([])
-const cargando = ref(true)
-const busqueda = ref('')
-const mostrarModal = ref(false)
-const editando = ref(null)
-const guardando = ref(false)
-const errorForm = ref('')
-const form = ref({ nombre: '', video_url: '' })
+const ejercicios      = ref([])
+const cargando        = ref(true)
+const busqueda        = ref('')
+const categoriaFiltro = ref('')
+const mostrarModal    = ref(false)
+const editando        = ref(null)
+const guardando       = ref(false)
+const errorForm       = ref('')
+const form            = ref({ nombre: '', video_url: '', descripcion: '', categoria: '' })
 
-const userRol = computed(() => localStorage.getItem('userRol') || 'cliente')
+const userRol     = computed(() => localStorage.getItem('userRol') || 'cliente')
 const puedeEditar = computed(() => ['admin', 'coach'].includes(userRol.value))
 
+const CATEGORIA_CSS = {
+  'Cardio':    'bg-red-100 text-red-700',
+  'Fuerza':    'bg-blue-100 text-blue-700',
+  'Gimnasia':  'bg-purple-100 text-purple-700',
+  'Olímpico':  'bg-amber-100 text-amber-700',
+  'Otro':      'bg-gray-100 text-gray-600',
+}
+function categoriaCss(cat) { return CATEGORIA_CSS[cat] || 'bg-gray-100 text-gray-600' }
+
 const ejerciciosFiltrados = computed(() => {
+  let result = ejercicios.value
   const q = busqueda.value.trim().toLowerCase()
-  if (!q) return ejercicios.value
-  return ejercicios.value.filter(e => e.nombre.toLowerCase().includes(q))
+  if (q) result = result.filter(e => e.nombre.toLowerCase().includes(q))
+  if (categoriaFiltro.value) result = result.filter(e => e.categoria === categoriaFiltro.value)
+  return result
 })
 
 async function cargar() {
@@ -187,8 +241,8 @@ function abrirFormulario(ej = null) {
   editando.value = ej
   errorForm.value = ''
   form.value = ej
-    ? { nombre: ej.nombre, video_url: ej.video_url || '' }
-    : { nombre: '', video_url: '' }
+    ? { nombre: ej.nombre, video_url: ej.video_url || '', descripcion: ej.descripcion || '', categoria: ej.categoria || '' }
+    : { nombre: '', video_url: '', descripcion: '', categoria: '' }
   mostrarModal.value = true
 }
 
@@ -204,6 +258,8 @@ async function guardar() {
     const payload = {
       nombre: form.value.nombre.trim(),
       video_url: form.value.video_url.trim() || null,
+      descripcion: form.value.descripcion.trim() || null,
+      categoria: form.value.categoria || null,
     }
     if (editando.value) {
       await api.put(`/ejercicios/${editando.value.id}`, payload)
