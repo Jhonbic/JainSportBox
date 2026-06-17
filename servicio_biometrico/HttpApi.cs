@@ -15,8 +15,9 @@ namespace HuelleroBridge
         private readonly FingerprintCapture _capture;
         private Thread _thread;
 
-        private const string BridgeSecret = "jain_bridge_secret_2024";
-        private const string ApiBase      = "http://localhost:8000";
+        // Configurables por entorno (JSB_API_BASE / BRIDGE_SECRET). Ver BridgeConfig.
+        private static readonly string BridgeSecret = BridgeConfig.BridgeSecret;
+        private static readonly string ApiBase      = BridgeConfig.ApiBase;
         private static readonly HttpClient _http = new HttpClient();
 
         public HttpApi(EnrollmentState state, FingerprintCapture capture, int port = 8001)

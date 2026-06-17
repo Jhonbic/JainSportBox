@@ -109,10 +109,17 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 | `BRIDGE_SECRET` | clave compartida con el bridge |
 | `CORS_ORIGINS` | dominios del frontend |
 
-### 3.4 Almacenamiento de `/uploads` (fotos de perfil) — ⚠️ DECISIÓN PENDIENTE
-El filesystem de Railway/Render es **efímero** (se borra en cada deploy → se pierden las fotos). Opciones:
-- **A)** Volumen persistente de Railway.
-- **B)** Mover a almacenamiento de objetos (Cloudflare R2 / S3).
+### 3.4 Almacenamiento de `/uploads` (fotos de perfil) — ✅ RESUELTO: Object storage (R2/S3)
+El filesystem de Railway/Render es **efímero** (se borra en cada deploy → se pierden las fotos). Se eligió **almacenamiento de objetos S3-compatible** (Cloudflare R2 / AWS S3).
+
+Implementado en `backend/storage.py`: abstracción `guardar_archivo()` / `eliminar_archivo()` usada por los routers `usuarios`, `auth` (registro) y `productos`. Si `S3_BUCKET` está definido sube al bucket vía boto3; si no, cae al filesystem local (dev). `eliminar_archivo()` tolera URLs de ambos backends, así que los registros viejos (creados en local) se siguen pudiendo borrar tras migrar.
+
+Variables de entorno S3/R2 (ver `backend/.env.example`): `S3_BUCKET`, `S3_PUBLIC_URL`, `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
+
+### 3.5 Archivos de despliegue (raíz del repo)
+- `railway.toml` — builder nixpacks + `startCommand` (entra a `backend/`).
+- `Procfile` — fallback con el mismo comando de arranque.
+- `.python-version` — fija Python 3.13.
 
 **Entregable de la capa:** `https://api.tudominio.com/docs` accesible, login funcional contra Postgres en la nube.
 
@@ -171,41 +178,64 @@ export default defineConfig({
 - Generar íconos `pwa-192.png`, `pwa-512.png`, `apple-touch-icon.png`.
 - (Opcional) Botón "Instalar app" capturando el evento `beforeinstallprompt`.
 
+### 4.5 Estado — ✅ IMPLEMENTADO
+- `frontend/src/api.js` — `baseURL` por `VITE_API_URL` + helper `mediaUrl()` (resuelve fotos: absolutas de S3/R2 tal cual, locales con base del backend). Aplicado en `TiendaView`, `UsuariosView`, `UsuarioPerfilView`.
+- `frontend/vite.config.js` — `vite-plugin-pwa` (autoUpdate). El origin del API se lee con `loadEnv` y se hornea como RegExp en el SW (NetworkFirst, no CacheFirst). Verificado en build: `registerRoute(/^https:\/\/api…/, NetworkFirst)`.
+- Íconos generados en `frontend/public/`: `pwa-192.png`, `pwa-512.png`, `apple-touch-icon.png`, `favicon.ico` (rojo de marca).
+- `index.html` — favicon, apple-touch-icon, theme-color, título.
+- Config de host: `frontend/vercel.json` (rewrite SPA) y `netlify.toml` (base/publish + redirect SPA).
+- `frontend/.env.example` documenta `VITE_API_URL`. Valores reales en el dashboard del host o `.env.production`/`.env.local` (gitignored).
+
+**Pendiente (acción externa):** setear `VITE_API_URL` con el dominio real del API en Vercel/Netlify una vez exista (decisión de dominio aún abierta).
+
 **Entregable de la capa:** `https://app.tudominio.com` instalable como app en Android/iOS, conectada al backend cloud.
 
 ---
 
 ## Capa 5 — Bridge biométrico (.NET, PC del gym)
 
-### 5.1 Apuntar al backend cloud
-`ApiBase` está hardcodeado en dos archivos:
-- `servicio_biometrico/FingerprintCapture.cs:37`
-- `servicio_biometrico/HttpApi.cs:19`
-
-Cambiar a leer una env var:
+### 5.1 Apuntar al backend cloud — ✅ IMPLEMENTADO
+`ApiBase` y `BridgeSecret` estaban hardcodeados en `FingerprintCapture.cs` y `HttpApi.cs`. Se centralizaron en **`servicio_biometrico/BridgeConfig.cs`**, que los lee de variables de entorno con default local:
 ```csharp
-private static readonly string ApiBase =
-    Environment.GetEnvironmentVariable("JSB_API_BASE") ?? "https://api.tudominio.com";
+public static readonly string ApiBase =
+    (Environment.GetEnvironmentVariable("JSB_API_BASE") ?? "http://localhost:8000").TrimEnd('/');
+public static readonly string BridgeSecret =
+    Environment.GetEnvironmentVariable("BRIDGE_SECRET") ?? "jain_bridge_secret_2024";
+```
+Ambos archivos ahora referencian `BridgeConfig.*` (fuente única, sin riesgo de desincronizar el secreto). Compila OK (verificado vía `dotnet build`).
+
+**Configurar en la PC del gym** (env vars de máquina, requieren reabrir la sesión/proceso):
+```powershell
+setx JSB_API_BASE "https://api.tudominio.com" /M
+setx BRIDGE_SECRET "<mismo valor que el backend>" /M
 ```
 
 ### 5.2 Notas
 - El bridge sigue exponiendo `localhost:8001` (HTTP API) y `localhost:8765` (WebSocket) para la estación local.
-- El header `X-Bridge-Secret` viaja igual contra el cloud → **debe ser HTTPS** para no mandar el secreto en claro.
+- El header `X-Bridge-Secret` viaja igual contra el cloud → **debe ser HTTPS** para no mandar el secreto en claro (por eso `JSB_API_BASE` debe ser `https://`).
 - El bridge sigue corriendo como Administrador (acceso al driver USB) en la PC del gym.
+- Recompilar requiere detener el bridge en ejecución (bloquea `bin\Debug\net48\HuelleroBridge.exe`).
 
 **Entregable de la capa:** enrolamiento y verificación de huella funcionando contra el backend cloud.
 
 ---
 
-## Capa 6 — Estación de huella local (recepción)
+## Capa 6 — Estación de huella local (recepción) — ✅ IMPLEMENTADO
 
-Resuelve el bloqueo *mixed content*.
+Resuelve el bloqueo *mixed content*: una página `http://localhost` sí puede llamar al bridge (`http://localhost:8001`, mismo esquema) y al backend cloud (`http→https` permitido). Los clientes usan la PWA en la nube y nunca tocan esta ruta.
 
-- Servir el `dist/` localmente en la PC del gym: `npx serve dist -l 80` o `npm run preview`.
-- El recepcionista abre `http://localhost`:
-  - llama al bridge en `http://localhost:8001` (mismo esquema → OK),
-  - llama al backend cloud por HTTPS (http→https permitido).
-- Los clientes nunca usan esta ruta — solo recepción.
+**Launcher `start-estacion.ps1`** (raíz; wrapper `start-estacion.cmd`):
+```powershell
+.\start-estacion.ps1 -ApiUrl https://api.tudominio.com
+```
+Hace: `npm install` (si falta) → `npm run build` con `VITE_API_URL` → sirve `dist/` con `vite preview` en `http://localhost:80` (fallback SPA incluido) → arranca el bridge si no corre.
+
+Flags: `-Port <n>` (default 80; 80 requiere admin), `-SkipBuild` (sirve el `dist/` existente), `-NoBridge`. Si `VITE_API_URL` no es HTTPS, avisa (el `X-Bridge-Secret` viajaría en claro).
+
+Verificado: `vite preview` sirve `/`, deep routes (`/usuarios` → 200 vía fallback SPA), `sw.js` y `manifest.webmanifest`.
+
+- El recepcionista abre `http://localhost` en el navegador de la PC del gym.
+- Los URLs del bridge (`localhost:8001`, `ws://localhost:8765`) ya están fijados a local en el frontend; el resto de llamadas van al API cloud (`VITE_API_URL`).
 
 **Entregable de la capa:** flujo completo de recepción (marcar huella → abre palanquera → registra asistencia en cloud) operativo.
 
@@ -226,7 +256,7 @@ Resuelve el bloqueo *mixed content*.
 
 ## Decisiones pendientes
 
-1. **Fotos de perfil (`/uploads`):** ¿volumen persistente en Railway, o mover a R2/S3? (Si no se resuelve, se pierden en cada deploy.)
+1. ~~**Fotos de perfil (`/uploads`):**~~ ✅ RESUELTO → object storage R2/S3 (ver Capa 3.4).
 2. **Dominio:** ¿dominio propio, o subdominios gratis de Railway/Vercel al inicio?
 3. **Alembic:** ¿introducirlo ahora (capa 1.4) o dejar el patrón actual de migraciones?
 

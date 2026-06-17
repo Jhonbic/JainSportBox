@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 .venv/
+venv/
 *.db
 
 # Variables de entorno — nunca subir al repo
@@ -14,6 +15,11 @@ backend/uploads/
 # Node
 frontend/node_modules/
 frontend/dist/
+frontend/dev-dist/
+
+# Variables de entorno del frontend (valores por máquina/entorno)
+frontend/.env.local
+frontend/.env.production
 
 # Claude
 .claude/

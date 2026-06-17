@@ -18,6 +18,14 @@ Desde la raíz del repo:
 ```
 O doble-clic a `start-dev.cmd`. El launcher activa el `venv/`, detecta si el bridge ya está corriendo (no relanza) y dispara UAC solo cuando hace falta. Ver logs del bridge en vivo: `servicio_biometrico\ver-logs.cmd`.
 
+### Estación de recepción (producción, PC del gym)
+
+`start-estacion.ps1` sirve el build de producción del frontend localmente apuntando al backend cloud (resuelve el bloqueo *mixed content* de la PWA). Ver Capa 6 en `DEPLOYMENT.md`.
+```powershell
+.\start-estacion.ps1 -ApiUrl https://api.tudominio.com   # build + vite preview en http://localhost:80 + bridge
+.\start-estacion.ps1 -ApiUrl https://api.tudominio.com -Port 8080 -SkipBuild
+```
+
 ### Backend
 ```bash
 # From project root
@@ -431,6 +439,7 @@ Lo único conservado en `Program.cs` además del shell WinForms es `SetThreadExe
 |---|---|
 | `Program.cs` | Entry point `[STAThread]`; redirige logs a `bridge.log`, suelta consola con `FreeConsole`, levanta WebSocket/HttpApi/BridgeForm |
 | `BridgeForm.cs` | Ventana WinForms invisible (HWND para message pump COM); crea `FingerprintCapture` en `OnLoad` |
+| `BridgeConfig.cs` | Config por entorno (fuente única): `ApiBase` (env `JSB_API_BASE`, default `http://localhost:8000`) y `BridgeSecret` (env `BRIDGE_SECRET`). Referenciado por `FingerprintCapture` y `HttpApi`. |
 | `FingerprintCapture.cs` | Implementa `DPFP.Capture.EventHandler`; instancia `new Capture(Priority.High)` para captura en background; maneja enrolamiento, verificación y acceso. Incluye cooldown de `CooldownSegundos` (4 s) por usuario en modo acceso para evitar doble-registro cuando el usuario pone el dedo varias veces seguidas. Dispara la palanquera vía `RelayController.Abrir()` cuando el backend confirma una **entrada** (no en salida). |
 | `RelayController.cs` | Abre la palanquera mandando el byte `'A'` por USB-serial a un Arduino UNO. Ver sección "Palanquera (relé + Arduino)" más abajo. |
 | `arduino/palanquera_rele/palanquera_rele.ino` | Sketch del Arduino UNO que controla el módulo de relé. |

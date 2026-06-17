@@ -34,8 +34,9 @@ namespace HuelleroBridge
         private readonly Dictionary<int, DateTime> _ultimoAcceso = new Dictionary<int, DateTime>();
         private const int CooldownSegundos = 4;
 
-        private const string ApiBase      = "http://localhost:8000";
-        private const string BridgeSecret = "jain_bridge_secret_2024";
+        // Configurables por entorno (JSB_API_BASE / BRIDGE_SECRET). Ver BridgeConfig.
+        private static readonly string ApiBase      = BridgeConfig.ApiBase;
+        private static readonly string BridgeSecret = BridgeConfig.BridgeSecret;
 
         public FingerprintCapture(EnrollmentState state, Action<string> broadcast, RelayController relay = null)
         {

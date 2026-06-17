@@ -1,7 +1,4 @@
-import shutil
-import uuid
 from datetime import timedelta
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -12,11 +9,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Pago, Plan, RolUsuario, Usuario
 from security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, get_password_hash, verify_password, get_current_user
+from storage import guardar_archivo
 
 router = APIRouter(tags=["Auth"])
 
-UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
-UPLOADS_DIR.mkdir(exist_ok=True)
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
@@ -77,12 +73,7 @@ def registro_publico(
     if foto and foto.filename:
         if foto.content_type not in ALLOWED_TYPES:
             raise HTTPException(status_code=400, detail="Formato de foto no permitido. Usa JPG, PNG o WEBP.")
-        extension = foto.filename.rsplit(".", 1)[-1].lower()
-        nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
-        destino = UPLOADS_DIR / nombre_archivo
-        with destino.open("wb") as f:
-            shutil.copyfileobj(foto.file, f)
-        nuevo.foto_url = f"/uploads/{nombre_archivo}"
+        nuevo.foto_url = guardar_archivo(foto)
 
     db.add(nuevo)
     db.commit()
