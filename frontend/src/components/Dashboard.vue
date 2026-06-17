@@ -63,7 +63,11 @@
           </router-link>
         </template>
 
+        <!-- ── GESTIÓN (admin + coach) ── -->
         <template v-if="!isPendiente && canManage">
+          <div class="pt-2 pb-1 px-2">
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Gestión</p>
+          </div>
           <router-link to="/usuarios" @click="sidebarOpen = false"
             class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
             active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
@@ -96,21 +100,8 @@
             </svg>
             Ejercicios
           </router-link>
-        </template>
-
-        <template v-if="!isPendiente && isAdmin">
-          <div class="pt-2 pb-1 px-2">
-            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Administración</p>
-          </div>
-          <router-link to="/tienda" @click="sidebarOpen = false"
-            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
-            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
-            Tienda
-          </router-link>
-          <router-link to="/planes" @click="sidebarOpen = false"
+          <!-- Solo admin -->
+          <router-link v-if="isAdmin" to="/planes" @click="sidebarOpen = false"
             class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
             active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -118,7 +109,7 @@
             </svg>
             Planes
           </router-link>
-          <router-link to="/finanzas" @click="sidebarOpen = false"
+          <router-link v-if="isAdmin" to="/finanzas" @click="sidebarOpen = false"
             class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
             active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -128,58 +119,96 @@
           </router-link>
         </template>
 
-        <div class="pt-2 pb-1 px-2" v-if="!isPendiente && canManage">
-          <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Operaciones</p>
-        </div>
-        <router-link v-if="!isPendiente && (isCliente || isCoach)" to="/home" @click="sidebarOpen = false"
-          class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
-          active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-          Inicio
-        </router-link>
-        <router-link v-if="!isPendiente && !membresiaVencida" to="/wods" @click="sidebarOpen = false"
-          class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
-          active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          WODs
-        </router-link>
-        <router-link v-if="!isPendiente && !membresiaVencida && (isAdmin || tieneWodsPersonalizados)" to="/wods/personalizados" @click="sidebarOpen = false"
-          class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
-          active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-          </svg>
-          WODs Personalizados
-        </router-link>
-        <router-link v-if="!isPendiente && isCliente" to="/planes" @click="sidebarOpen = false"
-          class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
-          active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Planes
-        </router-link>
-        <router-link v-if="!isPendiente && isCliente && !membresiaVencida" to="/salud" @click="sidebarOpen = false"
-          class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
-          active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-          </svg>
-          Mi Salud
-        </router-link>
-        <router-link v-if="!isPendiente && !membresiaVencida && !isAdmin" to="/marcas" @click="sidebarOpen = false"
-          class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
-          active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          Mis Marcas
-        </router-link>
+        <!-- ── CONTENIDO (todos menos pendiente) ── -->
+        <template v-if="!isPendiente">
+          <div class="pt-2 pb-1 px-2">
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Contenido</p>
+          </div>
+          <router-link v-if="!membresiaVencida" to="/wods" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            WODs
+          </router-link>
+          <router-link v-if="!membresiaVencida && (canManage || tieneWodsPersonalizados)" to="/wods/personalizados" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+            WODs Personalizados
+          </router-link>
+          <router-link v-if="canManage" to="/tienda" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            Tienda
+          </router-link>
+        </template>
+
+        <!-- ── MI BOX (coach + cliente) ── -->
+        <template v-if="!isPendiente && (isCliente || isCoach)">
+          <div class="pt-2 pb-1 px-2">
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Mi Box</p>
+          </div>
+          <router-link to="/home" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Inicio
+          </router-link>
+          <router-link v-if="isCliente" to="/planes" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Planes
+          </router-link>
+          <router-link v-if="isCliente && !membresiaVencida" to="/salud" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+            Mi Salud
+          </router-link>
+          <router-link v-if="!membresiaVencida" to="/marcas" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Mis Marcas
+          </router-link>
+        </template>
+
       </nav>
+
+      <!-- Chip sesión activa -->
+      <div v-if="tieneSession && !isPendiente" class="px-4 pb-3">
+        <div class="flex items-center gap-2 bg-red-950 border border-red-800 rounded-xl px-3 py-2.5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <button @click="irASesion" class="flex-1 text-left min-w-0">
+            <p class="text-xs font-bold text-white truncate">{{ sesion.ejercicio }}</p>
+            <p class="text-xs text-red-300">{{ sesion.series.length }} serie{{ sesion.series.length !== 1 ? 's' : '' }} en progreso</p>
+          </button>
+          <button @click="cancelarSesion" title="Cancelar sesión"
+            class="p-1 text-red-500 hover:text-white transition-colors shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
 
       <!-- Logout -->
       <div class="p-4 border-t border-gray-800">
@@ -224,12 +253,20 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth, setFechaVencimiento } from '../composables/useAuth'
+import { useSessionMarca } from '../composables/useSessionMarca'
 import api from '../api'
 
 const router = useRouter()
 const { nombre, rol, isAdmin, isCoach, isCliente, isPendiente, canManage, membresiaVencida } = useAuth()
+const { sesion, tieneSession, cancelarSesion } = useSessionMarca()
 
 const sidebarOpen = ref(false)
+
+function irASesion() {
+  if (!sesion.value) return
+  sidebarOpen.value = false
+  router.push('/marcas/' + encodeURIComponent(sesion.value.ejercicio))
+}
 const tieneWodsPersonalizados = ref(localStorage.getItem('tieneWodsPersonalizados') === 'true')
 
 onMounted(async () => {
@@ -250,6 +287,7 @@ const rolLabel = computed(() => {
 })
 
 const logout = () => {
+  cancelarSesion()
   localStorage.removeItem('token')
   localStorage.removeItem('userRol')
   localStorage.removeItem('userName')

@@ -1,6 +1,3 @@
-import shutil
-import uuid
-from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -10,9 +7,7 @@ from database import get_db
 from models import Producto, RolUsuario, Usuario
 from schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate
 from security import get_current_user
-
-UPLOADS_DIR = Path(__file__).parent.parent / "uploads" / "productos"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+from storage import guardar_archivo, eliminar_archivo
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -96,18 +91,9 @@ def subir_foto(
         raise HTTPException(status_code=404, detail="Producto no encontrado.")
 
     if producto.foto_url:
-        archivo_anterior = Path(__file__).parent.parent / producto.foto_url.lstrip("/")
-        if archivo_anterior.exists():
-            archivo_anterior.unlink()
+        eliminar_archivo(producto.foto_url)
 
-    ext = foto.filename.rsplit(".", 1)[-1].lower()
-    nombre_archivo = f"{uuid.uuid4().hex}.{ext}"
-    destino = UPLOADS_DIR / nombre_archivo
-
-    with destino.open("wb") as f:
-        shutil.copyfileobj(foto.file, f)
-
-    producto.foto_url = f"/uploads/productos/{nombre_archivo}"
+    producto.foto_url = guardar_archivo(foto, "productos")
     db.commit()
     db.refresh(producto)
     return producto

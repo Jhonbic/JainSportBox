@@ -45,8 +45,12 @@
         </div>
 
         <!-- Nombre del ejercicio -->
-        <div class="px-5 py-3 border-t border-gray-50">
-          <p class="font-bold text-gray-800">{{ ej.nombre }}</p>
+        <div class="px-5 py-3 border-t border-gray-50 flex items-center justify-between gap-2">
+          <p class="font-bold text-gray-800 truncate">{{ ej.nombre }}</p>
+          <span v-if="sesion && sesion.ejercicio === ej.nombre"
+            class="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 whitespace-nowrap">
+            ⏱ {{ sesion.series.length }}s
+          </span>
         </div>
 
       </RouterLink>
@@ -60,6 +64,9 @@ import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '../api'
 import { EJERCICIOS_MARCAS } from '../data/ejerciciosMarcas'
+import { useSessionMarca } from '../composables/useSessionMarca'
+
+const { sesion } = useSessionMarca()
 
 const marcas   = ref([])
 const cargando = ref(true)

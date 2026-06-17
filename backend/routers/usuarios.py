@@ -1,8 +1,5 @@
 import os
-import shutil
-import uuid
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
@@ -15,9 +12,7 @@ from database import get_db
 from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario
 from schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
 from security import get_current_user, get_password_hash
-
-UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
-UPLOADS_DIR.mkdir(exist_ok=True)
+from storage import guardar_archivo, eliminar_archivo
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -127,18 +122,9 @@ def subir_foto(
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
     if usuario.foto_url:
-        archivo_anterior = UPLOADS_DIR / Path(usuario.foto_url).name
-        if archivo_anterior.exists():
-            archivo_anterior.unlink()
+        eliminar_archivo(usuario.foto_url)
 
-    extension = foto.filename.rsplit(".", 1)[-1].lower()
-    nombre_archivo = f"{uuid.uuid4().hex}.{extension}"
-    destino = UPLOADS_DIR / nombre_archivo
-
-    with destino.open("wb") as f:
-        shutil.copyfileobj(foto.file, f)
-
-    usuario.foto_url = f"/uploads/{nombre_archivo}"
+    usuario.foto_url = guardar_archivo(foto)
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -154,9 +140,7 @@ def eliminar_usuario(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
     if usuario.foto_url:
-        archivo = UPLOADS_DIR / Path(usuario.foto_url).name
-        if archivo.exists():
-            archivo.unlink()
+        eliminar_archivo(usuario.foto_url)
     db.delete(usuario)
     db.commit()
 

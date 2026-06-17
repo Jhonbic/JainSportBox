@@ -7,7 +7,7 @@
         <p class="text-gray-500 mt-1">Entrenamientos especiales por género</p>
       </div>
       <button
-        v-if="isAdmin"
+        v-if="isStaff"
         @click="router.push('/wods/personalizados/nuevo')"
         class="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-lg shadow transition-colors"
       >
@@ -18,8 +18,8 @@
       </button>
     </div>
 
-    <!-- ── VISTA ADMIN ── -->
-    <template v-if="isAdmin">
+    <!-- ── VISTA STAFF ── -->
+    <template v-if="isStaff">
       <!-- Stats activos -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         <div class="bg-red-50 rounded-2xl p-5 border border-red-100">
@@ -342,7 +342,8 @@ import api from '../api'
 import { useAuth } from '../composables/useAuth'
 import WodEjerciciosLista from '../components/WodEjerciciosLista.vue'
 
-const { isAdmin } = useAuth()
+const { isAdmin, isCoach } = useAuth()
+const isStaff = computed(() => isAdmin.value || isCoach.value)
 const router = useRouter()
 
 const wods       = ref([])

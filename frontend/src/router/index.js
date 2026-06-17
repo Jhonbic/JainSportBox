@@ -83,13 +83,13 @@ const routes = [
         path: 'wods/personalizados/nuevo',
         name: 'WodPersonalizadoNuevo',
         component: WodFormView,
-        meta: { roles: ['admin'], personalizado: true },
+        meta: { roles: ['admin', 'coach'], personalizado: true },
       },
       {
         path: 'wods/personalizados/:id/editar',
         name: 'WodPersonalizadoEditar',
         component: WodFormView,
-        meta: { roles: ['admin'], personalizado: true },
+        meta: { roles: ['admin', 'coach'], personalizado: true },
       },
       {
         path: 'finanzas',
@@ -131,7 +131,7 @@ const routes = [
         path: 'wods/personalizados',
         name: 'WodsPersonalizados',
         component: WodsPersonalizadosView,
-        meta: { roles: ['admin', 'cliente'] },
+        meta: { roles: ['admin', 'coach', 'cliente'] },
       },
       {
         path: 'home',

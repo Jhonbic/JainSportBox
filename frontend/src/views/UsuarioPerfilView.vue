@@ -597,7 +597,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import api from '../api'
+import api, { mediaUrl } from '../api'
 
 const route = useRoute()
 const id = route.params.id
@@ -845,9 +845,8 @@ const _iniciarPollEnrol = () => {
 }
 
 // ── Helpers de perfil ───────────────────────────────────────
-const BASE_URL = 'http://127.0.0.1:8000'
 const fotoSrc = (u) => u?.foto_url
-  ? `${BASE_URL}${u.foto_url}`
+  ? mediaUrl(u.foto_url)
   : `https://ui-avatars.com/api/?name=${encodeURIComponent(u?.nombre || 'U')}&background=dc2626&color=fff&size=128`
 
 const rolLabel = (rol) => ({ admin: 'Administrador', coach: 'Coach', cliente: 'Cliente', pendiente: 'Pendiente' }[rol] || rol)

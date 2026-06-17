@@ -69,7 +69,7 @@ def listar_wods_personalizados(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    if current_user.rol == RolUsuario.ADMIN:
+    if current_user.rol in (RolUsuario.ADMIN, RolUsuario.COACH):
         q = db.query(WOD).filter(WOD.es_personalizado == True)
         if activo is not None:
             q = q.filter(WOD.activo == activo)
@@ -97,8 +97,8 @@ def crear_wod(
     current_user: Usuario = Depends(_require_admin_or_coach),
 ):
     if payload.es_personalizado:
-        if current_user.rol != RolUsuario.ADMIN:
-            raise HTTPException(status_code=403, detail="Solo el administrador puede crear WODs personalizados.")
+        if current_user.rol not in (RolUsuario.ADMIN, RolUsuario.COACH):
+            raise HTTPException(status_code=403, detail="Solo el administrador o coach puede crear WODs personalizados.")
         if not payload.genero_destino:
             raise HTTPException(status_code=422, detail="Debes seleccionar el género para un WOD personalizado.")
     data = payload.model_dump()

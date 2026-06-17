@@ -74,7 +74,7 @@
 
           <!-- Foto -->
           <div class="relative h-44 bg-gray-50 flex items-center justify-center overflow-hidden">
-            <img v-if="p.foto_url" :src="`http://127.0.0.1:8000${p.foto_url}`"
+            <img v-if="p.foto_url" :src="mediaUrl(p.foto_url)"
               class="w-full h-full object-cover" :alt="p.nombre" />
             <div v-else class="flex flex-col items-center text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-14 w-14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -161,7 +161,7 @@
 
             <!-- Foto -->
             <div class="relative h-40 bg-gray-50 overflow-hidden">
-              <img v-if="p.foto_url" :src="`http://127.0.0.1:8000${p.foto_url}`"
+              <img v-if="p.foto_url" :src="mediaUrl(p.foto_url)"
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               <div v-else class="w-full h-full flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -228,7 +228,7 @@
             <div v-for="item in carrito" :key="item.producto.id"
               class="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
               <div class="w-10 h-10 rounded-lg overflow-hidden bg-gray-200 flex-shrink-0">
-                <img v-if="item.producto.foto_url" :src="`http://127.0.0.1:8000${item.producto.foto_url}`"
+                <img v-if="item.producto.foto_url" :src="mediaUrl(item.producto.foto_url)"
                   class="w-full h-full object-cover" />
                 <div v-else class="w-full h-full flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -318,7 +318,7 @@
             <div class="relative w-full h-40 rounded-xl overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50 cursor-pointer hover:border-red-400 hover:bg-red-50 transition-all"
               @click="$refs.inputFoto.click()">
               <img v-if="fotoPreview || (editandoProducto?.foto_url && !fotoArchivo)"
-                :src="fotoPreview || `http://127.0.0.1:8000${editandoProducto.foto_url}`"
+                :src="fotoPreview || mediaUrl(editandoProducto.foto_url)"
                 class="w-full h-full object-cover" />
               <div v-else class="w-full h-full flex flex-col items-center justify-center text-gray-400">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -408,7 +408,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import api from '../api'
+import api, { mediaUrl } from '../api'
 import { useAuth } from '../composables/useAuth'
 
 const { canManage } = useAuth()
