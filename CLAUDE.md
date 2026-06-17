@@ -66,9 +66,10 @@ There are no test commands — no test suite exists in this project.
 - `frontend/src/api.js` — Axios instance with `baseURL: http://127.0.0.1:8000`
 - `frontend/src/router/index.js` — Route guards using `meta.requiresAuth` and `meta.roles`; clients default to `/home`, admin to `/usuarios`, coach to `/home`. `pendiente` → forzado a `/planes`. Clientes con membresía vencida (`membresiaVencidaFor`) solo acceden a `RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/']`.
 - `frontend/src/composables/useAuth.js` — Reactive role helpers: `isAdmin`, `isCoach`, `isCliente`, `canManage`
+- `frontend/src/composables/useSessionMarca.js` — Composable de sesión de Marcas (legacy, ya no usado por `MarcasEjercicioView`). Se mantiene para que `Dashboard.vue` pueda limpiar el localStorage en logout (`cancelarSesion()`).
 - `frontend/src/views/` — One large SFC per page: `LoginView`, `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `WodsPersonalizadosView`, `FinanzasView`, `PlanesView`, `AlertasView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`, `SesionesView`. (`MonitorAccesoView.vue` exists but is not registered in the router.)
-- `frontend/src/components/Dashboard.vue` — Main layout shell (sidebar + navigation). Does NOT show membership status in the sidebar — that info lives in `HomeView`.
-- `frontend/src/components/BloqueCard.vue` — Tarjeta reutilizable de bloque horario (usado por `SesionesView`). Muestra hora del bloque, lista de asistentes con hora exacta, y botón "+N más" para expandir.
+- `frontend/src/components/Dashboard.vue` — Main layout shell (sidebar + navigation). Does NOT show membership status in the sidebar — that info lives in `HomeView`. Sidebar organizado en tres secciones: **Gestión** (admin+coach), **Contenido** (todos), **Mi Box** (coach+cliente). Ver sección de sidebar más abajo.
+- `frontend/src/components/BloqueCard.vue` — Acordeón reutilizable de bloque horario (usado por `SesionesView`). Header clicable muestra hora del bloque + badge de personas; al expandir muestra la lista completa de asistentes con hora exacta de entrada.
 - `frontend/src/data/` — Shared config files: `saludTipos.js` (5 measurement configs), `ejerciciosMarcas.js` (12 fixed exercises)
 
 ## Key Patterns
@@ -130,6 +131,27 @@ Route `/usuarios/:id` (roles: `admin`, `coach`). Three sections:
 
 **Navigation:** The "ver" button in `UsuariosView` calls `router.push('/usuarios/${u.id}')` instead of opening a modal.
 
+## Dashboard — estructura del sidebar
+
+El sidebar está dividido en secciones semánticas según el rol:
+
+**Usuario pendiente:** solo ve Planes.
+
+**Sección "Gestión"** (`canManage` = admin + coach):
+- Usuarios, Sesiones, Alertas WhatsApp, Ejercicios (admin + coach)
+- Planes, Finanzas (solo admin)
+
+**Sección "Contenido"** (todos los roles no pendientes):
+- WODs (siempre, si membresía vigente)
+- WODs Personalizados (staff o cliente con `tieneWodsPersonalizados`, si membresía vigente)
+- Tienda (solo `canManage`)
+
+**Sección "Mi Box"** (coach + cliente):
+- Inicio
+- Planes (solo cliente)
+- Mi Salud (cliente, membresía vigente)
+- Mis Marcas (coach + cliente, membresía vigente)
+
 ## AlertasView — WhatsApp reminders
 
 Route `/alertas` (admin/coach). Two tabs: **Pendientes** (grouped by `dias_anticipacion`) and **Historial** (flat list, only `enviada=true`, sorted by `fecha_enviada` desc). There is no manual "Actualizar" button — `POST /alertas/generar` runs on mount and on tab switch.
@@ -138,9 +160,11 @@ Route `/alertas` (admin/coach). Two tabs: **Pendientes** (grouped by `dias_antic
 
 ## Asistencia routers
 
+**Modelo de acceso solo-entrada:** la palanquera solo controla el ingreso, así que el sistema **no registra salidas**. Cada marcación de huella crea una `Asistencia` con `tipo="entrada"` y pone `esta_en_gym=True`. El flag vuelve a `False` únicamente por tiempo (job `_job_reset_gym`), nunca por una marcación de salida. `_registrar()` en `asistencia.py` ya no alterna entrada/salida.
+
 `backend/routers/asistencia.py` endpoints:
-- `POST /asistencia/` — registra por `huella_id` (bridge)
-- `POST /asistencia/por-usuario/{usuario_id}` — registra por ID (bridge con `X-Bridge-Secret` o admin/coach JWT); valida membresía vigente en entradas
+- `POST /asistencia/` — registra entrada por `huella_id` (bridge)
+- `POST /asistencia/por-usuario/{usuario_id}` — registra entrada por ID (bridge con `X-Bridge-Secret` o admin/coach JWT); valida membresía vigente en cada marcación
 - `GET /asistencia/mi-historial?meses=N` — historial propio (cualquier rol autenticado)
 - `GET /asistencia/historial/{usuario_id}?meses=N` — historial de cualquier usuario (admin/coach)
 - `GET /asistencia/en-gym` — usuarios con `esta_en_gym=True`, con `entrada_desde`, `minutos_transcurridos`, `minutos_restantes` y `minutos_sesion` (admin/coach)
@@ -148,7 +172,7 @@ Route `/alertas` (admin/coach). Two tabs: **Pendientes** (grouped by `dias_antic
 
 **Constante `MINUTOS_SESION`** (en `asistencia.py`): duración máxima de sesión usada tanto por `GET /en-gym` como por el job `_job_reset_gym` en `main.py`. Cambiar en un solo lugar.
 
-**Auto-reset `esta_en_gym`:** el job `_job_reset_gym` (APScheduler, cada 3 min) busca usuarios con `esta_en_gym=True` cuya última entrada supere `MINUTOS_SESION` y los resetea a `False` sin crear registro de salida. Cubre el caso de usuarios que salen sin pasar por el torniquete.
+**Auto-reset `esta_en_gym`:** el job `_job_reset_gym` (APScheduler, cada 3 min) usa un JOIN para obtener en una sola query los usuarios con `esta_en_gym=True` cuya última entrada supere `MINUTOS_SESION`, y los resetea a `False` sin crear registro de salida. Cubre el caso de usuarios que salen sin pasar por el torniquete. Implementado con subconsulta de `MAX(fecha_hora)` agrupada por `usuario_id` para evitar N+1.
 
 **Deduplicación en sesiones-por-bloque:** los registros se ordenan por `fecha_hora` antes de agrupar. Si un usuario entró más de una vez en el mismo bloque (salió y volvió), solo aparece la primera entrada. Esto evita duplicados causados por re-entradas dentro del mismo bloque.
 
@@ -159,7 +183,7 @@ Ruta `/sesiones` (roles: `admin`, `coach`). Tres modos:
 **Modo "Esta semana"** (carga automático al entrar):
 - Tabs de los 7 días (Lun–Dom) con badge del total de asistentes por día
 - Día de hoy resaltado en negro; día seleccionado en rojo; días sin asistencias con opacidad reducida
-- Grid de `BloqueCard` del día seleccionado
+- Grid de `BloqueCard` del día seleccionado (cards lado a lado)
 - Buscador por nombre en tiempo real
 
 **Modo "Este mes":**
@@ -175,10 +199,10 @@ Ruta `/sesiones` (roles: `admin`, `coach`). Tres modos:
 - Selector de fecha + botón "Ver sesiones"
 - Grid de bloques del día elegido + buscador
 
-**`BloqueCard`** (`frontend/src/components/BloqueCard.vue`):
-- Header: bloque horario + badge de personas
-- Lista: nombre · hora exacta de entrada (HH:MM)
-- Botón "+N más" si hay más de 5 asistentes
+**`BloqueCard`** (`frontend/src/components/BloqueCard.vue`) — acordeón:
+- Header clicable: bloque horario + badge de personas + chevron que rota al expandir
+- Body (expandido): lista completa de asistentes con nombre y hora exacta (HH:MM)
+- Inicia colapsado; sin límite de asistentes visibles (todos se muestran al expandir)
 
 ## UsuariosView — paneles superiores
 
@@ -242,6 +266,7 @@ No todo se mide igual. La lista en `frontend/src/data/ejerciciosMarcas.js` etiqu
 - `GET /marcas/` — todos los registros del usuario actual
 - `GET /marcas/{ejercicio}` — registros del ejercicio (URL-encoded)
 - `POST /marcas/` — payload flexible; el router despacha según `_tipo_de(ejercicio)` y valida los campos requeridos por tipo (rechaza con 422 si faltan). Calcula `rm_calculado` solo para `barra` y `corporal_lastre`.
+- `PATCH /marcas/{marca_id}` — edita un registro existente del usuario; aplica la misma lógica de validación y cálculo que POST.
 - `DELETE /marcas/{marca_id}`
 
 **Modelo** (`MarcaRM` en `models.py`): `usuario_id`, `ejercicio`, `unidad` (default `"kg"`), `fecha`, `notas`, `created_at` son siempre obligatorios. Todos los demás campos son nullable y se llenan según el tipo: `peso`, `repeticiones`, `rm_calculado`, `peso_adicional`, `nivel`, `palier`. La migración en `main.py` reconstruye la tabla para hacer nullable `peso`/`repeticiones`/`rm_calculado` (antes eran NOT NULL) y agrega las 3 columnas nuevas vía `ALTER TABLE`.
@@ -256,13 +281,28 @@ No todo se mide igual. La lista en `frontend/src/data/ejerciciosMarcas.js` etiqu
 - `leger`: "Mejor nivel" + `nivel.palier`
 
 **`MarcasEjercicioView.vue`** — UI condicional según `tipo`:
-- Resumen: muestra "Último vs PR" según tipo (1RM, max reps, o nivel.palier)
-- Gráfica: evolución del 1RM, repeticiones, o nivel (puntos PR resaltados en oro)
+- Resumen: muestra "Último vs PR" según tipo (1RM, max reps, o nivel.palier). "Último 1RM" refleja el mejor del día más reciente (via `registrosPorDia`).
+- Gráfica: evolución del 1RM, repeticiones, o nivel (puntos PR resaltados en oro). Para `barra`/`corporal_lastre` usa `registrosPorDia` — un punto por día con el mejor 1RM de ese día.
 - Tabla rep-max y comparación de fórmulas: solo para `barra`/`corporal_lastre`
-- Historial: encabezados y formato de celda cambian por tipo
-- Modal de registro: 4 ramas con campos distintos (`barra`: peso+reps; `corporal_lastre`: corporal-auto/manual + lastre opcional + reps; `reps`: solo reps; `leger`: nivel + palier). Preview de 1RM solo en los dos primeros.
+- Historial: encabezados y formato de celda cambian por tipo. Botones **editar** (lápiz azul) y **eliminar** (basurero rojo) siempre visibles en cada fila. En móvil se oculta la columna Notas.
+- **Registro para `barra`/`corporal_lastre`:** panel de adición directa (ver sección abajo).
+- **Registro para `reps`/`leger`:** modal con campos específicos (`reps`: solo repeticiones; `leger`: nivel + palier).
+- **Editar registro:** botón lápiz en historial abre el modal precargado con los datos del registro. `guardar()` llama `PATCH /marcas/{id}` si edita, `POST /marcas/` si es nuevo.
 
 **Helper compartido:** `tipoDe(nombre)` en `ejerciciosMarcas.js`.
+
+### Registro directo por serie (`barra` / `corporal_lastre`)
+
+Para ejercicios de peso, cada serie se guarda **inmediatamente** al presionar `+`. No hay sesión persistente ni localStorage.
+
+**Panel de adición directa (inline en `MarcasEjercicioView.vue`):**
+- Siempre visible debajo del resumen.
+- Toggle kg/lbs, campo peso (o lastre adicional para Dominadas), campo reps, botón `+` (o Enter).
+- Para `corporal_lastre`: muestra peso corporal auto (de Mi Salud) o input manual; pesoTotal = corporal + lastre.
+- Al presionar `+`: POST `/marcas/` con `{ ejercicio, fecha: hoy, unidad, series: [{ peso, repeticiones }] }`. Un registro por serie.
+- Mini-lista "Hoy · N series" muestra las series ya guardadas ese día (filtradas de `registros` por fecha).
+
+**Computed `registrosPorDia`** — agrupa los registros por fecha tomando el de mayor `rm_calculado` por día. Usado exclusivamente para la gráfica y para `ultimoRM`/`ultimaUnidad`. El historial sigue mostrando cada registro individual.
 
 ## WODs — módulo completo
 
@@ -297,20 +337,23 @@ Ruta `/wods` (todos los roles autenticados).
 
 ### WodsPersonalizadosView — vista personalizada
 
-Ruta `/wods/personalizados` (roles: `admin`, `cliente`). `GET /wods/personalizados` acepta `activo: Optional[bool]` para el admin.
+Ruta `/wods/personalizados` (roles: `admin`, `coach`, `cliente`). `GET /wods/personalizados` acepta `activo: Optional[bool]` para staff.
 
-**Vista Admin:**
+**Vista Staff (admin + coach):**
 - Stats: conteo de WODs activos por género (masculino / femenino)
 - Sección "WODs Personalizados Activos": dark cards con badge de género + badge de tipo
 - Sección "Historial de Personalizados": lista plana con badge de género + badge de tipo, buscador y chips de filtro por tipo
+- Botón "Nuevo WOD" visible para admin y coach
 
-**Vista Cliente:** solo ve WODs activos filtrados por su género (el backend filtra). Sección "Tu WOD de Hoy" (fecha actual) + "Historial" (fechas anteriores). Sin cambios respecto al comportamiento anterior.
+**Vista Cliente:** solo ve WODs activos filtrados por su género (el backend filtra). Sección "Tu WOD de Hoy" (fecha actual) + "Historial" (fechas anteriores).
 
-El filtro de género en el frontend usa `localStorage.getItem('userGenero')`. El sidebar muestra el enlace a clientes y admins.
+El filtro de género en el frontend usa `localStorage.getItem('userGenero')`. El sidebar muestra el enlace a staff (admin/coach) y a clientes con plan que lo incluya.
+
+**Backend:** `GET /wods/personalizados` retorna todos los WODs para `admin` o `coach`; para clientes filtra por género y `activo=True`. `POST /wods/` permite crear personalizados a admin y coach (antes era solo admin).
 
 ### WodFormView — formulario
 
-Ruta `/wods/nuevo` y `/wods/:id/editar` (admin/coach). Soporta WODs regulares y personalizados vía `route.meta.personalizado`.
+Ruta `/wods/nuevo` y `/wods/:id/editar` (admin/coach). Soporta WODs regulares y personalizados vía `route.meta.personalizado`. Rutas de personalizados (`/wods/personalizados/nuevo`, `/wods/personalizados/:id/editar`) accesibles para admin y coach.
 
 Campos del form: `titulo`, `fecha`, **`tipo`** (select con 6 opciones, opcional), `descripcion`, `activo` (toggle), `ejercicios` (via `WodEjerciciosEditor`). Para personalizados en modo creación: selección múltiple de género (masculino / femenino), crea un WOD por género seleccionado.
 
@@ -388,12 +431,43 @@ Lo único conservado en `Program.cs` además del shell WinForms es `SetThreadExe
 |---|---|
 | `Program.cs` | Entry point `[STAThread]`; redirige logs a `bridge.log`, suelta consola con `FreeConsole`, levanta WebSocket/HttpApi/BridgeForm |
 | `BridgeForm.cs` | Ventana WinForms invisible (HWND para message pump COM); crea `FingerprintCapture` en `OnLoad` |
-| `FingerprintCapture.cs` | Implementa `DPFP.Capture.EventHandler`; instancia `new Capture(Priority.High)` para captura en background; maneja enrolamiento, verificación y acceso. Incluye cooldown de `CooldownSegundos` (4 s) por usuario en modo acceso para evitar doble-registro cuando el usuario pone el dedo varias veces seguidas. |
+| `FingerprintCapture.cs` | Implementa `DPFP.Capture.EventHandler`; instancia `new Capture(Priority.High)` para captura en background; maneja enrolamiento, verificación y acceso. Incluye cooldown de `CooldownSegundos` (4 s) por usuario en modo acceso para evitar doble-registro cuando el usuario pone el dedo varias veces seguidas. Dispara la palanquera vía `RelayController.Abrir()` cuando el backend confirma una **entrada** (no en salida). |
+| `RelayController.cs` | Abre la palanquera mandando el byte `'A'` por USB-serial a un Arduino UNO. Ver sección "Palanquera (relé + Arduino)" más abajo. |
+| `arduino/palanquera_rele/palanquera_rele.ino` | Sketch del Arduino UNO que controla el módulo de relé. |
 | `ver-logs.ps1` / `.cmd` | Tail coloreado de `bridge.log` en vivo |
 | `EnrollmentState.cs` | Estado compartido (thread-safe con `lock`) entre captura y HTTP API |
 | `HttpApi.cs` | `HttpListener` en puerto 8001; endpoints REST consumidos por el frontend |
 | `WebSocketHub.cs` | Servidor WebSocket en puerto 8765 (Fleck); broadcast de eventos en tiempo real |
 | `HuelleroBridge.csproj` | net48 x86; referencia DLLs SDK desde `C:\Program Files\DigitalPersona\One Touch SDK\.NET\Bin\` |
+
+### Palanquera (relé + Arduino)
+
+El bridge abre una palanquera/torniquete cuando un usuario válido marca **entrada**. El control físico es un **Arduino UNO** con un **módulo de relé SRD-05VDC-SL-C** (activo-bajo) conectado por USB-serial.
+
+**División de responsabilidades — el Arduino es el dueño del tiempo de pulso:**
+- El bridge solo manda un byte `'A'` cuando hay entrada aprobada. No bloquea esperando los 5 s.
+- El Arduino, al recibir `'A'`, activa el relé `RELE_MS` (5000 ms) y lo cierra solo (loop no bloqueante con `millis()`). Si el bridge se cae o el PC se reinicia a mitad de pulso, la palanquera vuelve a reposo (cerrada) igual.
+
+**Protocolo serial (9600 baud, line ending `\n`):**
+
+| Dirección | Mensaje | Significado |
+|---|---|---|
+| bridge → arduino | `'A'` | Abrir palanquera (pulso de 5 s) |
+| bridge → arduino | `'P'` | Ping (usado para autodetección de puerto) |
+| arduino → bridge | `JSB-PALANQUERA READY` | Emitido al arrancar el sketch |
+| arduino → bridge | `JSB-PALANQUERA OK` | Respuesta al ping `'P'` |
+
+**Punto de disparo:** `FingerprintCapture.RegistrarAsistencia()` llama `_relay?.Abrir()` **solo si `tipo == "entrada"`**. En salida no se dispara. Acceso denegado (membresía vencida → HTTP no-2xx) tampoco abre.
+
+**Detección de puerto COM:** `RelayController` lee la env var `PALANQUERA_COM` (ej. `COM3`). Si no está definida, autodetecta: abre cada puerto, manda `'P'` y toma el que responde con la firma `JSB-PALANQUERA`. Esto cubre el caso de que el número de COM cambie entre reconexiones del cable.
+
+**Tolerante a ausencia de hardware:** si no hay Arduino conectado, el bridge arranca y registra asistencias normalmente; solo loguea `[RELE] Sin conexión al Arduino` y no abre la palanquera. La huella sigue funcionando.
+
+**Reset-on-open del UNO:** el Arduino UNO se reinicia cada vez que se abre el puerto serial (por `DtrEnable=true`). Por eso `RelayController` espera 2 s tras abrir antes de usar el puerto, y mantiene la conexión abierta (no abre/cierra por cada acceso).
+
+**Cableado (módulo de 1 canal):** `VCC→5V`, `GND→GND`, `IN→D7`. La palanquera va a los bornes `NO/COM` (normalmente abierto) del relé. Si tu módulo fuera activo-alto, intercambiá `RELE_ON`/`RELE_OFF` en el `.ino`.
+
+**Subir el sketch:** abrir `arduino/palanquera_rele/palanquera_rele.ino` en el Arduino IDE, seleccionar placa "Arduino UNO" y el puerto, y cargar. El pin del relé es `PIN_RELE = 7` y el tiempo abierto `RELE_MS = 5000`.
 
 ### DLLs del SDK referenciadas
 
@@ -441,13 +515,13 @@ El secreto se define en `backend/.env` como `BRIDGE_SECRET=jain_bridge_secret_20
 |---|---|---|
 | `huella_id` | `String(100)`, único, nullable | Identificador de forma `dp_{usuario_id}`; se pone al registrar template |
 | `huella_template` | `Text`, nullable | Template FMD en Base64 generado por el SDK |
-| `esta_en_gym` | `Boolean` | Toggle entrada/salida para control de acceso |
+| `esta_en_gym` | `Boolean` | `True` al marcar entrada; vuelve a `False` solo por tiempo (`_job_reset_gym`). No hay registro de salida. |
 | `fecha_vencimiento` | `Date` | Validada en `POST /asistencia/por-usuario/{id}` antes de registrar entrada |
 | `fecha_nacimiento` | `Date`, nullable | Cumpleaños del miembro; usada por `GET /usuarios/cumpleanos-hoy` |
 
 ### Endpoints de asistencia relevantes
 
-- `POST /asistencia/por-usuario/{usuario_id}` — registra entrada/salida; valida membresía vigente en entradas. Llamado por el bridge o admin.
+- `POST /asistencia/por-usuario/{usuario_id}` — registra entrada; valida membresía vigente en cada marcación. Llamado por el bridge o admin.
 - `GET /asistencia/mi-historial?meses=N` — historial propio
 - `GET /asistencia/historial/{usuario_id}?meses=N` — historial de cualquier usuario (admin/coach)
 

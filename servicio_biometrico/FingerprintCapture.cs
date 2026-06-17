@@ -24,6 +24,7 @@ namespace HuelleroBridge
         private readonly Verification    _verificator;
         private readonly EnrollmentState _state;
         private readonly Action<string>  _broadcast;
+        private readonly RelayController _relay;
         private static readonly HttpClient _http = new HttpClient();
 
         private List<TemplateEntry> _templates = new List<TemplateEntry>();
@@ -36,10 +37,11 @@ namespace HuelleroBridge
         private const string ApiBase      = "http://localhost:8000";
         private const string BridgeSecret = "jain_bridge_secret_2024";
 
-        public FingerprintCapture(EnrollmentState state, Action<string> broadcast)
+        public FingerprintCapture(EnrollmentState state, Action<string> broadcast, RelayController relay = null)
         {
             _state       = state;
             _broadcast   = broadcast;
+            _relay       = relay;
             // Priority.Normal (default) solo captura cuando la ventana vinculada al hilo
             // tiene foco. Como nuestra BridgeForm está oculta y nunca toma foco, los
             // eventos OnComplete/OnFingerTouch nunca se entregan. High permite captura en
@@ -282,6 +284,12 @@ namespace HuelleroBridge
                     var tipo = tipoMatch.Success ? tipoMatch.Groups[1].Value : "entrada";
 
                     Console.WriteLine($"[ACCESO] {tipo.ToUpper()} registrada para {nombre} (#{usuarioId})");
+
+                    // Abrir la palanquera solo en ENTRADA: el torniquete controla el ingreso.
+                    // En salida no se dispara el relé.
+                    if (tipo == "entrada")
+                        _relay?.Abrir();
+
                     _state.RegistrarEvento(new AccesoEvento {
                         UsuarioId = usuarioId,
                         Nombre    = nombre,

@@ -14,6 +14,7 @@ namespace HuelleroBridge
     {
         private readonly FingerprintCapture _capture;
         private readonly EnrollmentState    _state;
+        private readonly RelayController    _relay;
         private System.Windows.Forms.Timer  _reloadTimer;
 
         public FingerprintCapture Capture => _capture;
@@ -33,12 +34,15 @@ namespace HuelleroBridge
             Opacity         = 0;
 
             _state   = state;
-            _capture = new FingerprintCapture(state, json => hub.Broadcast(json));
+            _relay   = new RelayController();
+            _capture = new FingerprintCapture(state, json => hub.Broadcast(json), _relay);
         }
 
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
+            // Conectar a la palanquera (Arduino). No bloquea ni falla si no está presente.
+            _relay.Iniciar();
             // Iniciar captura una vez que la ventana (y su HWND) existen
             _capture.Start();
             Console.WriteLine("Presiona Ctrl+C para salir.");
@@ -74,6 +78,7 @@ namespace HuelleroBridge
         {
             _reloadTimer?.Stop();
             _capture.Stop();
+            _relay.Detener();
             base.OnFormClosed(e);
         }
     }

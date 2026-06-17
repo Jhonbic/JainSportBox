@@ -75,7 +75,7 @@
 
       <!-- Skeleton -->
       <div v-if="cargando" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="i in 3" :key="i" class="bg-gray-100 rounded-2xl h-44 animate-pulse"></div>
+        <div v-for="i in 3" :key="i" class="bg-gray-100 rounded-2xl h-16 animate-pulse"></div>
       </div>
 
       <!-- Bloques del día seleccionado -->
@@ -236,7 +236,7 @@
       <p v-if="error" class="mb-4 text-sm text-red-600 font-medium">{{ error }}</p>
 
       <div v-if="cargando" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="i in 3" :key="i" class="bg-gray-100 rounded-2xl h-44 animate-pulse"></div>
+        <div v-for="i in 3" :key="i" class="bg-gray-100 rounded-2xl h-16 animate-pulse"></div>
       </div>
       <template v-else-if="consultado">
         <div v-if="bloquesFechaFiltrados.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

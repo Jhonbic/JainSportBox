@@ -47,10 +47,12 @@ MINUTOS_SESION = 65  # tiempo máximo de una sesión; usado por el job de reset 
 
 
 def _registrar(usuario: Usuario, db: Session) -> AsistenciaResponse:
-    tipo = "salida" if usuario.esta_en_gym else "entrada"
-    asistencia = Asistencia(usuario_id=usuario.id, tipo=tipo)
+    # La palanquera solo controla la ENTRADA. No se registran salidas:
+    # cada marcación de huella es una entrada y enciende esta_en_gym.
+    # El flag vuelve a False solo por tiempo (job _job_reset_gym en main.py).
+    asistencia = Asistencia(usuario_id=usuario.id, tipo="entrada")
     db.add(asistencia)
-    usuario.esta_en_gym = not usuario.esta_en_gym
+    usuario.esta_en_gym = True
     db.commit()
     db.refresh(asistencia)
     return AsistenciaResponse(
@@ -73,22 +75,21 @@ def registrar_asistencia(payload: AsistenciaCreate, db: Session = Depends(get_db
 @router.post("/por-usuario/{usuario_id}", response_model=AsistenciaResponse, status_code=status.HTTP_201_CREATED)
 def registrar_asistencia_por_id(usuario_id: int, request: Request, db: Session = Depends(get_db)):
     """
-    Registra asistencia dado el usuario_id directamente.
+    Registra una entrada dado el usuario_id directamente.
     Usado por el bridge DigitalPersona (X-Bridge-Secret) o por admin/coach (JWT).
-    Valida que la membresía esté vigente antes de permitir entrada.
+    Valida que la membresía esté vigente antes de permitir el acceso.
     """
     _autorizar_bridge_o_admin(request, db)
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    # Solo valida membresía en entradas, no en salidas
-    if not usuario.esta_en_gym:
-        if not usuario.fecha_vencimiento or usuario.fecha_vencimiento < date.today():
-            raise HTTPException(
-                status_code=403,
-                detail=f"Membresía vencida o sin plan activo para {usuario.nombre}.",
-            )
+    # Toda marcación es una entrada → siempre se valida la membresía.
+    if not usuario.fecha_vencimiento or usuario.fecha_vencimiento < date.today():
+        raise HTTPException(
+            status_code=403,
+            detail=f"Membresía vencida o sin plan activo para {usuario.nombre}.",
+        )
 
     return _registrar(usuario, db)
 

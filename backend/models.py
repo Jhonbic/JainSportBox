@@ -366,6 +366,8 @@ class MarcaRM(Base):
     # leger: nivel + palier alcanzados.
     nivel: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     palier: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # JSON array de todas las series de la sesión (solo barra/corporal_lastre)
+    series: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -32,6 +32,7 @@ _migraciones = [
     "ALTER TABLE wod_ejercicios ADD COLUMN tiempo_segundos INTEGER",
     "ALTER TABLE wods ADD COLUMN tipo VARCHAR(50)",
     "ALTER TABLE ejercicios ADD COLUMN categoria VARCHAR(50)",
+    "ALTER TABLE marcas_rm ADD COLUMN series TEXT",
 ]
 with engine.connect() as _conn:
     for _sql in _migraciones:
@@ -200,29 +201,38 @@ def _job_reset_gym():
     entrada fue hace más de MINUTOS_SESION. Cubre el caso de quienes salen
     sin pasar por el torniquete."""
     from datetime import datetime as _dt
-    from models import Asistencia as _Asistencia
+    from sqlalchemy import func
+    from models import Asistencia as _Asistencia, Usuario as _Usuario
     from routers.asistencia import MINUTOS_SESION
     db = SessionLocal()
     try:
-        from models import Usuario as _Usuario
-        usuarios = db.query(_Usuario).filter(_Usuario.esta_en_gym == True).all()
         ahora = _dt.utcnow()
-        resetados = 0
-        for u in usuarios:
-            ultima = (
-                db.query(_Asistencia)
-                .filter(_Asistencia.usuario_id == u.id, _Asistencia.tipo == "entrada")
-                .order_by(_Asistencia.fecha_hora.desc())
-                .first()
+        corte = ahora - __import__('datetime').timedelta(minutes=MINUTOS_SESION)
+
+        # Subconsulta: última entrada por usuario
+        ultima_entrada = (
+            db.query(
+                _Asistencia.usuario_id,
+                func.max(_Asistencia.fecha_hora).label("ultima")
             )
-            if ultima:
-                minutos = (ahora - ultima.fecha_hora).total_seconds() / 60
-                if minutos > MINUTOS_SESION:
-                    u.esta_en_gym = False
-                    resetados += 1
-        if resetados:
+            .filter(_Asistencia.tipo == "entrada")
+            .group_by(_Asistencia.usuario_id)
+            .subquery()
+        )
+
+        # Usuarios en gym cuya última entrada supera el tiempo de sesión
+        a_resetar = (
+            db.query(_Usuario)
+            .join(ultima_entrada, ultima_entrada.c.usuario_id == _Usuario.id)
+            .filter(_Usuario.esta_en_gym == True, ultima_entrada.c.ultima < corte)
+            .all()
+        )
+
+        for u in a_resetar:
+            u.esta_en_gym = False
+        if a_resetar:
             db.commit()
-            print(f"[Scheduler] {resetados} usuario(s) liberado(s) del gym por sesión vencida.")
+            print(f"[Scheduler] {len(a_resetar)} usuario(s) liberado(s) del gym por sesión vencida.")
     finally:
         db.close()
 
