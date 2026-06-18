@@ -14,9 +14,12 @@ from sqlalchemy.orm import sessionmaker
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///crossfit.db")
-# Railway entrega "postgres://"; SQLAlchemy 2.x exige "postgresql+psycopg://"
+# Railway entrega "postgres://" o "postgresql://"; forzamos el driver psycopg v3
+# (psycopg2 no está instalado, solo psycopg[binary]).
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 _es_sqlite = DATABASE_URL.startswith("sqlite")
 connect_args = {"check_same_thread": False} if _es_sqlite else {}
