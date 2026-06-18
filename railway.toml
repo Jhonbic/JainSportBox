@@ -1,12 +1,11 @@
-# Configuración de despliegue del backend en Railway (Capa 3).
-# Nixpacks instala las dependencias desde requirements.txt (en la raíz).
-# El startCommand entra a backend/ porque la app importa módulos relativos
-# (import models, from database import ...) y monta uvicorn ahí.
+# Despliegue del backend en Railway (Capa 3).
+# Builder Dockerfile explícito: el repo es mixto (Python + .NET en
+# servicio_biometrico/) y la autodetección de nixpacks intentaba `dotnet restore`.
+# El Dockerfile de la raíz construye solo el backend FastAPI.
 
 [build]
-builder = "nixpacks"
+builder = "dockerfile"
 
 [deploy]
-startCommand = "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
