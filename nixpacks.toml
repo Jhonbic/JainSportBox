@@ -1,7 +1,0 @@
-# Forzar el provider Python.
-#
-# El repo es mixto: backend Python (requirements.txt + backend/) y el bridge
-# .NET en servicio_biometrico/ (*.csproj). Nixpacks autodetecta .NET y corre
-# `dotnet restore` en la raíz —donde no hay .csproj/.sln— y falla con MSB1003.
-# Fijar el provider hace que solo construya el backend Python.
-providers = ["python"]
