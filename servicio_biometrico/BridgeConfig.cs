@@ -11,11 +11,13 @@ namespace HuelleroBridge
     {
         /// <summary>
         /// Backend al que el bridge manda asistencias y templates de huella.
-        /// Nube: definir JSB_API_BASE=https://api.tudominio.com (DEBE ser HTTPS
-        /// para no exponer X-Bridge-Secret). Local (default): http://localhost:8000.
+        /// Default: backend desplegado en Railway (producción). Para apuntar a un
+        /// backend local en desarrollo, definir JSB_API_BASE=http://localhost:8000.
+        /// DEBE ser HTTPS en la nube para no exponer X-Bridge-Secret.
         /// </summary>
         public static readonly string ApiBase =
-            (Environment.GetEnvironmentVariable("JSB_API_BASE") ?? "http://localhost:8000").TrimEnd('/');
+            (Environment.GetEnvironmentVariable("JSB_API_BASE")
+                ?? "https://web-production-ca5df.up.railway.app").TrimEnd('/');
 
         /// <summary>
         /// Clave compartida con el backend (header X-Bridge-Secret). Debe

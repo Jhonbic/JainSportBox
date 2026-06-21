@@ -69,6 +69,11 @@ namespace HuelleroBridge
 
             RedirigirLogsYSoltarConsola();
 
+            // Deja claro en el log a qué backend apunta el bridge y si el secreto
+            // está definido. Crítico para diagnosticar fallos de enrolamiento/asistencia.
+            Console.WriteLine($"[CONFIG] ApiBase      = {BridgeConfig.ApiBase}");
+            Console.WriteLine($"[CONFIG] BridgeSecret = {(string.IsNullOrEmpty(BridgeConfig.BridgeSecret) ? "(vacío)" : "(definido)")}");
+
             var state = new EnrollmentState();
 
             var hub = new WebSocketHub("ws://0.0.0.0:8765");

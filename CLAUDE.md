@@ -572,6 +572,37 @@ ADMIN_DOCUMENTO=
 BRIDGE_SECRET=          # Clave compartida con el bridge .NET para autenticarse sin JWT
 ```
 
+Opcionales (producción):
+```
+DATABASE_URL=           # Postgres; si falta, usa SQLite local (sqlite:///crossfit.db)
+CORS_ORIGINS=           # Coma-separado; si falta, usa los puertos de Vite local
+```
+
+`SECRET_KEY` se lee con `os.environ["SECRET_KEY"]` en `security.py` (revienta si falta — siempre debe estar seteada en el host).
+
+Frontend (`frontend/.env.example`):
+```
+VITE_API_URL=           # URL del backend; si falta, usa http://127.0.0.1:8000 (dev)
+```
+
 ## CORS
 
-Backend allows origins `localhost:5173`, `localhost:5174`, `127.0.0.1:5173`, `127.0.0.1:5174`. If you add a new frontend port, update `origins` in `backend/main.py`.
+Los orígenes se leen de la env var `CORS_ORIGINS` (coma-separado) en `backend/main.py`. Si no está definida, el default son los puertos de Vite (`localhost:5173/5174`, `127.0.0.1:5173/5174`). En producción hay que setear el dominio del frontend (ej. `CORS_ORIGINS=https://jainsportbox.netlify.app`, **sin barra final**).
+
+## Deployment (Railway backend + Netlify frontend)
+
+El detalle completo va en `DEPLOYMENT.md`. Setup actual: **backend en Railway** (`https://web-production-ca5df.up.railway.app`), **frontend en Netlify** (`https://jainsportbox.netlify.app`), **Postgres en Railway**.
+
+**Backend (Railway):**
+- Builder: Dockerfile explícito (`Dockerfile` en la raíz, `railway.toml` con `builder = "dockerfile"`). Es necesario porque el repo es mixto Python/.NET y nixpacks intentaba `dotnet restore`. El Dockerfile construye solo el backend FastAPI.
+- El start command sale del `CMD` del Dockerfile (`sh -c "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"`). **No usar un "Custom Start Command" con `cd` en la UI de Railway** ni un `Procfile` con `cd backend && ...`: Railway los corre en modo *exec* (sin shell) y falla con `The executable cd could not be found`. Por eso no hay `Procfile` en el repo.
+- Variables requeridas en Railway: las 7 de arriba (`SECRET_KEY`, `ADMIN_*`, `BRIDGE_SECRET`) + `DATABASE_URL=${{Postgres.DATABASE_URL}}` + `CORS_ORIGINS=https://jainsportbox.netlify.app`.
+
+**Frontend (Netlify):**
+- Config en `netlify.toml`: `base = "frontend"`, `command = "npm run build"`, `publish = "dist"` (relativo a base — **no** `frontend/dist`, daría `frontend/frontend/dist`). Rewrite SPA `/* → /index.html`.
+- Variable en Netlify: `VITE_API_URL=https://web-production-ca5df.up.railway.app` (sin barra final).
+- `frontend/node_modules` **no** debe estar trackeado en git: sus binarios (`vite`) commiteados desde Windows pierden el bit de ejecución y Netlify falla con `vite: Permission denied`. Está en `.gitignore`; Netlify hace su propio `npm install`.
+
+**Gotchas de dependencias (diferencias dev local vs. imagen limpia):**
+- `database.py` reescribe la URL de Postgres a `postgresql+psycopg://` para usar psycopg v3 (lo que está en `requirements.txt`), porque psycopg2 no está instalado. Maneja tanto `postgres://` como `postgresql://` (Railway entrega el segundo).
+- `bcrypt` está fijado a `4.0.1` en `requirements.txt`: passlib 1.7.4 revienta con bcrypt ≥ 4.1 (`ValueError: password cannot be longer than 72 bytes` en la detección de backend).
