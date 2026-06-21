@@ -6,7 +6,13 @@
         <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">Usuarios</h2>
         <p class="text-gray-500 mt-1">Gestiona los usuarios y sus membresías</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
+        <button @click="abrirPalanquera" :disabled="palanqueraAbriendo" class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all font-semibold flex items-center gap-2 transform active:scale-95">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M5 9V7a5 5 0 019.9-1 1 1 0 11-1.98.32A3 3 0 007 7v2h6a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm5 3a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z" clip-rule="evenodd" />
+          </svg>
+          {{ palanqueraAbriendo ? 'Abriendo…' : 'Abrir palanquera' }}
+        </button>
         <button @click="abrirBuscarHuella" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all font-semibold flex items-center gap-2 transform active:scale-95">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M6.625 2.655A9 9 0 0119 11a1 1 0 11-2 0 7 7 0 00-9.625-6.492 1 1 0 11-.75-1.853zM4.662 4.959A1 1 0 014.75 6.37 6.97 6.97 0 003 11a1 1 0 11-2 0 8.97 8.97 0 012.25-5.953 1 1 0 011.412-.088z" clip-rule="evenodd"/>
@@ -957,6 +963,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast: apertura de palanquera -->
+    <div v-if="palanqueraToast"
+         class="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl text-white font-semibold flex items-center gap-2 animate-fade-in-up"
+         :class="palanqueraToast.ok ? 'bg-emerald-600' : 'bg-red-600'">
+      <span>{{ palanqueraToast.ok ? '✅' : '⚠️' }}</span>
+      {{ palanqueraToast.texto }}
+    </div>
   </div>
 </template>
 
@@ -986,6 +1000,24 @@ const loadingPendientes = ref(false)
 const usuarioSeleccionado = ref(null)
 const filtroActivo = ref('todos')
 const busqueda = ref('')
+
+// ── Palanquera (apertura manual) ─────────────────────────────
+const palanqueraAbriendo = ref(false)
+const palanqueraToast    = ref(null)   // { ok: bool, texto: string }
+
+const abrirPalanquera = async () => {
+  palanqueraAbriendo.value = true
+  try {
+    const r = await fetch(`${BRIDGE_URL}/palanquera/abrir`, { method: 'POST' })
+    if (!r.ok) throw new Error()
+    palanqueraToast.value = { ok: true, texto: 'Palanquera abierta' }
+  } catch {
+    palanqueraToast.value = { ok: false, texto: 'No se pudo abrir. ¿El bridge está corriendo?' }
+  } finally {
+    palanqueraAbriendo.value = false
+    setTimeout(() => { palanqueraToast.value = null }, 3500)
+  }
+}
 
 // ── Verificación por huella ──────────────────────────────────
 const showVerifyModal  = ref(false)
