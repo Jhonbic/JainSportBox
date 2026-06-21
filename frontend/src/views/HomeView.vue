@@ -11,8 +11,19 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
 
         <!-- Tarjeta membresía -->
-        <div class="rounded-2xl p-6 text-white shadow-lg" :class="gradienteMembresia">
+        <div class="rounded-2xl p-6 text-white shadow-lg" :class="cargandoPerfil ? 'bg-gradient-to-br from-gray-400 to-gray-600' : gradienteMembresia">
           <p class="text-xs font-bold uppercase tracking-widest opacity-80 mb-3">Estado de membresía</p>
+
+          <!-- Cargando: spinner mientras llega /me -->
+          <div v-if="cargandoPerfil" class="flex items-center gap-3 py-6">
+            <svg class="animate-spin h-7 w-7 text-white/90" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span class="text-sm font-semibold opacity-90">Cargando tu membresía…</span>
+          </div>
+
+          <template v-else>
           <div class="flex items-end justify-between gap-4">
             <div>
               <p class="text-4xl font-black leading-none mb-1">
@@ -45,12 +56,20 @@
             class="inline-block mt-5 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-sm font-bold transition-colors">
             {{ diasRestantes <= 7 ? 'Renovar membresía' : 'Ver planes' }} →
           </router-link>
+          </template>
         </div>
 
         <!-- Tarjeta plan actual -->
         <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Mi plan</p>
-          <template v-if="userData.plan_actual">
+          <div v-if="cargandoPerfil" class="flex items-center justify-center gap-3 py-8 text-gray-400">
+            <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span class="text-sm font-semibold">Cargando…</span>
+          </div>
+          <template v-else-if="userData.plan_actual">
             <div class="flex items-start justify-between gap-3 mb-4">
               <div>
                 <h3 class="text-xl font-black text-gray-800">{{ userData.plan_actual.nombre }}</h3>
@@ -196,6 +215,7 @@ const { nombre, isCliente, isCoach } = useAuth()
 const userData = ref({})
 const fechasAsistencia = ref([])
 const cargandoAsistencias = ref(true)
+const cargandoPerfil = ref(true)   // evita el flash de "-999 días" antes de que llegue /me
 
 // ── Fecha de hoy ──────────────────────────────────────────────
 const fechaHoyTexto = computed(() =>
@@ -307,6 +327,7 @@ async function cargar() {
     console.error(e)
   } finally {
     cargandoAsistencias.value = false
+    cargandoPerfil.value = false
   }
 }
 

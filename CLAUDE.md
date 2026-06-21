@@ -78,7 +78,7 @@ There are no test commands — no test suite exists in this project.
 - `frontend/src/views/` — One large SFC per page: `LoginView`, `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `WodsPersonalizadosView`, `FinanzasView`, `PlanesView`, `AlertasView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`, `SesionesView`. (`MonitorAccesoView.vue` exists but is not registered in the router.)
 - `frontend/src/components/Dashboard.vue` — Main layout shell (sidebar + navigation). Does NOT show membership status in the sidebar — that info lives in `HomeView`. Sidebar organizado en tres secciones: **Gestión** (admin+coach), **Contenido** (todos), **Mi Box** (coach+cliente). Ver sección de sidebar más abajo.
 - `frontend/src/components/BloqueCard.vue` — Acordeón reutilizable de bloque horario (usado por `SesionesView`). Header clicable muestra hora del bloque + badge de personas; al expandir muestra la lista completa de asistentes con hora exacta de entrada.
-- `frontend/src/data/` — Shared config files: `saludTipos.js` (5 measurement configs), `ejerciciosMarcas.js` (12 fixed exercises)
+- `frontend/src/data/` — Shared config files: `saludTipos.js` (6 measurement configs), `ejerciciosMarcas.js` (12 fixed exercises)
 
 ## Key Patterns
 
@@ -112,6 +112,8 @@ Route `/home` (roles: `cliente`, `coach`). Shows:
 - Membership status card + current plan card (clients only)
 - Coach staff card (coaches only)
 - Attendance calendar with month navigation (prev/next arrows, fetches 12 months once on mount)
+
+**Loading state (membresía):** `cargandoPerfil` ref (inicia `true`, pasa a `false` en el `finally` del fetch). Mientras carga, las tarjetas de membresía y plan muestran un spinner. Esto evita el flash de "-999 días / Sin membresía activa": `diasRestantes` devuelve el centinela `-999` cuando `userData.fecha_vencimiento` aún no llegó, y sin el flag se renderizaba por un instante antes de la respuesta de `/me`.
 
 **Attendance calendar pattern:**
 - Fetch: `GET /asistencia/mi-historial?meses=12` on mount
@@ -234,10 +236,12 @@ El filtro "En el box ahora" en la tabla de usuarios usa `enGym` (ref), cargado c
 Per-measurement routing: each metric has its own page at `/salud/:tipo`. **Excluida del rol `admin`** — el router restringe `/salud` y `/salud/:tipo` a `roles: ['coach', 'cliente']`. El admin no ve esta sección en el sidebar ni puede entrar por URL directa.
 
 **Measurement types** (defined in `frontend/src/data/saludTipos.js`):
-`peso`, `altura`, `cintura`, `cuello`, `cadera`
+`peso`, `altura`, `cintura`, `cuello`, `cadera`, `brazos`
+
+Agregar una medida nueva = un objeto en `saludTipos.js` (la card en `SaludView` y la página `/salud/:tipo` se generan solas vía `v-for`/`find`) + la columna en el modelo + la migración `ALTER TABLE` en `main.py` + la entrada en `CAMPOS` (router) + el campo en `MedidaResponse` (schema).
 
 **Backend router** (`backend/routers/salud.py`):
-- `CAMPOS = { "peso": "peso_kg", "altura": "altura_cm", "cintura": "cintura_cm", "cuello": "cuello_cm", "cadera": "cadera_cm" }`
+- `CAMPOS = { "peso": "peso_kg", "altura": "altura_cm", "cintura": "cintura_cm", "cuello": "cuello_cm", "cadera": "cadera_cm", "brazos": "brazos_cm" }`
 - `GET /salud/` — all records for the current user (overview)
 - `GET /salud/{tipo}` — records filtered by measurement type
 - `POST /salud/{tipo}` — creates a record with only that field set
@@ -447,7 +451,7 @@ Lo único conservado en `Program.cs` además del shell WinForms es `SetThreadExe
 | `arduino/palanquera_rele/palanquera_rele.ino` | Sketch del Arduino UNO que controla el módulo de relé. |
 | `ver-logs.ps1` / `.cmd` | Tail coloreado de `bridge.log` en vivo |
 | `EnrollmentState.cs` | Estado compartido (thread-safe con `lock`) entre captura y HTTP API |
-| `HttpApi.cs` | `HttpListener` en puerto 8001; endpoints REST consumidos por el frontend |
+| `HttpApi.cs` | `HttpListener` en puerto 8001; endpoints REST consumidos por el frontend. Recibe el `RelayController` (vía `BridgeForm.Relay`) para la apertura manual de palanquera. |
 | `WebSocketHub.cs` | Servidor WebSocket en puerto 8765 (Fleck); broadcast de eventos en tiempo real |
 | `HuelleroBridge.csproj` | net48 x86; referencia DLLs SDK desde `C:\Program Files\DigitalPersona\One Touch SDK\.NET\Bin\` |
 
@@ -494,6 +498,10 @@ Ruta: `C:\Program Files\DigitalPersona\One Touch SDK\.NET\Bin\`
 | `DELETE` | `/enroll` | Cancela enrolamiento en curso |
 | `POST` | `/verify/start` | Carga templates del backend e inicia modo verificación |
 | `DELETE` | `/verify` | Cancela verificación en curso |
+| `POST` | `/access/reload` | Recarga el cache de templates del modo acceso |
+| `POST` | `/palanquera/abrir` | Apertura manual de la palanquera (dispara `RelayController.Abrir()`). No registra asistencia. Responde `503` si no hay relé. |
+
+**Apertura manual de palanquera:** botón verde "Abrir palanquera" en `UsuariosView` (admin/coach) que hace `POST http://localhost:8001/palanquera/abrir`. Pensado para cuando la huella no se reconoce o entra un invitado. El `HttpApi` recibe el `RelayController` vía `BridgeForm.Relay` (expuesto en `Program.cs`). Como llama a `localhost:8001`, **solo funciona desde la PC del gym** donde corre el bridge — no desde un celular remoto.
 
 ### Flujo de enrolamiento
 
