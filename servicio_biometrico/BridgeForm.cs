@@ -18,6 +18,7 @@ namespace HuelleroBridge
         private System.Windows.Forms.Timer  _reloadTimer;
 
         public FingerprintCapture Capture => _capture;
+        public RelayController    Relay   => _relay;
 
         // No activar la ventana al mostrarse (el HWND existe pero nunca toma foco)
         protected override bool ShowWithoutActivation => true;

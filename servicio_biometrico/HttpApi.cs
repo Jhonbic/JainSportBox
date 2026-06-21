@@ -13,6 +13,7 @@ namespace HuelleroBridge
         private readonly HttpListener    _listener;
         private readonly EnrollmentState _state;
         private readonly FingerprintCapture _capture;
+        private readonly RelayController _relay;
         private Thread _thread;
 
         // Configurables por entorno (JSB_API_BASE / BRIDGE_SECRET). Ver BridgeConfig.
@@ -20,10 +21,11 @@ namespace HuelleroBridge
         private static readonly string ApiBase      = BridgeConfig.ApiBase;
         private static readonly HttpClient _http = new HttpClient();
 
-        public HttpApi(EnrollmentState state, FingerprintCapture capture, int port = 8001)
+        public HttpApi(EnrollmentState state, FingerprintCapture capture, RelayController relay, int port = 8001)
         {
             _state   = state;
             _capture = capture;
+            _relay   = relay;
             _listener = new HttpListener();
             _listener.Prefixes.Add($"http://localhost:{port}/");
         }
@@ -65,6 +67,7 @@ namespace HuelleroBridge
                 else if (method == "POST"   && path == "/verify/start")     HandleVerifyStart(ctx);
                 else if (method == "DELETE" && path == "/verify")           HandleVerifyCancel(ctx);
                 else if (method == "POST"   && path == "/access/reload")    HandleAccessReload(ctx);
+                else if (method == "POST"   && path == "/palanquera/abrir") HandleAbrirPalanquera(ctx);
                 else { ctx.Response.StatusCode = 404; Write(ctx, "{\"error\":\"not found\"}"); }
             }
             catch (Exception ex)
@@ -179,6 +182,22 @@ namespace HuelleroBridge
             _state.CancelarVerify();
             Write(ctx, "{\"ok\":true}");
             Console.WriteLine("[HTTP] Verificación cancelada");
+        }
+
+        // Apertura manual de la palanquera desde el frontend (admin/coach). Útil cuando
+        // la huella no se reconoce o entra un invitado. No registra asistencia.
+        private void HandleAbrirPalanquera(HttpListenerContext ctx)
+        {
+            if (_relay == null)
+            {
+                ctx.Response.StatusCode = 503;
+                Write(ctx, "{\"ok\":false,\"error\":\"relay no disponible\"}");
+                return;
+            }
+            // Abrir en segundo plano: la primera conexión al Arduino puede bloquear ~2 s.
+            System.Threading.Tasks.Task.Run(() => _relay.Abrir());
+            Console.WriteLine("[HTTP] Apertura manual de palanquera solicitada.");
+            Write(ctx, "{\"ok\":true}");
         }
 
         private void HandleAccessReload(HttpListenerContext ctx)

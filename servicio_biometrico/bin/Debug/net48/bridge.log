@@ -3885,3 +3885,46 @@ Presiona Ctrl+C para salir.
 [WS] Cliente conectado: 127.0.0.1
 [WS] Cliente conectado: 127.0.0.1
 [HUELLERO] Templates cargados: 1
+[HUELLERO] Templates cargados: 1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 1
+[HUELLERO] Lector desconectado: 875af125-1c85-d44f-a69d-4989447cbee0
+[HUELLERO] Templates cargados: 1
+[HUELLERO] Lector conectado: 875af125-1c85-d44f-a69d-4989447cbee0
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Santi Giraldo)
+[HUELLERO] Dedo retirado
+[ACCESO] ENTRADA registrada para Santi Giraldo (#2)
+[RELE] Conectado a la palanquera en COM3.
+[RELE] Comando de apertura enviado a la palanquera.
+[HUELLERO] Lector desconectado: 875af125-1c85-d44f-a69d-4989447cbee0
+[HUELLERO] Lector conectado: 875af125-1c85-d44f-a69d-4989447cbee0
+[HUELLERO] Dedo retirado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Santi Giraldo)
+[HUELLERO] Dedo retirado
+[ACCESO] ENTRADA registrada para Santi Giraldo (#2)
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Cooldown activo para Santi Giraldo — ignorando captura.
+[HUELLERO] Dedo retirado
+[RELE] Conectado a la palanquera en COM3.
+[RELE] Comando de apertura enviado a la palanquera.
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Cooldown activo para Santi Giraldo — ignorando captura.
+[HUELLERO] Dedo retirado
+[HUELLERO] Templates cargados: 1
+[HUELLERO] Templates cargados: 1
+Bye.

@@ -412,6 +412,8 @@ Start-Process -FilePath "servicio_biometrico\bin\Debug\net48\HuelleroBridge.exe"
 
 **Logs en vivo:** `servicio_biometrico\ver-logs.cmd` (tail coloreado de `bridge.log`).
 
+**A qué backend apunta:** por defecto el bridge habla con el backend de **Railway (producción)** — ver `BridgeConfig.cs`. Para apuntarlo a un backend local en dev, definir `JSB_API_BASE=http://localhost:8000` antes de arrancarlo. `ApiBase`/`BridgeSecret` son `static readonly` (se leen **una sola vez** al iniciar), así que tras cambiar la env var hay que **reiniciar el bridge**. Si el enrolamiento falla con `Excepción al guardar template: Error al enviar la solicitud` (un `HttpRequestException` de conexión, no de TLS), casi siempre es que `ApiBase` apunta a un backend que no responde — confirmar con la línea `[CONFIG] ApiBase` del log al arrancar.
+
 ### Por qué .NET y no Python
 
 El SDK de DigitalPersona U.are.U 4500 ("One Touch for Windows .NET Edition") solo expone DLLs COM para .NET Framework x86. No hay bindings para Python.
@@ -437,9 +439,9 @@ Lo único conservado en `Program.cs` además del shell WinForms es `SetThreadExe
 
 | Archivo | Rol |
 |---|---|
-| `Program.cs` | Entry point `[STAThread]`; redirige logs a `bridge.log`, suelta consola con `FreeConsole`, levanta WebSocket/HttpApi/BridgeForm |
+| `Program.cs` | Entry point `[STAThread]`; redirige logs a `bridge.log`, suelta consola con `FreeConsole`, levanta WebSocket/HttpApi/BridgeForm. Al arrancar loguea `[CONFIG] ApiBase` y `[CONFIG] BridgeSecret` (definido/vacío) — primer log a revisar si el enrolamiento o las asistencias fallan. |
 | `BridgeForm.cs` | Ventana WinForms invisible (HWND para message pump COM); crea `FingerprintCapture` en `OnLoad` |
-| `BridgeConfig.cs` | Config por entorno (fuente única): `ApiBase` (env `JSB_API_BASE`, default `http://localhost:8000`) y `BridgeSecret` (env `BRIDGE_SECRET`). Referenciado por `FingerprintCapture` y `HttpApi`. |
+| `BridgeConfig.cs` | Config por entorno (fuente única): `ApiBase` (env `JSB_API_BASE`, **default = backend de Railway en producción**; definir `JSB_API_BASE=http://localhost:8000` para apuntar a un backend local en dev) y `BridgeSecret` (env `BRIDGE_SECRET`, default `jain_bridge_secret_2024`). Referenciado por `FingerprintCapture` y `HttpApi`. |
 | `FingerprintCapture.cs` | Implementa `DPFP.Capture.EventHandler`; instancia `new Capture(Priority.High)` para captura en background; maneja enrolamiento, verificación y acceso. Incluye cooldown de `CooldownSegundos` (4 s) por usuario en modo acceso para evitar doble-registro cuando el usuario pone el dedo varias veces seguidas. Dispara la palanquera vía `RelayController.Abrir()` cuando el backend confirma una **entrada** (no en salida). |
 | `RelayController.cs` | Abre la palanquera mandando el byte `'A'` por USB-serial a un Arduino UNO. Ver sección "Palanquera (relé + Arduino)" más abajo. |
 | `arduino/palanquera_rele/palanquera_rele.ino` | Sketch del Arduino UNO que controla el módulo de relé. |

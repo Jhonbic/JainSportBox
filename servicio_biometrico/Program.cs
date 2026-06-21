@@ -84,7 +84,7 @@ namespace HuelleroBridge
 
             // HttpApi necesita referencia al capture para cargar templates en verify mode
             // BridgeForm crea el capture; lo pasamos después de construir el form
-            var api = new HttpApi(state, form.Capture, port: 8001);
+            var api = new HttpApi(state, form.Capture, form.Relay, port: 8001);
             api.Start();
 
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; Application.Exit(); };
