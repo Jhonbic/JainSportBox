@@ -39,6 +39,7 @@ if engine.url.get_backend_name() == "sqlite":
         "ALTER TABLE wods ADD COLUMN tipo VARCHAR(50)",
         "ALTER TABLE ejercicios ADD COLUMN categoria VARCHAR(50)",
         "ALTER TABLE marcas_rm ADD COLUMN series TEXT",
+        "ALTER TABLE medidas_salud ADD COLUMN brazos_cm REAL",
     ]
     with engine.connect() as _conn:
         for _sql in _migraciones:

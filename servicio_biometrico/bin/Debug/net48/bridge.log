@@ -3928,3 +3928,103 @@ Presiona Ctrl+C para salir.
 [HUELLERO] Templates cargados: 1
 [HUELLERO] Templates cargados: 1
 Bye.
+
+===== Bridge iniciado 2026-06-21 12:59:32 =====
+[CONFIG] ApiBase      = https://web-production-ca5df.up.railway.app
+[CONFIG] BridgeSecret = (definido)
+21/06/2026 12:59:32 p. m. [Info] Server started at ws://0.0.0.0:8765 (actual port 8765) 
+[WS] Escuchando en ws://localhost:8765
+[HTTP] API REST escuchando en http://localhost:8001
+[WS] Cliente conectado: 127.0.0.1
+[RELE] Arduino de palanquera detectado en COM3.
+[WS] Cliente conectado: 127.0.0.1
+[RELE] Conectado a la palanquera en COM3.
+[HUELLERO] Capturando. Coloca el dedo en el lector...
+Presiona Ctrl+C para salir.
+[HUELLERO] Lector conectado: 00000000-0000-0000-0000-000000000000
+[HUELLERO] Templates cargados: 1
+[ACCESO] Modo acceso permanente ACTIVO (1 usuarios cargados).
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Santi Giraldo)
+[HUELLERO] Dedo retirado
+[ACCESO] ENTRADA registrada para Santi Giraldo (#2)
+[RELE] Comando de apertura enviado a la palanquera.
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[HTTP] Apertura manual de palanquera solicitada.
+[RELE] Comando de apertura enviado a la palanquera.
+[HTTP] Apertura manual de palanquera solicitada.
+[RELE] Comando de apertura enviado a la palanquera.
+[HTTP] Apertura manual de palanquera solicitada.
+[RELE] Comando de apertura enviado a la palanquera.
+[HUELLERO] Templates cargados: 1
+[HTTP] Verificación iniciada con 1 templates.
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[HUELLERO] Comparando contra 1 templates...
+[HUELLERO] Coincidencia: usuario 2 (Santi Giraldo)
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Santi Giraldo)
+[ACCESO] ENTRADA registrada para Santi Giraldo (#2)
+[RELE] Comando de apertura enviado a la palanquera.
+[HUELLERO] Dedo retirado
+[HTTP] Verificación cancelada
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Coincidencia: usuario 2 (Santi Giraldo)
+[HUELLERO] Dedo retirado
+[ACCESO] ENTRADA registrada para Santi Giraldo (#2)
+[RELE] Comando de apertura enviado a la palanquera.
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Cooldown activo para Santi Giraldo — ignorando captura.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Cooldown activo para Santi Giraldo — ignorando captura.
+[HUELLERO] Dedo retirado
+[HUELLERO] Dedo colocado
+[HUELLERO] Huella capturada
+[ACCESO] Cooldown activo para Santi Giraldo — ignorando captura.
+[HUELLERO] Dedo retirado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[HUELLERO] Templates cargados: 1
+[HUELLERO] Templates cargados: 1
+[HTTP] Apertura manual de palanquera solicitada.
+[RELE] Comando de apertura enviado a la palanquera.
+[HUELLERO] Templates cargados: 1
+[HTTP] Verificación iniciada con 1 templates.
+[HTTP] Verificación cancelada
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[HUELLERO] Templates cargados: 1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente conectado: 127.0.0.1
+[WS] Cliente desconectado
+[WS] Cliente conectado: 127.0.0.1

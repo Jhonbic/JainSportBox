@@ -16,6 +16,7 @@ CAMPOS = {
     "cintura": "cintura_cm",
     "cuello":  "cuello_cm",
     "cadera":  "cadera_cm",
+    "brazos":  "brazos_cm",
 }
 
 

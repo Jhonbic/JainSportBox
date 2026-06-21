@@ -337,6 +337,7 @@ class MedidaSalud(Base):
     cintura_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cuello_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cadera_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    brazos_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

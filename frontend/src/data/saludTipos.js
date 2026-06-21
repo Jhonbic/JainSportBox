@@ -64,4 +64,17 @@ export const TIPOS_SALUD = [
     min: 40, max: 300, step: 0.1,
     placeholder: 'Ej: 95',
   },
+  {
+    param: 'brazos',
+    key: 'brazos_cm',
+    label: 'Brazos',
+    unidad: 'cm',
+    hex: '#f87171',
+    colorBg: 'bg-white',
+    colorBorder: 'border-gray-100',
+    colorText: 'text-gray-500',
+    colorBtn: 'bg-red-400 hover:bg-red-500',
+    min: 15, max: 100, step: 0.1,
+    placeholder: 'Ej: 35',
+  },
 ]

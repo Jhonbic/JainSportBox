@@ -19,6 +19,7 @@ class MedidaResponse(BaseModel):
     cintura_cm: Optional[float]
     cuello_cm: Optional[float]
     cadera_cm: Optional[float]
+    brazos_cm: Optional[float]
     notas: Optional[str]
     created_at: datetime
 
