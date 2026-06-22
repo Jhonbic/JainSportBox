@@ -75,7 +75,7 @@ There are no test commands — no test suite exists in this project.
 - `frontend/src/router/index.js` — Route guards using `meta.requiresAuth` and `meta.roles`; clients default to `/home`, admin to `/usuarios`, coach to `/home`. `pendiente` → forzado a `/planes`. Clientes con membresía vencida (`membresiaVencidaFor`) solo acceden a `RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/']`.
 - `frontend/src/composables/useAuth.js` — Reactive role helpers: `isAdmin`, `isCoach`, `isCliente`, `canManage`
 - `frontend/src/composables/useSessionMarca.js` — Composable de sesión de Marcas (legacy, ya no usado por `MarcasEjercicioView`). Se mantiene para que `Dashboard.vue` pueda limpiar el localStorage en logout (`cancelarSesion()`).
-- `frontend/src/views/` — One large SFC per page: `LoginView`, `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `WodsPersonalizadosView`, `FinanzasView`, `PlanesView`, `AlertasView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`, `SesionesView`. (`MonitorAccesoView.vue` exists but is not registered in the router.)
+- `frontend/src/views/` — One large SFC per page: `LoginView`, `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `WodsPersonalizadosView`, `FinanzasView`, `PlanesView`, `AlertasView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`, `SesionesView`, `MiPerfilView`. (`MonitorAccesoView.vue` exists but is not registered in the router.)
 - `frontend/src/components/Dashboard.vue` — Main layout shell (sidebar + navigation). Does NOT show membership status in the sidebar — that info lives in `HomeView`. Sidebar organizado en tres secciones: **Gestión** (admin+coach), **Contenido** (todos), **Mi Box** (coach+cliente). Ver sección de sidebar más abajo.
 - `frontend/src/components/BloqueCard.vue` — Acordeón reutilizable de bloque horario (usado por `SesionesView`). Header clicable muestra hora del bloque + badge de personas; al expandir muestra la lista completa de asistentes con hora exacta de entrada.
 - `frontend/src/data/` — Shared config files: `saludTipos.js` (6 measurement configs), `ejerciciosMarcas.js` (12 fixed exercises)
@@ -161,6 +161,20 @@ El sidebar está dividido en secciones semánticas según el rol:
 - Planes (solo cliente)
 - Mi Salud (cliente, membresía vigente)
 - Mis Marcas (coach + cliente, membresía vigente)
+
+**Sección "Cuenta"** (todos los roles no pendientes, incluido admin):
+- Mi Perfil
+
+## MiPerfilView — autogestión de perfil
+
+Ruta `/perfil` (roles: `admin`, `coach`, `cliente`). Permite que **cualquier usuario edite su propia cuenta** sin pasar por admin. Está en `RUTAS_CLIENTE_VENCIDO`, así que un cliente con membresía vencida también puede entrar.
+
+Es una **página** (no modal ni cards): encabezado con foto + identidad, sección "Datos personales" con los campos editables inline (nombre, email, teléfono, documento, género, fecha de nacimiento), sección "Seguridad" (cambio de contraseña opcional), y barra de acciones (Descartar / Guardar) que se habilita solo si `hayCambios`. La foto se cambia con un botón sobre el avatar (`POST /me/foto`). Tras guardar nombre actualiza `localStorage.userName`.
+
+**Backend (`routers/auth.py`):** la autogestión vive junto al login, no en `usuarios.py` (que exige admin/coach).
+- `GET /me` — además de membresía/plan, devuelve `telefono`, `documento_identidad`, `fecha_nacimiento` y `foto_url`. Serializado por el helper `_serialize_me(current_user, db)`.
+- `PATCH /me` — edita el perfil propio (mismos campos y validación de email/documento duplicado y normalización que `PATCH /usuarios/{id}`, pero con `get_current_user` en vez de admin/coach). Acepta `UsuarioUpdate`.
+- `POST /me/foto` — sube/reemplaza la foto propia (multipart, campo `foto`). Borra la anterior con `eliminar_archivo`.
 
 ## AlertasView — WhatsApp reminders
 

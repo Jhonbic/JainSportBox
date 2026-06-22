@@ -1,5 +1,5 @@
 """
-Modelos SQLAlchemy para el sistema de gestión de CrossFit Box.
+Modelos SQLAlchemy para el sistema de gestión de Jain Sport Box.
 Define las tablas: Usuarios, Planes, Pagos, WODs, Resultados, Inventario y Ventas.
 """
 

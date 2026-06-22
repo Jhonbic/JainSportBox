@@ -228,7 +228,7 @@ function whatsappLink(alerta) {
   const dias = alerta.dias_anticipacion
   const fecha = formatFecha(alerta.fecha_vencimiento)
   const msg =
-    `Hola ${alerta.usuario_nombre}! 👋 Te recordamos que tu membresía en *CrossFit Box* vence ` +
+    `Hola ${alerta.usuario_nombre}! 👋 Te recordamos que tu membresía en *Jain Sport Box* vence ` +
     (dias === 1 ? `*mañana* (${fecha})` : `en *${dias} días* (${fecha})`) +
     `. Para renovar contáctanos. 💪🔥`
   return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`
