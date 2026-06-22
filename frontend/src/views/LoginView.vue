@@ -11,7 +11,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
-        <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">CrossFit Box</h1>
+        <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">Jain Sport Box</h1>
       </div>
 
       <!-- Tabs -->
@@ -130,12 +130,18 @@
 
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">Género <span class="text-red-500">*</span></label>
-            <select v-model="regForm.genero" required
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none appearance-none transition-all text-sm">
-              <option value="" disabled>Selecciona...</option>
-              <option value="masculino">Masculino</option>
-              <option value="femenino">Femenino</option>
-            </select>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" @click="regForm.genero = 'masculino'"
+                class="py-2.5 rounded-lg border text-sm font-semibold transition-colors"
+                :class="regForm.genero === 'masculino' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-500 hover:border-gray-400'">
+                Masculino
+              </button>
+              <button type="button" @click="regForm.genero = 'femenino'"
+                class="py-2.5 rounded-lg border text-sm font-semibold transition-colors"
+                :class="regForm.genero === 'femenino' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-300 text-gray-500 hover:border-gray-400'">
+                Femenino
+              </button>
+            </div>
           </div>
 
           <div>
@@ -219,6 +225,10 @@ function onFotoChange(e) {
 
 const handleRegistro = async () => {
   registroError.value = ''
+  if (!regForm.value.genero) {
+    registroError.value = 'Selecciona tu género.'
+    return
+  }
   registroLoading.value = true
   try {
     const fd = new FormData()

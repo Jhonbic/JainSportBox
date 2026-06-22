@@ -18,7 +18,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <h1 class="text-xl font-extrabold tracking-wider">CrossFit Box</h1>
+        <h1 class="text-xl font-extrabold tracking-wider">Jain Sport Box</h1>
         <!-- Cerrar en móvil -->
         <button @click="sidebarOpen = false" class="ml-auto md:hidden text-gray-400 hover:text-white p-1">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -189,6 +189,21 @@
           </router-link>
         </template>
 
+        <!-- ── CUENTA (todos menos pendiente) ── -->
+        <template v-if="!isPendiente">
+          <div class="pt-2 pb-1 px-2">
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Cuenta</p>
+          </div>
+          <router-link to="/perfil" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Mi Perfil
+          </router-link>
+        </template>
+
       </nav>
 
       <!-- Chip sesión activa -->
@@ -219,7 +234,7 @@
           </svg>
           <span class="font-semibold text-sm">Cerrar Sesión</span>
         </button>
-        <p class="text-xs text-gray-600 text-center mt-3">&copy; 2026 CrossFit Box</p>
+        <p class="text-xs text-gray-600 text-center mt-3">&copy; 2026 Jain Sport Box</p>
       </div>
     </aside>
 
@@ -236,7 +251,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
         </svg>
-        <span class="font-extrabold tracking-wider text-base">CrossFit Box</span>
+        <span class="font-extrabold tracking-wider text-base">Jain Sport Box</span>
       </header>
 
       <!-- Content -->

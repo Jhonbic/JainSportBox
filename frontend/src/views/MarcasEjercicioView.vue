@@ -518,7 +518,7 @@
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">Fecha</label>
             <input v-model="formFecha" type="date" required
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none">
+              class="block w-full min-w-0 appearance-none px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none">
           </div>
 
           <!-- Notas -->

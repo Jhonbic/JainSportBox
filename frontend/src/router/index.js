@@ -17,6 +17,7 @@ import UsuarioPerfilView from '../views/UsuarioPerfilView.vue'
 import SesionesView from '../views/SesionesView.vue'
 import EjerciciosView from '../views/EjerciciosView.vue'
 import WodFormView from '../views/WodFormView.vue'
+import MiPerfilView from '../views/MiPerfilView.vue'
 
 const routes = [
   {
@@ -150,6 +151,12 @@ const routes = [
         name: 'Ejercicios',
         component: EjerciciosView,
         meta: { roles: ['admin', 'coach'] },
+      },
+      {
+        path: 'perfil',
+        name: 'MiPerfil',
+        component: MiPerfilView,
+        meta: { roles: ['admin', 'coach', 'cliente'] },
       }
     ]
   }
@@ -163,7 +170,7 @@ const router = createRouter({
 import { membresiaVencidaFor } from '../composables/useAuth'
 
 // Rutas permitidas para clientes con membresía vencida
-const RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/']
+const RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/perfil', '/']
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')

@@ -116,7 +116,7 @@
         <div>
           <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Rol</p>
           <p class="text-2xl font-black">Coach</p>
-          <p class="text-sm text-gray-400 mt-0.5">CrossFit Box</p>
+          <p class="text-sm text-gray-400 mt-0.5">Jain Sport Box</p>
         </div>
       </div>
     </template>

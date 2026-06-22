@@ -171,8 +171,8 @@ seed_planes()
 seed_admin()
 
 app = FastAPI(
-    title="CrossFit Box System",
-    description="API para la gestion integral de un box de CrossFit",
+    title="Jain Sport Box System",
+    description="API para la gestion integral de Jain Sport Box",
     version="0.1.0",
 )
 
