@@ -157,6 +157,53 @@ if engine.url.get_backend_name() == "sqlite":
             _conn.commit()
 
 
+# ── Migración de columnas para Postgres (Railway) ─────────────
+# El bloque ALTER de arriba es SOLO SQLite. En Postgres, create_all crea tablas
+# nuevas pero NO agrega columnas a tablas existentes, así que las columnas añadidas
+# después del último despliegue quedarían faltantes (rompen INSERT/SELECT). Postgres
+# soporta ADD COLUMN IF NOT EXISTS (idempotente); SQLite no, por eso este bloque va
+# aparte y solo corre en Postgres. Mantener en sync con los modelos.
+if engine.url.get_backend_name() != "sqlite":
+    _cols_pg = [
+        "ALTER TABLE productos ADD COLUMN IF NOT EXISTS foto_url VARCHAR(300)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(20)",
+        "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS metodo_pago VARCHAR(50)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS documento_identidad VARCHAR(20)",
+        "ALTER TABLE planes ADD COLUMN IF NOT EXISTS beneficios TEXT",
+        "ALTER TABLE planes ADD COLUMN IF NOT EXISTS incluye_wods_personalizados BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS genero VARCHAR(20)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS plan_solicitado_id INTEGER",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS huella_template TEXT",
+        "ALTER TABLE medidas_salud ADD COLUMN IF NOT EXISTS cuello_cm REAL",
+        "ALTER TABLE medidas_salud ADD COLUMN IF NOT EXISTS cadera_cm REAL",
+        "ALTER TABLE medidas_salud ADD COLUMN IF NOT EXISTS brazos_cm REAL",
+        "ALTER TABLE wods ADD COLUMN IF NOT EXISTS es_personalizado BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE wods ADD COLUMN IF NOT EXISTS genero_destino VARCHAR(20)",
+        "ALTER TABLE wods ADD COLUMN IF NOT EXISTS tipo VARCHAR(50)",
+        "ALTER TABLE pagos ADD COLUMN IF NOT EXISTS duracion_dias INTEGER",
+        "ALTER TABLE marcas_rm ADD COLUMN IF NOT EXISTS peso_adicional REAL",
+        "ALTER TABLE marcas_rm ADD COLUMN IF NOT EXISTS nivel INTEGER",
+        "ALTER TABLE marcas_rm ADD COLUMN IF NOT EXISTS palier INTEGER",
+        "ALTER TABLE marcas_rm ADD COLUMN IF NOT EXISTS series TEXT",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS fecha_nacimiento DATE",
+        "ALTER TABLE ejercicios ADD COLUMN IF NOT EXISTS descripcion TEXT",
+        "ALTER TABLE ejercicios ADD COLUMN IF NOT EXISTS categoria VARCHAR(50)",
+        "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS rep_min INTEGER",
+        "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS rep_max INTEGER",
+        "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS rir INTEGER",
+        "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS porcentaje_rm REAL",
+        "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS tiempo_segundos INTEGER",
+        "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS superserie_con_anterior BOOLEAN NOT NULL DEFAULT FALSE",
+    ]
+    with engine.connect() as _conn:
+        for _sql in _cols_pg:
+            try:
+                _conn.execute(text(_sql))
+                _conn.commit()
+            except Exception:
+                _conn.rollback()
+
+
 # ── Índices de rendimiento (SQLite y Postgres) ────────────────
 # CREATE INDEX IF NOT EXISTS es idempotente y válido en ambos motores. Se ejecuta
 # fuera del guard de SQLite para indexar también la base ya desplegada en Railway
