@@ -1,9 +1,11 @@
+import hmac
 import os
 from collections import defaultdict
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
@@ -26,7 +28,7 @@ def _require_admin_or_coach(current_user: Usuario = Depends(get_current_user)):
 def _autorizar_bridge_o_admin(request: Request, db: Session) -> None:
     bridge_secret = os.environ.get("BRIDGE_SECRET", "")
     x_secret = request.headers.get("X-Bridge-Secret", "")
-    if bridge_secret and x_secret == bridge_secret:
+    if bridge_secret and hmac.compare_digest(x_secret, bridge_secret):
         return
     from jose import jwt as jose_jwt
     from security import ALGORITHM, SECRET_KEY
@@ -65,7 +67,8 @@ def _registrar(usuario: Usuario, db: Session) -> AsistenciaResponse:
 
 
 @router.post("/", response_model=AsistenciaResponse, status_code=status.HTTP_201_CREATED)
-def registrar_asistencia(payload: AsistenciaCreate, db: Session = Depends(get_db)):
+def registrar_asistencia(payload: AsistenciaCreate, request: Request, db: Session = Depends(get_db)):
+    _autorizar_bridge_o_admin(request, db)
     usuario = db.query(Usuario).filter(Usuario.huella_id == payload.huella_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado con esa huella.")
@@ -167,24 +170,34 @@ def usuarios_en_gym(
     current_user: Usuario = Depends(_require_admin_or_coach),
 ):
     """Usuarios con esta_en_gym=True, con su última entrada y tiempo restante de sesión."""
-    usuarios = db.query(Usuario).filter(Usuario.esta_en_gym == True).all()
+    # Subconsulta: última entrada por usuario (evita el N+1 de una query por usuario).
+    ultima_entrada = (
+        db.query(
+            Asistencia.usuario_id.label("usuario_id"),
+            func.max(Asistencia.fecha_hora).label("ultima"),
+        )
+        .filter(Asistencia.tipo == "entrada")
+        .group_by(Asistencia.usuario_id)
+        .subquery()
+    )
+    filas = (
+        db.query(Usuario, ultima_entrada.c.ultima)
+        .join(ultima_entrada, ultima_entrada.c.usuario_id == Usuario.id)
+        .filter(Usuario.esta_en_gym == True)
+        .all()
+    )
+
     ahora = datetime.utcnow()
     resultado = []
-    for u in usuarios:
-        ultima = (
-            db.query(Asistencia)
-            .filter(Asistencia.usuario_id == u.id, Asistencia.tipo == "entrada")
-            .order_by(Asistencia.fecha_hora.desc())
-            .first()
-        )
+    for u, ultima in filas:
         if not ultima:
             continue
-        minutos_transcurridos = (ahora - ultima.fecha_hora).total_seconds() / 60
+        minutos_transcurridos = (ahora - ultima).total_seconds() / 60
         resultado.append({
             "usuario_id": u.id,
             "nombre": u.nombre,
             "foto_url": u.foto_url,
-            "entrada_desde": ultima.fecha_hora.isoformat(),
+            "entrada_desde": ultima.isoformat(),
             "minutos_transcurridos": round(minutos_transcurridos, 1),
             "minutos_restantes": round(max(0, MINUTOS_SESION - minutos_transcurridos), 1),
             "minutos_sesion": MINUTOS_SESION,

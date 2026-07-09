@@ -1,23 +1,27 @@
 import { createRouter, createWebHistory } from 'vue-router'
+// Login y Dashboard son el shell inicial → estáticos. El resto se carga on-demand
+// (import dinámico) para que cada vista sea su propio chunk y no engorde el bundle
+// inicial que descarga alguien que solo entra a /home.
 import Dashboard from '../components/Dashboard.vue'
-import UsuariosView from '../views/UsuariosView.vue'
-import PlanesView from '../views/PlanesView.vue'
-import TiendaView from '../views/TiendaView.vue'
 import LoginView from '../views/LoginView.vue'
-import WodsView from '../views/WodsView.vue'
-import FinanzasView from '../views/FinanzasView.vue'
-import SaludView from '../views/SaludView.vue'
-import SaludMedidaView from '../views/SaludMedidaView.vue'
-import MarcasView from '../views/MarcasView.vue'
-import MarcasEjercicioView from '../views/MarcasEjercicioView.vue'
-import AlertasView from '../views/AlertasView.vue'
-import WodsPersonalizadosView from '../views/WodsPersonalizadosView.vue'
-import HomeView from '../views/HomeView.vue'
-import UsuarioPerfilView from '../views/UsuarioPerfilView.vue'
-import SesionesView from '../views/SesionesView.vue'
-import EjerciciosView from '../views/EjerciciosView.vue'
-import WodFormView from '../views/WodFormView.vue'
-import MiPerfilView from '../views/MiPerfilView.vue'
+
+const UsuariosView = () => import('../views/UsuariosView.vue')
+const PlanesView = () => import('../views/PlanesView.vue')
+const TiendaView = () => import('../views/TiendaView.vue')
+const WodsView = () => import('../views/WodsView.vue')
+const FinanzasView = () => import('../views/FinanzasView.vue')
+const SaludView = () => import('../views/SaludView.vue')
+const SaludMedidaView = () => import('../views/SaludMedidaView.vue')
+const MarcasView = () => import('../views/MarcasView.vue')
+const MarcasEjercicioView = () => import('../views/MarcasEjercicioView.vue')
+const AlertasView = () => import('../views/AlertasView.vue')
+const WodsPersonalizadosView = () => import('../views/WodsPersonalizadosView.vue')
+const HomeView = () => import('../views/HomeView.vue')
+const UsuarioPerfilView = () => import('../views/UsuarioPerfilView.vue')
+const SesionesView = () => import('../views/SesionesView.vue')
+const EjerciciosView = () => import('../views/EjerciciosView.vue')
+const WodFormView = () => import('../views/WodFormView.vue')
+const MiPerfilView = () => import('../views/MiPerfilView.vue')
 
 const routes = [
   {

@@ -11,14 +11,23 @@ from models import Pago, Plan, RolUsuario, Usuario
 from schemas.usuario import UsuarioUpdate
 from security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, get_password_hash, verify_password, get_current_user
 from storage import guardar_archivo, eliminar_archivo
+from ratelimit import limitar
 
 router = APIRouter(tags=["Auth"])
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
+# Límites por IP: mitigan fuerza bruta en login y spam de registros.
+_limite_login = limitar("login", max_requests=10, window_seconds=300)     # 10 / 5 min
+_limite_registro = limitar("registro", max_requests=5, window_seconds=3600)  # 5 / hora
+
 
 @router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+    _rl: None = Depends(_limite_login),
+):
     email_norm = (form_data.username or "").strip().lower()
     usuario = db.query(Usuario).filter(Usuario.email == email_norm).first()
     if not usuario or not verify_password(form_data.password, usuario.password_hash):
@@ -45,12 +54,13 @@ def contacto_admin(db: Session = Depends(get_db)):
 def registro_publico(
     nombre: str = Form(..., min_length=2, max_length=120),
     email: str = Form(..., max_length=120),
-    password: str = Form(..., min_length=6),
+    password: str = Form(..., min_length=8),
     documento_identidad: str = Form(..., min_length=5, max_length=20),
     genero: str = Form(...),
     telefono: str = Form(..., min_length=7, max_length=20),
     foto: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
+    _rl: None = Depends(_limite_registro),
 ):
     if genero not in ("masculino", "femenino"):
         raise HTTPException(status_code=422, detail="Género inválido.")

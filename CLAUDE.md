@@ -90,6 +90,15 @@ There are no test commands — no test suite exists in this project.
 - Frontend: `meta.roles` on routes + `useAuth` composable in components
 - `pendiente` users are redirected to `/planes` by the router guard
 
+**Rendimiento y seguridad (convenciones a mantener):**
+- **Índices de BD:** se crean vía bloque `CREATE INDEX IF NOT EXISTS` en `main.py` (idempotente, corre en SQLite y Postgres, cubre bases ya desplegadas). Al agregar consultas por columnas nuevas, añadir el índice ahí.
+- **Eager loading:** los listados que serializan relaciones usan `selectinload`/`joinedload` para evitar N+1 (ver `_EAGER_EJERCICIOS` en `wods.py`, `joinedload` en `finanzas.py`/`alertas.py`/`pagos.py`). El listado de usuarios usa `defer(Usuario.huella_template)` para no arrastrar la columna biométrica.
+- **Rutas lazy (frontend):** `router/index.js` importa las vistas con `() => import(...)` (solo Login y Dashboard son estáticos). Mantener el patrón al agregar vistas para no engordar el bundle inicial. `vite.config.js` separa `vendor` y `chart` en chunks propios.
+- **Chart.js:** NO usar `chart.js/auto`. Importar el helper `getChart()` de `src/lib/chart.js` (carga diferida + registro selectivo de los componentes de línea/barra). `renderChart` es `async` y hace `const Chart = await getChart()`.
+- **Rate limiting:** endpoints públicos sensibles (login, registro) usan `Depends(limitar(bucket, max, ventana))` de `backend/ratelimit.py` (en memoria, por-worker). El bridge (asistencia por huella) NO se limita para no interferir con la palanquera.
+- **401 global:** `api.js` tiene un interceptor de respuesta que ante 401 limpia la sesión y redirige a `/login`.
+- **Scheduler con multi-worker:** el Dockerfile corre `--workers 2`; APScheduler se protege con un advisory lock de Postgres (`pg_try_advisory_lock`) en `main.py` para que el job de alertas corra en un solo worker.
+
 **Financial movements:** `finanzas.py` surfaces income from three sources: rows in `pagos` (membership payments, both plan-based and personalizado), rows in `ventas` (shop sales), and rows in `movimientos_financieros` (manual entries + legacy `pago_directo` records). Pagos and ventas are NOT mirrored into `movimientos_financieros` — the finanzas listing reads from each table directly to avoid double-counting.
 
 **Pago model:** `plan_id` is nullable. Personalizado payments have `plan_id = NULL` and `duracion_dias` set to the days purchased. The historial endpoint shows them as `"Personalizado (N días)"`.
@@ -340,6 +349,13 @@ Para ejercicios de peso, cada serie se guarda **inmediatamente** al presionar `+
 | `es_personalizado` | `Boolean` (default `False`) | Distingue WODs regulares de personalizados |
 | `genero_destino` | `String(20)`, nullable | `"masculino"` \| `"femenino"` — solo para personalizados |
 | `tipo` | `String(50)`, nullable | Formato del WOD: `"For Time"` \| `"AMRAP"` \| `"EMOM"` \| `"Por Rondas"` \| `"Fuerza"` \| `"Otro"` |
+
+### Superseries
+
+Un ejercicio de un WOD puede formar superserie con el anterior via el booleano `superserie_con_anterior` en `wod_ejercicios` (default `False`). Los grupos se **derivan** de filas consecutivas con el flag en `true` — no se guardan números de grupo, así el reordenado nunca deja grupos huérfanos. Invariante: la primera fila siempre tiene el flag en `False` (normalizado en `_aplicar_ejercicios` del router y en el frontend).
+
+- **Editor** (`WodEjerciciosEditor.vue`): botón de eslabón 🔗 en cada fila (excepto la primera) que alterna el enlace con la fila de arriba; las filas agrupadas se pintan con acento rojo y encabezado "Superserie A/B/…" (computed `gruposMeta`). `quitar()`/`mover()` re-normalizan la primera fila.
+- **Render** (`WodEjerciciosLista.vue`): computed `bloques` agrupa la lista; los bloques de superserie se envuelven en un contenedor con borde y encabezado "Superserie A · alternar sin descanso", manteniendo la numeración continua. Cubre todas las vistas consumidoras (WodsView, WodsPersonalizadosView).
 
 ### Separación activo / historial
 

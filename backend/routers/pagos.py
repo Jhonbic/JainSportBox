@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 
 from database import get_db
@@ -177,6 +177,7 @@ def historial_pagos(
 ):
     pagos = (
         db.query(Pago)
+        .options(joinedload(Pago.plan))
         .filter(Pago.usuario_id == usuario_id)
         .order_by(Pago.fecha_pago.desc())
         .all()

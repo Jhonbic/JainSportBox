@@ -1,3 +1,4 @@
+import hmac
 import os
 from datetime import date, datetime, timedelta
 from typing import List, Optional
@@ -6,7 +7,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from database import get_db
 from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario
@@ -25,12 +26,20 @@ def _require_admin_or_coach(current_user: Usuario = Depends(get_current_user)):
     return current_user
 
 
+# Roles con privilegio de staff: solo un admin puede crear/tocar estas cuentas.
+_ROLES_PRIVILEGIADOS = (RolUsuario.ADMIN, RolUsuario.COACH)
+
+
 @router.post("/", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
 def crear_usuario(
     payload: UsuarioCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_admin_or_coach),
 ):
+    # Un coach no puede crear cuentas de staff (admin/coach); solo el admin.
+    if payload.rol in _ROLES_PRIVILEGIADOS and current_user.rol != RolUsuario.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo el administrador puede crear cuentas de admin o coach.")
+
     email_norm = (payload.email or "").strip().lower()
     doc_norm = (payload.documento_identidad or "").strip()
     if db.query(Usuario).filter(Usuario.email == email_norm).first():
@@ -64,6 +73,10 @@ def actualizar_usuario(
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    # Un coach no puede modificar (ni resetear la contraseña de) una cuenta de staff.
+    if usuario.rol in _ROLES_PRIVILEGIADOS and current_user.rol != RolUsuario.ADMIN:
+        raise HTTPException(status_code=403, detail="Solo el administrador puede modificar cuentas de admin o coach.")
 
     if payload.nombre is not None:
         usuario.nombre = payload.nombre
@@ -150,7 +163,13 @@ def listar_usuarios(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_admin_or_coach),
 ):
-    return db.query(Usuario).filter(Usuario.rol != RolUsuario.PENDIENTE).all()
+    # defer: no traer la columna Text pesada (huella_template) en el listado.
+    return (
+        db.query(Usuario)
+        .options(defer(Usuario.huella_template))
+        .filter(Usuario.rol != RolUsuario.PENDIENTE)
+        .all()
+    )
 
 
 # IMPORTANTE: rutas estáticas ANTES de las parametrizadas con {usuario_id}.
@@ -189,12 +208,13 @@ def cumpleanos_hoy(
     _: Usuario = Depends(_require_admin_or_coach),
 ):
     hoy = datetime.now(ZoneInfo("America/Bogota")).date()
-    hoy_md = hoy.strftime("%m-%d")
+    # extract() es portable (SQLite y Postgres); strftime es solo de SQLite.
     return (
         db.query(Usuario)
         .filter(
             Usuario.fecha_nacimiento.isnot(None),
-            func.strftime("%m-%d", Usuario.fecha_nacimiento) == hoy_md,
+            func.extract("month", Usuario.fecha_nacimiento) == hoy.month,
+            func.extract("day", Usuario.fecha_nacimiento) == hoy.day,
             Usuario.fecha_vencimiento >= hoy,
         )
         .all()
@@ -259,7 +279,7 @@ def activar_usuario(
 def buscar_por_huella(
     huella_id: str,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(_require_admin_or_coach),
 ):
     usuario = db.query(Usuario).filter(Usuario.huella_id == huella_id).first()
     if not usuario:
@@ -281,7 +301,7 @@ def guardar_huella_template(
     """Guarda el template de huella. Acepta JWT de admin/coach O el header X-Bridge-Secret del bridge .NET."""
     bridge_secret = os.environ.get("BRIDGE_SECRET", "")
     x_secret = request.headers.get("X-Bridge-Secret", "")
-    if x_secret != bridge_secret or not bridge_secret:
+    if not bridge_secret or not hmac.compare_digest(x_secret, bridge_secret):
         # Si no viene del bridge, exigir JWT admin/coach
         try:
             from fastapi.security import OAuth2PasswordBearer
@@ -318,7 +338,7 @@ def listar_usuarios_con_template(
     """Devuelve id, nombre y template de todos los usuarios con huella. Acepta JWT admin/coach o X-Bridge-Secret."""
     bridge_secret = os.environ.get("BRIDGE_SECRET", "")
     x_secret = request.headers.get("X-Bridge-Secret", "")
-    if not bridge_secret or x_secret != bridge_secret:
+    if not bridge_secret or not hmac.compare_digest(x_secret, bridge_secret):
         try:
             from jose import jwt as jose_jwt, JWTError
             from security import SECRET_KEY, ALGORITHM

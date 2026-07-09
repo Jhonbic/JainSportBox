@@ -17,5 +17,7 @@ COPY backend/ ./backend/
 
 WORKDIR /app/backend
 
-# Railway inyecta $PORT en runtime.
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Railway inyecta $PORT en runtime. 2 workers para repartir la carga concurrente
+# (~30 usuarios simultáneos). Nota: los jobs de APScheduler corren por worker; con
+# el reset de esta_en_gym siendo idempotente no hay problema de duplicación.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]

@@ -122,7 +122,7 @@
         <div v-for="user in usuariosFiltrados" :key="user.id"
           class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
           <div class="flex items-center gap-3 mb-3">
-            <img class="h-11 w-11 rounded-full object-cover bg-gray-100 flex-shrink-0" :src="fotoSrc(user)" alt="" />
+            <img loading="lazy" class="h-11 w-11 rounded-full object-cover bg-gray-100 flex-shrink-0" :src="fotoSrc(user)" alt="" />
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-gray-900 truncate">{{ user.nombre }}</p>
               <p class="text-xs text-gray-500 truncate">{{ user.email }}</p>
@@ -178,7 +178,7 @@
               <tr v-for="user in usuariosFiltrados" :key="user.id" class="hover:bg-gray-50 transition-colors group">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center gap-3">
-                    <img class="h-10 w-10 rounded-full object-cover bg-gray-100 flex-shrink-0" :src="fotoSrc(user)" alt="" />
+                    <img loading="lazy" class="h-10 w-10 rounded-full object-cover bg-gray-100 flex-shrink-0" :src="fotoSrc(user)" alt="" />
                     <div>
                       <div class="text-sm font-semibold text-gray-900 group-hover:text-red-600 transition-colors">{{ user.nombre }}</div>
                       <div class="text-xs text-gray-500">{{ user.email }}</div>

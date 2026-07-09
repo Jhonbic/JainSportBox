@@ -209,6 +209,7 @@ class WODEjercicio(Base):
     porcentaje_rm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     tiempo_segundos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     orden: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    superserie_con_anterior: Mapped[bool] = mapped_column(Boolean, default=False)  # True → forma superserie con la fila anterior
 
     # ── Relaciones ──
     wod: Mapped["WOD"] = relationship("WOD", back_populates="ejercicios")

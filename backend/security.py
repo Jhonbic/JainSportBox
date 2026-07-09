@@ -15,7 +15,10 @@ from models import Usuario
 
 SECRET_KEY = os.environ["SECRET_KEY"]
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 días
+# Expiración del JWT configurable por entorno (default 7 días). Bajarla acota la
+# ventana de un token robado; sin refresh-token, un valor muy corto obliga a
+# re-login frecuente, por eso el default se mantiene alto.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7)))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

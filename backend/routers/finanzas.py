@@ -3,7 +3,8 @@ from typing import List, Optional
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario, Venta
@@ -34,34 +35,32 @@ def balance(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_admin),
 ):
-    # ── Ingresos de membresías (tabla pagos) ──
-    q_pagos = db.query(Pago)
+    # ── Ingresos de membresías (tabla pagos) — sumado en SQL ──
+    q_pagos = db.query(func.coalesce(func.sum(Pago.monto), 0.0))
     q_pagos = _apply_date_filter(q_pagos, Pago.fecha_pago, fecha_desde, fecha_hasta)
-    pagos = q_pagos.all()
-    total_membresias = sum(p.monto for p in pagos)
+    total_membresias = q_pagos.scalar() or 0.0
 
-    # ── Ingresos de tienda (tabla ventas) ──
-    q_ventas = db.query(Venta)
+    # ── Ingresos de tienda (tabla ventas) — sumado en SQL ──
+    q_ventas = db.query(func.coalesce(func.sum(Venta.total), 0.0))
     q_ventas = _apply_date_filter(q_ventas, Venta.fecha_venta, fecha_desde, fecha_hasta)
-    ventas = q_ventas.all()
-    total_ventas = sum(v.total for v in ventas)
+    total_ventas = q_ventas.scalar() or 0.0
 
-    # ── Movimientos manuales ──
-    q_mov = db.query(MovimientoFinanciero)
+    # ── Movimientos manuales — agrupados por (tipo, categoría) en SQL ──
+    q_mov = db.query(
+        MovimientoFinanciero.tipo,
+        MovimientoFinanciero.categoria,
+        func.coalesce(func.sum(MovimientoFinanciero.monto), 0.0),
+    )
     q_mov = _apply_date_filter(q_mov, MovimientoFinanciero.fecha, fecha_desde, fecha_hasta)
-    movimientos = q_mov.all()
+    q_mov = q_mov.group_by(MovimientoFinanciero.tipo, MovimientoFinanciero.categoria)
 
-    # Ingresos manuales (pagos directos + ingresos varios)
     ingresos_manuales = defaultdict(float)
-    for m in movimientos:
-        if m.tipo == TipoMovimiento.INGRESO:
-            ingresos_manuales[m.categoria] += m.monto
-
-    # Egresos manuales
     egresos_por_categoria = defaultdict(float)
-    for m in movimientos:
-        if m.tipo == TipoMovimiento.EGRESO:
-            egresos_por_categoria[m.categoria] += m.monto
+    for _tipo, _categoria, _suma in q_mov.all():
+        if _tipo == TipoMovimiento.INGRESO:
+            ingresos_manuales[_categoria] += _suma
+        elif _tipo == TipoMovimiento.EGRESO:
+            egresos_por_categoria[_categoria] += _suma
 
     total_ingresos_manuales = sum(ingresos_manuales.values())
     total_egresos = sum(egresos_por_categoria.values())
@@ -104,9 +103,8 @@ def listar_movimientos(
 
     # ── Pagos de membresías ──
     if tipo in (None, "ingreso"):
-        q = db.query(Pago).join(Plan, isouter=True).join(
-            Usuario, Pago.usuario_id == Usuario.id, isouter=True
-        )
+        # joinedload puebla plan y usuario en la misma query (evita lazy load por fila).
+        q = db.query(Pago).options(joinedload(Pago.plan), joinedload(Pago.usuario))
         q = _apply_date_filter(q, Pago.fecha_pago, fecha_desde, fecha_hasta)
         for p in q.order_by(Pago.fecha_pago.desc()).all():
             plan_nombre = p.plan.nombre if p.plan else "Personalizado"
@@ -125,7 +123,7 @@ def listar_movimientos(
             })
 
         # ── Ventas de tienda ──
-        q2 = db.query(Venta).join(Usuario, Venta.usuario_id == Usuario.id, isouter=True)
+        q2 = db.query(Venta).options(joinedload(Venta.producto), joinedload(Venta.usuario))
         q2 = _apply_date_filter(q2, Venta.fecha_venta, fecha_desde, fecha_hasta)
         for v in q2.order_by(Venta.fecha_venta.desc()).all():
             items.append({
@@ -142,7 +140,7 @@ def listar_movimientos(
             })
 
     # ── Movimientos manuales ──
-    q3 = db.query(MovimientoFinanciero)
+    q3 = db.query(MovimientoFinanciero).options(joinedload(MovimientoFinanciero.usuario))
     q3 = _apply_date_filter(q3, MovimientoFinanciero.fecha, fecha_desde, fecha_hasta)
     if tipo in ("ingreso", "egreso"):
         q3 = q3.filter(MovimientoFinanciero.tipo == TipoMovimiento(tipo))

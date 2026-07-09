@@ -27,15 +27,49 @@ Variables de entorno (S3/R2):
   S3_REGION            región (default "auto", válido para R2)
 """
 
+import io
 import os
-import shutil
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 
 UPLOADS_DIR = Path(__file__).parent / "uploads"
+
+# Límite de tamaño y validación de tipo real por magic bytes (no se confía en
+# el filename ni en el Content-Type que envía el cliente, ambos falsificables).
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+def _detectar_imagen(data: bytes) -> Optional[Tuple[str, str]]:
+    """Devuelve (extension, content_type) según los magic bytes, o None si no
+    es una imagen de un tipo permitido (jpg/png/webp/gif)."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "jpg", "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png", "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp", "image/webp"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "gif", "image/gif"
+    return None
+
+
+def _leer_y_validar(foto: UploadFile) -> Tuple[bytes, str, str]:
+    """Lee el archivo subido (con tope de tamaño) y valida que sea una imagen
+    real de un tipo permitido. Devuelve (bytes, extension, content_type).
+    Lanza HTTPException 400/413 si no cumple."""
+    data = foto.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="La imagen supera el tamaño máximo de 5 MB.")
+    if not data:
+        raise HTTPException(status_code=400, detail="Archivo vacío.")
+    detectado = _detectar_imagen(data)
+    if detectado is None:
+        raise HTTPException(status_code=400, detail="Formato de imagen no permitido. Usa JPG, PNG, WEBP o GIF.")
+    extension, content_type = detectado
+    return data, extension, content_type
 
 S3_BUCKET = os.getenv("S3_BUCKET", "")
 S3_PUBLIC_URL = os.getenv("S3_PUBLIC_URL", "").rstrip("/")
@@ -69,24 +103,25 @@ def guardar_archivo(foto: UploadFile, subcarpeta: str = "") -> str:
 
     subcarpeta: prefijo opcional (ej. "productos").
     """
-    extension = foto.filename.rsplit(".", 1)[-1].lower()
+    # La extensión sale del tipo detectado por magic bytes, no del filename.
+    data, extension, content_type = _leer_y_validar(foto)
     nombre = f"{uuid.uuid4().hex}.{extension}"
     rel = f"{subcarpeta}/{nombre}" if subcarpeta else nombre
 
     if USA_S3:
         key = f"uploads/{rel}"
         _s3().upload_fileobj(
-            foto.file,
+            io.BytesIO(data),
             S3_BUCKET,
             key,
-            ExtraArgs={"ContentType": foto.content_type or "application/octet-stream"},
+            ExtraArgs={"ContentType": content_type},
         )
         return f"{S3_PUBLIC_URL}/{key}"
 
     destino = UPLOADS_DIR / rel
     destino.parent.mkdir(parents=True, exist_ok=True)
     with destino.open("wb") as f:
-        shutil.copyfileobj(foto.file, f)
+        f.write(data)
     return f"/uploads/{rel}"
 
 

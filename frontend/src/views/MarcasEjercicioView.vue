@@ -556,7 +556,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { Chart } from 'chart.js/auto'
+import { getChart } from '../lib/chart'
 import api from '../api'
 import { tipoDe } from '../data/ejerciciosMarcas'
 
@@ -663,13 +663,14 @@ const chartUnit      = ref('kg')
 const activeChartTab = ref('rm')   // 'rm' | 'peso' | 'volumen'
 const mostrarRepMax = ref(false)
 let instanciaChart   = null
+let ChartCls         = null  // clase Chart resuelta perezosamente (ver lib/chart.js)
 
 function destruirChart() {
   if (instanciaChart) { instanciaChart.destroy(); instanciaChart = null }
 }
 
 function _lineChart(canvas, labels, valores, label, suffix, color, highlights) {
-  return new Chart(canvas, {
+  return new ChartCls(canvas, {
     type: 'line',
     data: {
       labels,
@@ -709,9 +710,11 @@ function _lineChart(canvas, labels, valores, label, suffix, color, highlights) {
   })
 }
 
-function renderChart() {
-  destruirChart()
+async function renderChart() {
   if (!chartCanvas.value) return
+  ChartCls = await getChart()
+  if (!chartCanvas.value) return  // pudo desmontarse durante la carga async
+  destruirChart()
 
   if (tipo.value === 'reps') {
     if (registros.value.length < 2) return
@@ -769,7 +772,7 @@ function renderChart() {
       return round1(chartUnit.value === 'lbs' ? fromKg(kg, 'lbs') : kg)
     })
     const maxVal = Math.max(...valores)
-    instanciaChart = new Chart(chartCanvas.value, {
+    instanciaChart = new ChartCls(chartCanvas.value, {
       type: 'bar',
       data: {
         labels,

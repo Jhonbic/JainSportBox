@@ -40,6 +40,7 @@ if engine.url.get_backend_name() == "sqlite":
         "ALTER TABLE ejercicios ADD COLUMN categoria VARCHAR(50)",
         "ALTER TABLE marcas_rm ADD COLUMN series TEXT",
         "ALTER TABLE medidas_salud ADD COLUMN brazos_cm REAL",
+        "ALTER TABLE wod_ejercicios ADD COLUMN superserie_con_anterior BOOLEAN DEFAULT 0",
     ]
     with engine.connect() as _conn:
         for _sql in _migraciones:
@@ -155,6 +156,40 @@ if engine.url.get_backend_name() == "sqlite":
             _conn.execute(text("ALTER TABLE pagos_new RENAME TO pagos"))
             _conn.commit()
 
+
+# ── Índices de rendimiento (SQLite y Postgres) ────────────────
+# CREATE INDEX IF NOT EXISTS es idempotente y válido en ambos motores. Se ejecuta
+# fuera del guard de SQLite para indexar también la base ya desplegada en Railway
+# (create_all no agrega índices a tablas existentes). Postgres no auto-indexa las
+# columnas FK, así que cada JOIN / WHERE usuario_id= era un seq scan.
+_indices = [
+    "CREATE INDEX IF NOT EXISTS ix_asistencias_usuario_fecha ON asistencias (usuario_id, fecha_hora)",
+    "CREATE INDEX IF NOT EXISTS ix_asistencias_fecha_hora ON asistencias (fecha_hora)",
+    "CREATE INDEX IF NOT EXISTS ix_pagos_usuario_id ON pagos (usuario_id)",
+    "CREATE INDEX IF NOT EXISTS ix_pagos_plan_id ON pagos (plan_id)",
+    "CREATE INDEX IF NOT EXISTS ix_pagos_fecha_pago ON pagos (fecha_pago)",
+    "CREATE INDEX IF NOT EXISTS ix_wods_activo ON wods (activo)",
+    "CREATE INDEX IF NOT EXISTS ix_wods_es_personalizado ON wods (es_personalizado)",
+    "CREATE INDEX IF NOT EXISTS ix_wods_fecha ON wods (fecha)",
+    "CREATE INDEX IF NOT EXISTS ix_wod_ejercicios_wod_id ON wod_ejercicios (wod_id)",
+    "CREATE INDEX IF NOT EXISTS ix_wod_ejercicios_ejercicio_id ON wod_ejercicios (ejercicio_id)",
+    "CREATE INDEX IF NOT EXISTS ix_marcas_rm_usuario_id ON marcas_rm (usuario_id)",
+    "CREATE INDEX IF NOT EXISTS ix_medidas_salud_usuario_id ON medidas_salud (usuario_id)",
+    "CREATE INDEX IF NOT EXISTS ix_ventas_usuario_id ON ventas (usuario_id)",
+    "CREATE INDEX IF NOT EXISTS ix_ventas_producto_id ON ventas (producto_id)",
+    "CREATE INDEX IF NOT EXISTS ix_alertas_enviada ON alertas_membresia (enviada)",
+    "CREATE INDEX IF NOT EXISTS ix_mov_fin_fecha ON movimientos_financieros (fecha)",
+    "CREATE INDEX IF NOT EXISTS ix_resultados_wod_usuario_id ON resultados_wod (usuario_id)",
+    "CREATE INDEX IF NOT EXISTS ix_resultados_wod_wod_id ON resultados_wod (wod_id)",
+]
+with engine.connect() as _conn:
+    for _sql in _indices:
+        try:
+            _conn.execute(text(_sql))
+            _conn.commit()
+        except Exception:
+            pass
+
 import os
 from pathlib import Path
 
@@ -186,8 +221,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Restringido a lo que realmente usa el frontend (antes era "*"). El bridge .NET
+    # habla con el backend directo, sin pasar por CORS del navegador.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 UPLOADS_DIR = Path(__file__).parent / "uploads"
@@ -250,19 +287,49 @@ def _job_reset_gym():
         db.close()
 
 
-_scheduler = BackgroundScheduler(timezone="America/Bogota")
-# Ejecuta todos los días a las 9:00 AM
-_scheduler.add_job(_job_alertas, CronTrigger(hour=9, minute=0))
-# También al arrancar para no perder el día actual
-_scheduler.add_job(_job_alertas, "date")
-# Reset de esta_en_gym cada 3 minutos
-_scheduler.add_job(_job_reset_gym, "interval", minutes=3)
-_scheduler.start()
+# Con varios workers de uvicorn, APScheduler arrancaría en cada proceso y el job
+# de alertas correría N veces. Un advisory lock de Postgres garantiza que solo un
+# worker lo ejecute. En SQLite (dev, 1 worker) siempre corre.
+_scheduler_lock_conn = None
+
+
+def _debo_correr_scheduler() -> bool:
+    global _scheduler_lock_conn
+    if engine.url.get_backend_name() == "sqlite":
+        return True
+    try:
+        # Conexión dedicada que se mantiene abierta: el lock es a nivel de sesión.
+        _scheduler_lock_conn = engine.raw_connection()
+        cur = _scheduler_lock_conn.cursor()
+        cur.execute("SELECT pg_try_advisory_lock(911001)")
+        adquirido = bool(cur.fetchone()[0])
+        cur.close()
+        if not adquirido:
+            _scheduler_lock_conn.close()
+            _scheduler_lock_conn = None
+        return adquirido
+    except Exception:
+        # Ante cualquier fallo del lock, no arriesgar corridas duplicadas.
+        return False
+
+
+if _debo_correr_scheduler():
+    _scheduler = BackgroundScheduler(timezone="America/Bogota")
+    # Ejecuta todos los días a las 9:00 AM
+    _scheduler.add_job(_job_alertas, CronTrigger(hour=9, minute=0))
+    # También al arrancar para no perder el día actual
+    _scheduler.add_job(_job_alertas, "date")
+    # Reset de esta_en_gym cada 3 minutos
+    _scheduler.add_job(_job_reset_gym, "interval", minutes=3)
+    _scheduler.start()
+else:
+    _scheduler = None
 
 
 @app.on_event("shutdown")
 def _shutdown():
-    _scheduler.shutdown(wait=False)
+    if _scheduler is not None:
+        _scheduler.shutdown(wait=False)
 
 
 @app.get("/", tags=["Health"])

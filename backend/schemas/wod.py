@@ -14,6 +14,7 @@ class WODEjercicioItem(BaseModel):
     porcentaje_rm: Optional[float] = Field(None, ge=0, le=150)
     tiempo_segundos: Optional[int] = Field(None, ge=1, le=86400)
     orden: int = 0
+    superserie_con_anterior: bool = False
 
 
 class WODEjercicioResponse(BaseModel):
@@ -28,6 +29,7 @@ class WODEjercicioResponse(BaseModel):
     porcentaje_rm: Optional[float] = None
     tiempo_segundos: Optional[int] = None
     orden: int
+    superserie_con_anterior: bool = False
 
     model_config = {"from_attributes": True}
 

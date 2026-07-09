@@ -74,7 +74,7 @@
 
           <!-- Foto -->
           <div class="relative h-44 bg-gray-50 flex items-center justify-center overflow-hidden">
-            <img v-if="p.foto_url" :src="mediaUrl(p.foto_url)"
+            <img v-if="p.foto_url" loading="lazy" :src="mediaUrl(p.foto_url)"
               class="w-full h-full object-cover" :alt="p.nombre" />
             <div v-else class="flex flex-col items-center text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-14 w-14" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -240,6 +240,7 @@ function _mapEjercicio(e) {
     rir:             e.rir             ?? null,
     porcentaje_rm:   e.porcentaje_rm   ?? null,
     tiempo_segundos: e.tiempo_segundos ?? null,
+    superserie_con_anterior: e.superserie_con_anterior ?? false,
   }
 }
 
@@ -305,6 +306,7 @@ async function guardar() {
       porcentaje_rm:   e.porcentaje_rm   ?? null,
       tiempo_segundos: e.tiempo_segundos ?? null,
       orden:           i,
+      superserie_con_anterior: i > 0 && !!e.superserie_con_anterior,
     }))
 
     const tipo = form.value.tipo || null

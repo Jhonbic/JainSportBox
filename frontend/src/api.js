@@ -25,4 +25,26 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Manejo global de sesión expirada: ante un 401 se limpia la sesión y se manda a
+// login (evita que las vistas queden en blanco con el token vencido). No aplica a
+// la propia pantalla de login (un 401 ahí es "credenciales inválidas", lo maneja
+// LoginView) ni si ya estamos en /login.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status
+    const url = error?.config?.url || ''
+    const esLogin = url.includes('/login')
+    if (status === 401 && !esLogin && window.location.pathname !== '/login') {
+      localStorage.removeItem('token')
+      localStorage.removeItem('userRol')
+      localStorage.removeItem('userName')
+      localStorage.removeItem('userGenero')
+      localStorage.removeItem('fechaVencimiento')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
 export default api

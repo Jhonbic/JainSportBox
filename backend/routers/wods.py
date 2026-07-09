@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
 from models import Ejercicio, Pago, Plan, RolUsuario, Usuario, WOD, WODEjercicio
@@ -11,6 +11,10 @@ from schemas.wod import WODCreate, WODUpdate, WODResponse
 from security import get_current_user
 
 router = APIRouter(prefix="/wods", tags=["WODs"])
+
+# Carga anticipada de ejercicios + su Ejercicio para evitar el N+1 al serializar
+# WODResponse (properties nombre/video_url/descripcion delegan al Ejercicio).
+_EAGER_EJERCICIOS = selectinload(WOD.ejercicios).selectinload(WODEjercicio.ejercicio)
 
 
 def _require_admin_or_coach(current_user: Usuario = Depends(get_current_user)):
@@ -29,13 +33,20 @@ def _aplicar_ejercicios(wod: WOD, items, db: Session) -> None:
     """Reemplaza los ejercicios de un WOD con la lista recibida. Valida que existan."""
     wod.ejercicios.clear()
     db.flush()
-    for idx, item in enumerate(items or []):
-        existe = db.query(Ejercicio).filter(Ejercicio.id == item.ejercicio_id).first()
-        if not existe:
+    items = list(items or [])
+    # Validación de existencia con una sola query (IN) en vez de una por ejercicio.
+    if items:
+        ids_pedidos = {item.ejercicio_id for item in items}
+        ids_existentes = {
+            row[0] for row in db.query(Ejercicio.id).filter(Ejercicio.id.in_(ids_pedidos)).all()
+        }
+        faltantes = ids_pedidos - ids_existentes
+        if faltantes:
             raise HTTPException(
                 status_code=422,
-                detail=f"El ejercicio con id {item.ejercicio_id} no existe.",
+                detail=f"El ejercicio con id {min(faltantes)} no existe.",
             )
+    for idx, item in enumerate(items):
         wod.ejercicios.append(
             WODEjercicio(
                 ejercicio_id=item.ejercicio_id,
@@ -46,6 +57,7 @@ def _aplicar_ejercicios(wod: WOD, items, db: Session) -> None:
                 porcentaje_rm=item.porcentaje_rm,
                 tiempo_segundos=item.tiempo_segundos,
                 orden=item.orden if item.orden is not None else idx,
+                superserie_con_anterior=(item.superserie_con_anterior and idx > 0),
             )
         )
 
@@ -70,7 +82,7 @@ def listar_wods_personalizados(
     current_user: Usuario = Depends(get_current_user),
 ):
     if current_user.rol in (RolUsuario.ADMIN, RolUsuario.COACH):
-        q = db.query(WOD).filter(WOD.es_personalizado == True)
+        q = db.query(WOD).options(_EAGER_EJERCICIOS).filter(WOD.es_personalizado == True)
         if activo is not None:
             q = q.filter(WOD.activo == activo)
         return q.order_by(WOD.fecha.desc(), WOD.id.desc()).all()
@@ -80,6 +92,7 @@ def listar_wods_personalizados(
         raise HTTPException(status_code=422, detail="Tu perfil no tiene género registrado. Contacta al administrador.")
     return (
         db.query(WOD)
+        .options(_EAGER_EJERCICIOS)
         .filter(
             WOD.es_personalizado == True,
             WOD.genero_destino == current_user.genero,
@@ -169,7 +182,7 @@ def wods_de_hoy(
     current_user: Usuario = Depends(get_current_user),
 ):
     es_staff = current_user.rol in (RolUsuario.ADMIN, RolUsuario.COACH)
-    q = db.query(WOD).filter(WOD.fecha == date.today(), WOD.es_personalizado == False)
+    q = db.query(WOD).options(_EAGER_EJERCICIOS).filter(WOD.fecha == date.today(), WOD.es_personalizado == False)
     if not es_staff:
         q = q.filter(WOD.activo == True)
     return q.order_by(WOD.id).all()
@@ -184,7 +197,7 @@ def listar_wods(
     current_user: Usuario = Depends(get_current_user),
 ):
     es_staff = current_user.rol in (RolUsuario.ADMIN, RolUsuario.COACH)
-    q = db.query(WOD).filter(WOD.es_personalizado == False)
+    q = db.query(WOD).options(_EAGER_EJERCICIOS).filter(WOD.es_personalizado == False)
     if activo is not None:
         q = q.filter(WOD.activo == activo)
     elif not es_staff:

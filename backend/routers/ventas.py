@@ -5,18 +5,24 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import MovimientoFinanciero, Producto, TipoMovimiento, Usuario, Venta
+from models import MovimientoFinanciero, Producto, RolUsuario, TipoMovimiento, Usuario, Venta
 from schemas.venta import VentaCreate, VentaResponse
 from security import get_current_user
 
 router = APIRouter(prefix="/ventas", tags=["Ventas"])
 
 
+def _require_admin_or_coach(current_user: Usuario = Depends(get_current_user)):
+    if current_user.rol not in (RolUsuario.ADMIN, RolUsuario.COACH):
+        raise HTTPException(status_code=403, detail="Solo admin o coach pueden realizar esta acción.")
+    return current_user
+
+
 @router.post("/", response_model=VentaResponse, status_code=status.HTTP_201_CREATED)
 def registrar_venta(
     payload: VentaCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(_require_admin_or_coach),
 ):
     producto = db.query(Producto).filter(Producto.id == payload.producto_id).first()
     if not producto:
@@ -62,5 +68,16 @@ def registrar_venta(
 
 
 @router.get("/", response_model=List[VentaResponse])
-def listar_ventas(db: Session = Depends(get_db)):
-    return db.query(Venta).order_by(Venta.fecha_venta.desc()).all()
+def listar_ventas(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_admin_or_coach),
+):
+    return (
+        db.query(Venta)
+        .order_by(Venta.fecha_venta.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )

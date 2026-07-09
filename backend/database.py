@@ -24,11 +24,16 @@ elif DATABASE_URL.startswith("postgresql://"):
 _es_sqlite = DATABASE_URL.startswith("sqlite")
 connect_args = {"check_same_thread": False} if _es_sqlite else {}
 
+# Pool explícito solo para Postgres (SQLite no usa pool de conexiones). Dimensionado
+# para ~30 usuarios concurrentes: 10 conexiones fijas + hasta 20 de desborde.
+_pool_kwargs = {} if _es_sqlite else {"pool_size": 10, "max_overflow": 20}
+
 engine = create_engine(
     DATABASE_URL,
     echo=_es_sqlite,
     connect_args=connect_args,
     pool_pre_ping=True,
+    **_pool_kwargs,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -189,7 +189,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { Chart } from 'chart.js/auto'
+import { getChart } from '../lib/chart'
 import api from '../api'
 import { TIPOS_SALUD } from '../data/saludTipos'
 
@@ -217,8 +217,10 @@ function destruirChart() {
   if (instanciaChart) { instanciaChart.destroy(); instanciaChart = null }
 }
 
-function renderChart() {
+async function renderChart() {
   if (!chartCanvas.value || registros.value.length < 2 || !tipo.value) return
+  const Chart = await getChart()
+  if (!chartCanvas.value) return  // pudo desmontarse durante la carga async
   destruirChart()
   const labels  = registros.value.map(r => formatFecha(r.fecha))
   const valores = registros.value.map(r => r[tipo.value.key])

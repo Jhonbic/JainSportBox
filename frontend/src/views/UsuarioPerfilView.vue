@@ -998,6 +998,10 @@ const conectarAccesoWS = () => {
 
 onUnmounted(() => {
   clearTimeout(accesoReconnectTimer)
+  // Detener el poll del huellero (600 ms): si el usuario navega fuera durante
+  // un enrolamiento, sin esto el interval seguiría disparando requests.
+  clearInterval(enrolPollInterval)
+  enrolPollInterval = null
   try { accesoWS?.close() } catch {}
 })
 </script>

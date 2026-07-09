@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from models import AlertaMembresia, RolUsuario, Usuario
@@ -86,7 +86,7 @@ def listar_alertas(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_admin_or_coach),
 ):
-    q = db.query(AlertaMembresia)
+    q = db.query(AlertaMembresia).options(joinedload(AlertaMembresia.usuario))
     if solo_pendientes:
         q = q.filter(AlertaMembresia.enviada == False)
     alertas = q.order_by(AlertaMembresia.dias_anticipacion.asc(), AlertaMembresia.fecha_creacion.desc()).all()

@@ -46,6 +46,18 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Núcleo del framework, separado del código de la app.
+            vendor: ['vue', 'vue-router', 'axios'],
+            // Chart.js solo lo usan 2 vistas → su propio chunk, no en el vendor.
+            chart: ['chart.js'],
+          },
+        },
+      },
+    },
     server: {
       port: 5173,
       strictPort: true,
