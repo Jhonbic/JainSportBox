@@ -2,7 +2,10 @@
 
 Plan detallado para verificar todos los módulos y APIs del proyecto.
 
-> **Estado (2026-07-10):** Fases 0–4 ejecutadas — suite automatizada en `backend/tests/` con **184 tests en verde** (`cd backend && ..\venv\Scripts\python.exe -m pytest tests -q`). La Fase 5 quedó cubierta parcialmente: cada corrida de la suite ejecuta el bloque de migraciones SQLite contra una BD temporal limpia (falta la verificación contra Postgres en Docker). Pendientes: Fase 5-Postgres, Fase 6 (smoke frontend), Fase 7 (bridge) y Fase 8 (producción). Bugs encontrados y su estado: ver `## Hallazgos` al final.
+> **Estado (2026-07-10):** Fases 0–5 ejecutadas — suite automatizada en `backend/tests/` con **188 tests en verde** (`cd backend && ..\venv\Scripts\python.exe -m pytest tests -q`).
+> - **Fase 5:** el bloque SQLite se ejecuta completo en cada corrida de la suite (BD temporal limpia), y `test_migraciones.py` verifica estáticamente la coherencia SQLite ↔ Postgres ↔ modelos (no hay Docker en la máquina de dev; la verificación con Postgres real queda delegada a los logs de arranque de Railway en el próximo deploy).
+> - **Fase 6 (parcial):** `npm run build` en verde con chunks correctos (`vendor`, `chart`, una vista por chunk). El checklist visual por rol (§13) es manual.
+> - Pendientes: Fase 6 manual, Fase 7 (bridge, PC del gym) y Fase 8 (producción). Bugs encontrados: ver `## Hallazgos`.
 
 ---
 
@@ -298,6 +301,11 @@ Al terminar cada fase, registrar los bugs encontrados en una sección `## Hallaz
 - `DELETE /planes/{id}` y `DELETE /productos/{id}` son soft-delete (`activo=False`); el historial de pagos/ventas se preserva.
 - La doble marcación seguida por bridge crea dos entradas: el cooldown anti-repetición vive en el bridge .NET (4 s), no en el backend.
 - Sincronía `TIPOS_EJERCICIO` (backend) ↔ `ejerciciosMarcas.js` (frontend) verificada por `test_tipos_ejercicio_en_sync_con_frontend` — si se desincronizan, la suite falla.
+
+### 2026-07-10 — Fase 5 (migraciones) y Fase 6 parcial (build frontend)
+
+- `test_migraciones.py` (4 tests): toda columna del bloque SQLite existe en el bloque Postgres (la clase de bug "no deja crear WODs" en Railway ahora rompe la suite), ambos bloques referencian columnas reales de `models.py`, y los índices de `_indices` apuntan a tablas/columnas existentes. Resultado: **los bloques están en sincronía** — sin hallazgos.
+- `npm run build`: compila sin errores; chunks separados según la convención (`vendor` 137 kB, `chart` 208 kB diferido, una vista por chunk, PWA generada). Sin hallazgos.
 
 **Infraestructura agregada:**
 - `backend/tests/` (conftest + 10 archivos por dominio), `backend/requirements-dev.txt` (pytest, httpx).
