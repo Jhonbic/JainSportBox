@@ -5,7 +5,8 @@ Plan detallado para verificar todos los módulos y APIs del proyecto.
 > **Estado (2026-07-10):** Fases 0–5 ejecutadas — suite automatizada en `backend/tests/` con **188 tests en verde** (`cd backend && ..\venv\Scripts\python.exe -m pytest tests -q`).
 > - **Fase 5:** el bloque SQLite se ejecuta completo en cada corrida de la suite (BD temporal limpia), y `test_migraciones.py` verifica estáticamente la coherencia SQLite ↔ Postgres ↔ modelos (no hay Docker en la máquina de dev; la verificación con Postgres real queda delegada a los logs de arranque de Railway en el próximo deploy).
 > - **Fase 6:** completada — `npm run build` en verde con chunks correctos (`vendor`, `chart`, una vista por chunk) y checklist visual por rol (§13) ejecutado manualmente sin hallazgos (2026-07-10).
-> - Pendientes: Fase 7 (bridge, PC del gym) y Fase 8 (producción). Bugs encontrados: ver `## Hallazgos`.
+> - **Fase 8 (parcial, 2026-07-10):** backend Railway responde (`{"status":"ok"}`), preflight CORS desde `https://jainsportbox.netlify.app` correcto (allow-origin y métodos esperados), y el deep-link SPA en Netlify (`/usuarios` con F5) devuelve `index.html` (rewrite OK).
+> - Pendientes: Fase 7 (bridge, PC del gym — checklist §14), y de la Fase 8: persistencia de fotos tras redeploy (verificar si `S3_BUCKET` está configurado en Railway; `storage.py` ya soporta R2/S3) y revisar los logs de arranque del próximo deploy (bloque Postgres). **Nota:** el fix de validación de membresía por huella (`3bf5c38`) vive en `feature/salud-marcas-rm` — llega a producción al mergear a `main`. Bugs encontrados: ver `## Hallazgos`.
 
 ---
 
