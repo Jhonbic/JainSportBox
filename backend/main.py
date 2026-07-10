@@ -373,7 +373,10 @@ def _debo_correr_scheduler() -> bool:
         return False
 
 
-if _debo_correr_scheduler():
+# TESTING=1 (suite pytest): sin scheduler — los jobs se prueban llamándolos directo.
+if os.getenv("TESTING") == "1":
+    _scheduler = None
+elif _debo_correr_scheduler():
     _scheduler = BackgroundScheduler(timezone="America/Bogota")
     # Ejecuta todos los días a las 9:00 AM
     _scheduler.add_job(_job_alertas, CronTrigger(hour=9, minute=0))

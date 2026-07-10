@@ -51,7 +51,12 @@ npm run build    # Production build → dist/
 npm run preview  # Preview production build
 ```
 
-There are no test commands — no test suite exists in this project.
+### Tests
+```bash
+cd backend
+..\venv\Scripts\python.exe -m pytest tests -q      # 184 tests de API (SQLite temporal, no toca crossfit.db)
+```
+La suite (`backend/tests/`) cubre todos los routers; el plan completo y los hallazgos están en `tests.md` (raíz). El `conftest.py` setea `TESTING=1` (desactiva APScheduler) y `DATABASE_URL` a un SQLite temporal ANTES de importar `main`. Al agregar endpoints o cambiar contratos, actualizar el test del dominio correspondiente.
 
 ## Architecture
 
@@ -201,7 +206,7 @@ Route `/alertas` (admin/coach). Two tabs: **Pendientes** (grouped by `dias_antic
 **Modelo de acceso solo-entrada:** la palanquera solo controla el ingreso, así que el sistema **no registra salidas**. Cada marcación de huella crea una `Asistencia` con `tipo="entrada"` y pone `esta_en_gym=True`. El flag vuelve a `False` únicamente por tiempo (job `_job_reset_gym`), nunca por una marcación de salida. `_registrar()` en `asistencia.py` ya no alterna entrada/salida.
 
 `backend/routers/asistencia.py` endpoints:
-- `POST /asistencia/` — registra entrada por `huella_id` (bridge)
+- `POST /asistencia/` — registra entrada por `huella_id` (bridge); valida membresía vigente (helper `_validar_membresia`)
 - `POST /asistencia/por-usuario/{usuario_id}` — registra entrada por ID (bridge con `X-Bridge-Secret` o admin/coach JWT); valida membresía vigente en cada marcación
 - `GET /asistencia/mi-historial?meses=N` — historial propio (cualquier rol autenticado)
 - `GET /asistencia/historial/{usuario_id}?meses=N` — historial de cualquier usuario (admin/coach)
@@ -275,7 +280,7 @@ Agregar una medida nueva = un objeto en `saludTipos.js` (la card en `SaludView` 
 - `POST /salud/{tipo}` — creates a record with only that field set
 - `DELETE /salud/{medida_id}` — deletes by integer ID
 
-**Model** (`MedidaSalud` in `backend/models.py`): all measurement columns are nullable (`Optional[float]`). The `imc` column is computed by the POST endpoint when both `peso_kg` and `altura_cm` are present.
+**Model** (`MedidaSalud` in `backend/models.py`): all measurement columns are nullable (`Optional[float]`). La columna `imc` NO la calcula el backend (queda NULL): el IMC lo calcula el frontend (`SaludView.imcActual`) con el último peso y la última altura.
 
 **Views:**
 - `SaludView.vue` — overview; 5 RouterLink cards + IMC banner, no modal
