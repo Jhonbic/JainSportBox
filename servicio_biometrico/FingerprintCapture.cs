@@ -21,6 +21,9 @@ namespace HuelleroBridge
     {
         private readonly Capture         _capturer;
         private readonly Enrollment      _enrollment;
+        // El SDK entrega OnComplete en el hilo STA y el cancel llega por HTTP en otro
+        // hilo: todo acceso a _enrollment va bajo este lock.
+        private readonly object          _enrollLock = new object();
         private readonly Verification    _verificator;
         private readonly EnrollmentState _state;
         private readonly Action<string>  _broadcast;
@@ -77,6 +80,21 @@ namespace HuelleroBridge
             _templates = templates ?? new List<TemplateEntry>();
             _state.TemplatesEnCache = _templates.Count;
             Console.WriteLine($"[HUELLERO] Templates cargados: {_templates.Count}");
+        }
+
+        /// <summary>
+        /// Descarta las muestras acumuladas de un enrolamiento a medio hacer. Debe
+        /// llamarse al cancelar y al iniciar un enrolamiento nuevo: si no, las muestras
+        /// del usuario anterior quedan en _enrollment y el template del siguiente
+        /// usuario se completa mezclando dedos de dos personas.
+        /// </summary>
+        public void LimpiarEnrolamiento()
+        {
+            lock (_enrollLock)
+            {
+                try { _enrollment.Clear(); }
+                catch (Exception ex) { Console.WriteLine($"[HUELLERO] Clear enrolamiento: {ex.Message}"); }
+            }
         }
 
         /// <summary>
@@ -149,18 +167,21 @@ namespace HuelleroBridge
                 return;
             }
 
-            try { _enrollment.AddFeatures(features); }
-            catch (Exception ex) { Console.WriteLine($"[HUELLERO] AddFeatures: {ex.Message}"); return; }
-
-            _state.AvanzarPaso(_state.Total - (int)_enrollment.FeaturesNeeded);
-
-            if (_enrollment.TemplateStatus == Enrollment.Status.Ready && _enrollment.Template != null)
+            lock (_enrollLock)
             {
-                var templateB64 = Convert.ToBase64String(_enrollment.Template.Bytes);
-                _enrollment.Clear();
-                var (uid, nombre) = _state.GetTarget();
-                Console.WriteLine($"[HUELLERO] Template listo para usuario {uid} ({nombre}). Guardando...");
-                Task.Run(() => GuardarTemplate(uid, templateB64));
+                try { _enrollment.AddFeatures(features); }
+                catch (Exception ex) { Console.WriteLine($"[HUELLERO] AddFeatures: {ex.Message}"); return; }
+
+                _state.AvanzarPaso(_state.Total - (int)_enrollment.FeaturesNeeded);
+
+                if (_enrollment.TemplateStatus == Enrollment.Status.Ready && _enrollment.Template != null)
+                {
+                    var templateB64 = Convert.ToBase64String(_enrollment.Template.Bytes);
+                    _enrollment.Clear();
+                    var (uid, nombre) = _state.GetTarget();
+                    Console.WriteLine($"[HUELLERO] Template listo para usuario {uid} ({nombre}). Guardando...");
+                    Task.Run(() => GuardarTemplate(uid, templateB64));
+                }
             }
         }
 

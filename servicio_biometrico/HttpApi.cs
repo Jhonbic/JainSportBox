@@ -138,6 +138,7 @@ namespace HuelleroBridge
             { ctx.Response.StatusCode = 400; Write(ctx, "{\"error\":\"usuario_id invalido\"}"); return; }
 
             var nombre = Uri.UnescapeDataString(ctx.Request.QueryString["nombre"] ?? "");
+            _capture.LimpiarEnrolamiento();   // descartar muestras de un enrolamiento anterior a medio hacer
             _state.IniciarEnrolamiento(uid, nombre);
             Write(ctx, "{\"ok\":true}");
             Console.WriteLine($"[HTTP] Enrolamiento iniciado: usuario {uid} ({nombre})");
@@ -146,6 +147,7 @@ namespace HuelleroBridge
         private void HandleEnrollCancel(HttpListenerContext ctx)
         {
             _state.Cancelar();
+            _capture.LimpiarEnrolamiento();
             Write(ctx, "{\"ok\":true}");
             Console.WriteLine("[HTTP] Enrolamiento cancelado");
         }
@@ -164,6 +166,7 @@ namespace HuelleroBridge
                     // Parse JSON manualmente: [{"id":N,"nombre":"...","template":"..."}]
                     var entries = ParseTemplateList(json);
                     _capture.CargarTemplates(entries);
+                    _capture.LimpiarEnrolamiento();   // IniciarVerify cancela un enrolamiento en curso: descartar sus muestras
                     _state.IniciarVerify();
                     Console.WriteLine($"[HTTP] Verificación iniciada con {entries.Count} templates.");
                 }

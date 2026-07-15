@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("HuelleroBridge")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c036a58d4aa9799be8303e284d9d4a54810aff34")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+af1b01181950d1c99ae40c64fa355d6364faaf8f")]
 [assembly: System.Reflection.AssemblyProductAttribute("HuelleroBridge")]
 [assembly: System.Reflection.AssemblyTitleAttribute("HuelleroBridge")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
