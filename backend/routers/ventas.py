@@ -1,11 +1,10 @@
-from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import MovimientoFinanciero, Producto, RolUsuario, TipoMovimiento, Usuario, Venta
+from models import Producto, RolUsuario, Usuario, Venta
 from schemas.venta import VentaCreate, VentaResponse
 from security import get_current_user
 
@@ -49,19 +48,8 @@ def registrar_venta(
     db.add(venta)
     producto.stock -= payload.cantidad
 
-    mov = MovimientoFinanciero(
-        tipo=TipoMovimiento.INGRESO,
-        concepto=f"Venta tienda – {producto.nombre} ×{payload.cantidad}",
-        categoria="venta_tienda",
-        monto=total,
-        fecha=datetime.utcnow(),
-        metodo_pago=payload.metodo_pago,
-        usuario_id=payload.usuario_id,
-        fuente="venta_tienda",
-        created_by=current_user.id,
-    )
-    db.add(mov)
-
+    # NO se crea un MovimientoFinanciero: finanzas ya lee la tabla `ventas`
+    # directamente. Espejar la venta aquí la contaba dos veces (bug de duplicación).
     db.commit()
     db.refresh(venta)
     return venta

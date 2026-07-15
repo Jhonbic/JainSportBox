@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 
 from database import get_db
+from fechas import hoy_bogota
 from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario
 from schemas.pago import PagoCreate, PagoResponse
 from security import get_current_user
@@ -41,7 +42,7 @@ def registrar_pago(
     )
     db.add(pago)
 
-    hoy = date.today()
+    hoy = hoy_bogota()
     base = (
         usuario.fecha_vencimiento
         if (usuario.fecha_vencimiento and usuario.fecha_vencimiento >= hoy)
@@ -81,7 +82,7 @@ def registrar_pago_directo(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    hoy = date.today()
+    hoy = hoy_bogota()
     base = (
         usuario.fecha_vencimiento
         if (usuario.fecha_vencimiento and usuario.fecha_vencimiento >= hoy)

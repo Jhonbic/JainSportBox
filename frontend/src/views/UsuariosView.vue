@@ -1219,9 +1219,10 @@ const confirmarActivar = async () => {
   guardandoActivar.value = true
   errorActivar.value = ''
   try {
+    const plan = planes.value.find(p => p.id === activarPlan.value)
     await api.post(`/usuarios/${activarUsuario.value.id}/activar`, {
       plan_id: activarPlan.value,
-      monto: activarMonto.value || 0,
+      monto: activarMonto.value || plan?.precio || 0,
       metodo_pago: activarMetodo.value,
     })
     showActivar.value = false

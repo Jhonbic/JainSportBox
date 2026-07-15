@@ -237,6 +237,19 @@ with engine.connect() as _conn:
         except Exception:
             pass
 
+
+# ── Limpieza de datos: movimientos espejo de ventas (bug de duplicación) ──
+# Antes, registrar una venta creaba también un MovimientoFinanciero con
+# fuente='venta_tienda', y finanzas ya cuenta las ventas leyendo la tabla `ventas`
+# → el ingreso se contaba doble. Ya no se crean; esto borra los históricos.
+# Idempotente: tras la primera corrida borra 0 filas.
+with engine.connect() as _conn:
+    try:
+        _conn.execute(text("DELETE FROM movimientos_financieros WHERE fuente = 'venta_tienda'"))
+        _conn.commit()
+    except Exception:
+        _conn.rollback()
+
 import os
 from pathlib import Path
 
@@ -360,7 +373,10 @@ def _debo_correr_scheduler() -> bool:
         return False
 
 
-if _debo_correr_scheduler():
+# TESTING=1 (suite pytest): sin scheduler — los jobs se prueban llamándolos directo.
+if os.getenv("TESTING") == "1":
+    _scheduler = None
+elif _debo_correr_scheduler():
     _scheduler = BackgroundScheduler(timezone="America/Bogota")
     # Ejecuta todos los días a las 9:00 AM
     _scheduler.add_job(_job_alertas, CronTrigger(hour=9, minute=0))

@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
+from fechas import hoy_bogota
 from models import Asistencia, RolUsuario, Usuario
 from schemas.asistencia import (
     AsistenciaCreate, AsistenciaResponse,
@@ -48,6 +49,15 @@ def _autorizar_bridge_o_admin(request: Request, db: Session) -> None:
 MINUTOS_SESION = 65  # tiempo máximo de una sesión; usado por el job de reset en main.py
 
 
+def _validar_membresia(usuario: Usuario) -> None:
+    # Toda marcación es una entrada → siempre se valida la membresía.
+    if not usuario.fecha_vencimiento or usuario.fecha_vencimiento < hoy_bogota():
+        raise HTTPException(
+            status_code=403,
+            detail=f"Membresía vencida o sin plan activo para {usuario.nombre}.",
+        )
+
+
 def _registrar(usuario: Usuario, db: Session) -> AsistenciaResponse:
     # La palanquera solo controla la ENTRADA. No se registran salidas:
     # cada marcación de huella es una entrada y enciende esta_en_gym.
@@ -72,6 +82,7 @@ def registrar_asistencia(payload: AsistenciaCreate, request: Request, db: Sessio
     usuario = db.query(Usuario).filter(Usuario.huella_id == payload.huella_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado con esa huella.")
+    _validar_membresia(usuario)
     return _registrar(usuario, db)
 
 
@@ -86,14 +97,7 @@ def registrar_asistencia_por_id(usuario_id: int, request: Request, db: Session =
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-
-    # Toda marcación es una entrada → siempre se valida la membresía.
-    if not usuario.fecha_vencimiento or usuario.fecha_vencimiento < date.today():
-        raise HTTPException(
-            status_code=403,
-            detail=f"Membresía vencida o sin plan activo para {usuario.nombre}.",
-        )
-
+    _validar_membresia(usuario)
     return _registrar(usuario, db)
 
 
@@ -103,7 +107,7 @@ def mi_historial(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    hoy = date.today()
+    hoy = hoy_bogota()
     mes = hoy.month
     anio = hoy.year
     for _ in range(meses - 1):
@@ -139,7 +143,7 @@ def historial_usuario(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    hoy = date.today()
+    hoy = hoy_bogota()
     mes = hoy.month
     anio = hoy.year
     for _ in range(meses - 1):

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
+from fechas import hoy_bogota
 from models import AlertaMembresia, RolUsuario, Usuario
 from schemas.alerta import AlertaResponse
 from security import get_current_user
@@ -24,7 +25,7 @@ def generar_alertas(db: Session) -> int:
     """Crea una alerta por usuario en cuanto entra en la ventana de 7 días antes del vencimiento.
     No genera duplicados: una sola alerta pendiente por usuario. Si el usuario renovó
     (fecha_vencimiento cambió), se descartan las alertas pendientes obsoletas."""
-    hoy = date.today()
+    hoy = hoy_bogota()
     limite = hoy + timedelta(days=VENTANA_DIAS)
     creadas = 0
 

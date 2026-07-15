@@ -51,7 +51,12 @@ npm run build    # Production build → dist/
 npm run preview  # Preview production build
 ```
 
-There are no test commands — no test suite exists in this project.
+### Tests
+```bash
+cd backend
+..\venv\Scripts\python.exe -m pytest tests -q      # 184 tests de API (SQLite temporal, no toca crossfit.db)
+```
+La suite (`backend/tests/`) cubre todos los routers; el plan completo y los hallazgos están en `tests.md` (raíz). El `conftest.py` setea `TESTING=1` (desactiva APScheduler) y `DATABASE_URL` a un SQLite temporal ANTES de importar `main`. Al agregar endpoints o cambiar contratos, actualizar el test del dominio correspondiente.
 
 ## Architecture
 
@@ -61,7 +66,7 @@ There are no test commands — no test suite exists in this project.
 - Bridge: `servicio_biometrico/` — .NET 4.8 Windows app for DigitalPersona U.are.U 4500 fingerprint reader
 
 **Backend layout:**
-- `backend/main.py` — FastAPI app creation, CORS config, router registration. Runs SQLite migrations on startup (ALTER TABLE in try/except; table reconstruction for nullability changes via PRAGMA table_info). Mounts `backend/uploads/` as `/uploads` for static files (user profile photos). Starts APScheduler with two jobs: alerts job (9 AM Bogotá + on startup) and `_job_reset_gym` (every 3 minutes, resets `esta_en_gym = False` for users whose last entry exceeds `MINUTOS_SESION`).
+- `backend/main.py` — FastAPI app creation, CORS config, router registration. Runs startup migrations (SQLite ALTER-TABLE block + Postgres `ADD COLUMN IF NOT EXISTS` block + cross-DB index block; ver "Migraciones de arranque"). Mounts `backend/uploads/` as `/uploads` for static files (user profile photos). Starts APScheduler with two jobs: alerts job (9 AM Bogotá + on startup) and `_job_reset_gym` (every 3 minutes, resets `esta_en_gym = False` for users whose last entry exceeds `MINUTOS_SESION`).
 - `backend/models.py` — All SQLAlchemy models (13 tables): `usuarios`, `planes`, `pagos`, `wods`, `resultados_wod`, `productos`, `ventas`, `asistencias`, `movimientos_financieros`, `medidas_salud`, `marcas_rm`, `alertas_membresia`, `metodos_pago`
 - `backend/database.py` — SQLite session factory
 - `backend/security.py` — BCrypt password hashing, JWT creation/validation (HS256, 7-day expiry)
@@ -107,7 +112,12 @@ There are no test commands — no test suite exists in this project.
 
 **Fingerprint integration:** see the dedicated section below.
 
-**SQLite migrations:** `backend/main.py` runs migrations on startup. New columns use `ALTER TABLE … ADD COLUMN` inside try/except. Changing nullability requires full table reconstruction (rename → CREATE → INSERT → DROP), guarded by a `PRAGMA table_info` check to avoid re-running.
+**Migraciones de arranque (`backend/main.py`):** hay TRES bloques, y agregar una columna nueva exige tocar los dos primeros:
+1. **Bloque SQLite** (`if engine.url.get_backend_name() == "sqlite"`): `ALTER TABLE … ADD COLUMN` en try/except + reconstrucción de tabla para cambios de nullability (rename → CREATE → INSERT → DROP, guardado por `PRAGMA table_info`). **Solo corre en SQLite (dev).**
+2. **Bloque Postgres** (`if … != "sqlite"`, lista `_cols_pg`): `ALTER TABLE … ADD COLUMN IF NOT EXISTS …` (idempotente). **Imprescindible:** en Postgres `create_all` NO agrega columnas a tablas existentes, así que una columna nueva que solo esté en el bloque SQLite **faltará en Railway** y romperá los INSERT (fue la causa del bug "no deja crear WODs"). Cuidado con los tipos: `BOOLEAN DEFAULT FALSE` (no `DEFAULT 0` como en SQLite).
+3. **Bloque de índices** (`_indices`, cross-DB): `CREATE INDEX IF NOT EXISTS`, corre en ambos motores.
+
+**Regla:** al agregar una columna, agregala al modelo Y a los bloques 1 y 2. Hay también limpiezas de datos puntuales (p.ej. `DELETE … WHERE fuente='venta_tienda'`) que corren cross-DB e idempotentes.
 
 **Chart lifecycle (Vue + Chart.js):** Always call `destruirChart()` before creating a new instance. Use `watch(registros, async () => { await nextTick(); await nextTick(); renderChart() })` to ensure the canvas is in the DOM after a `v-if` renders.
 
@@ -196,7 +206,7 @@ Route `/alertas` (admin/coach). Two tabs: **Pendientes** (grouped by `dias_antic
 **Modelo de acceso solo-entrada:** la palanquera solo controla el ingreso, así que el sistema **no registra salidas**. Cada marcación de huella crea una `Asistencia` con `tipo="entrada"` y pone `esta_en_gym=True`. El flag vuelve a `False` únicamente por tiempo (job `_job_reset_gym`), nunca por una marcación de salida. `_registrar()` en `asistencia.py` ya no alterna entrada/salida.
 
 `backend/routers/asistencia.py` endpoints:
-- `POST /asistencia/` — registra entrada por `huella_id` (bridge)
+- `POST /asistencia/` — registra entrada por `huella_id` (bridge); valida membresía vigente (helper `_validar_membresia`)
 - `POST /asistencia/por-usuario/{usuario_id}` — registra entrada por ID (bridge con `X-Bridge-Secret` o admin/coach JWT); valida membresía vigente en cada marcación
 - `GET /asistencia/mi-historial?meses=N` — historial propio (cualquier rol autenticado)
 - `GET /asistencia/historial/{usuario_id}?meses=N` — historial de cualquier usuario (admin/coach)
@@ -261,7 +271,7 @@ Per-measurement routing: each metric has its own page at `/salud/:tipo`. **Exclu
 **Measurement types** (defined in `frontend/src/data/saludTipos.js`):
 `peso`, `altura`, `cintura`, `cuello`, `cadera`, `brazos`
 
-Agregar una medida nueva = un objeto en `saludTipos.js` (la card en `SaludView` y la página `/salud/:tipo` se generan solas vía `v-for`/`find`) + la columna en el modelo + la migración `ALTER TABLE` en `main.py` + la entrada en `CAMPOS` (router) + el campo en `MedidaResponse` (schema).
+Agregar una medida nueva = un objeto en `saludTipos.js` (la card en `SaludView` y la página `/salud/:tipo` se generan solas vía `v-for`/`find`) + la columna en el modelo + la migración en `main.py` (**ambos** bloques: SQLite `ALTER TABLE` y Postgres `ADD COLUMN IF NOT EXISTS`, ver "Migraciones de arranque") + la entrada en `CAMPOS` (router) + el campo en `MedidaResponse` (schema).
 
 **Backend router** (`backend/routers/salud.py`):
 - `CAMPOS = { "peso": "peso_kg", "altura": "altura_cm", "cintura": "cintura_cm", "cuello": "cuello_cm", "cadera": "cadera_cm", "brazos": "brazos_cm" }`
@@ -270,7 +280,7 @@ Agregar una medida nueva = un objeto en `saludTipos.js` (la card en `SaludView` 
 - `POST /salud/{tipo}` — creates a record with only that field set
 - `DELETE /salud/{medida_id}` — deletes by integer ID
 
-**Model** (`MedidaSalud` in `backend/models.py`): all measurement columns are nullable (`Optional[float]`). The `imc` column is computed by the POST endpoint when both `peso_kg` and `altura_cm` are present.
+**Model** (`MedidaSalud` in `backend/models.py`): all measurement columns are nullable (`Optional[float]`). La columna `imc` NO la calcula el backend (queda NULL): el IMC lo calcula el frontend (`SaludView.imcActual`) con el último peso y la última altura.
 
 **Views:**
 - `SaludView.vue` — overview; 5 RouterLink cards + IMC banner, no modal
@@ -304,7 +314,7 @@ No todo se mide igual. La lista en `frontend/src/data/ejerciciosMarcas.js` etiqu
 - `PATCH /marcas/{marca_id}` — edita un registro existente del usuario; aplica la misma lógica de validación y cálculo que POST.
 - `DELETE /marcas/{marca_id}`
 
-**Modelo** (`MarcaRM` en `models.py`): `usuario_id`, `ejercicio`, `unidad` (default `"kg"`), `fecha`, `notas`, `created_at` son siempre obligatorios. Todos los demás campos son nullable y se llenan según el tipo: `peso`, `repeticiones`, `rm_calculado`, `peso_adicional`, `nivel`, `palier`. La migración en `main.py` reconstruye la tabla para hacer nullable `peso`/`repeticiones`/`rm_calculado` (antes eran NOT NULL) y agrega las 3 columnas nuevas vía `ALTER TABLE`.
+**Modelo** (`MarcaRM` en `models.py`): `usuario_id`, `ejercicio`, `unidad` (default `"kg"`), `fecha`, `notas`, `created_at` son siempre obligatorios. Todos los demás campos son nullable y se llenan según el tipo: `peso`, `repeticiones`, `rm_calculado`, `peso_adicional`, `nivel`, `palier`. La migración en `main.py` reconstruye la tabla para hacer nullable `peso`/`repeticiones`/`rm_calculado` (antes eran NOT NULL) y agrega las columnas nuevas vía `ALTER TABLE` (recordá los **dos** bloques SQLite + Postgres, ver "Migraciones de arranque").
 
 **Schema** (`schemas/marcas.py`): `MarcaRMCreate` tiene todos los campos de tipo opcional para soportar los 4 flujos. La validación dura sucede en el router.
 

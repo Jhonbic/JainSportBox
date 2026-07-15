@@ -10,6 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, defer
 
 from database import get_db
+from fechas import hoy_bogota
 from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario
 from schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
 from security import get_current_user, get_password_hash
@@ -207,7 +208,7 @@ def cumpleanos_hoy(
     db: Session = Depends(get_db),
     _: Usuario = Depends(_require_admin_or_coach),
 ):
-    hoy = datetime.now(ZoneInfo("America/Bogota")).date()
+    hoy = hoy_bogota()
     # extract() es portable (SQLite y Postgres); strftime es solo de SQLite.
     return (
         db.query(Usuario)
@@ -256,7 +257,7 @@ def activar_usuario(
 
     usuario.rol = RolUsuario.CLIENTE
     usuario.plan_solicitado_id = None
-    nueva_fecha = date.today() + timedelta(days=plan.duracion_dias)
+    nueva_fecha = hoy_bogota() + timedelta(days=plan.duracion_dias)
     usuario.fecha_vencimiento = nueva_fecha
 
     pago = Pago(

@@ -21,5 +21,8 @@ frontend/dev-dist/
 frontend/.env.local
 frontend/.env.production
 
+# Logs en runtime (el bridge mantiene bridge.log abierto y bloqueaba los cambios de rama)
+*.log
+
 # Claude
 .claude/
