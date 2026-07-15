@@ -74,6 +74,15 @@ namespace HuelleroBridge
             Console.WriteLine($"[CONFIG] ApiBase      = {BridgeConfig.ApiBase}");
             Console.WriteLine($"[CONFIG] BridgeSecret = {(string.IsNullOrEmpty(BridgeConfig.BridgeSecret) ? "(vacío)" : "(definido)")}");
 
+            // Fecha de compilación del exe en ejecución: permite confirmar en el log
+            // qué build está corriendo (clave cuando una actualización "no toma").
+            try
+            {
+                var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                Console.WriteLine($"[CONFIG] Build        = {File.GetLastWriteTime(exePath):yyyy-MM-dd HH:mm:ss} ({exePath})");
+            }
+            catch { }
+
             var state = new EnrollmentState();
 
             var hub = new WebSocketHub("ws://0.0.0.0:8765");
