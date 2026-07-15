@@ -195,7 +195,7 @@ namespace HuelleroBridge
             if (feedback != CaptureFeedback.Good || features == null)
             {
                 Console.WriteLine($"[HUELLERO] Verificación — calidad insuficiente: {feedback}");
-                _state.MarcarVerifyError($"Calidad insuficiente: {feedback}");
+                _state.MarcarVerifyReintento("Lectura de baja calidad — coloca el dedo de nuevo");
                 return;
             }
 
@@ -224,8 +224,8 @@ namespace HuelleroBridge
                 }
             }
 
-            Console.WriteLine("[HUELLERO] No se encontró coincidencia.");
-            _state.MarcarVerifyNoMatch();
+            Console.WriteLine("[HUELLERO] No se encontró coincidencia. La búsqueda sigue activa.");
+            _state.MarcarVerifyReintento("Huella no reconocida — coloca el dedo de nuevo");
             _broadcast("{\"tipo\":\"verify_no_match\"}");
         }
 
