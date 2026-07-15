@@ -122,6 +122,23 @@ namespace HuelleroBridge
             }
         }
 
+        /// <summary>
+        /// Lectura fallida (sin coincidencia o calidad insuficiente) que NO termina la
+        /// verificación: el modo sigue activo esperando otro dedo. Solo un match
+        /// (MarcarVerifyEncontrado) o el cancel del frontend cierran la búsqueda.
+        /// </summary>
+        public void MarcarVerifyReintento(string mensaje)
+        {
+            lock (_lock)
+            {
+                VerifyActivo  = true;
+                VerifyEspera  = true;
+                VerifyNoMatch = false;
+                VerifyError   = false;
+                VerifyMensaje = mensaje;
+            }
+        }
+
         public void MarcarVerifyNoMatch()
         {
             lock (_lock)
