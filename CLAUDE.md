@@ -125,6 +125,8 @@ La suite (`backend/tests/`) cubre todos los routers; el plan completo y los hall
 
 **Public registration:** `POST /registro` accepts `multipart/form-data` (not JSON) because it supports an optional profile photo. Use `Form(...)` for all text fields and `File(None)` for the photo. The frontend sends a `FormData` object with `Content-Type: multipart/form-data`.
 
+**Términos y condiciones + datos de afiliación (registro):** el registro exige `acepta_terminos=true` (422 si falta) y campos obligatorios `fecha_nacimiento`, `eps`, `barrio`, `contacto_emergencia_nombre/telefono`. Al aceptar se guardan `acepto_terminos`, `terminos_fecha` (hora Bogotá) y `terminos_version` — la constante `TERMINOS_VERSION` vive en `routers/auth.py` y debe mantenerse en sincronía con `frontend/src/components/TerminosModal.vue` (modal con el texto completo del contrato de adhesión). **Menores de edad:** si la fecha de nacimiento da < 18 años, el backend exige `es_menor=true` + `acudiente_nombre/telefono/documento` (cláusula 7 del contrato: quien registra declara ser el acudiente); el frontend muestra la sección de acudiente automáticamente. `GET /usuarios/pendientes` expone `es_menor` y los datos del acudiente — la card de pendientes en `UsuariosView` marca a los menores con borde/badge ámbar y muestra el bloque del acudiente para que el admin confirme antes de activar. La **edad no se almacena** — se calcula de `fecha_nacimiento` (`_calcular_edad` en `auth.py`, computed `edad` en `LoginView`). Los usuarios existentes no se ven afectados (columnas nullable / default false); admin puede completar los datos desde el perfil.
+
 ## HomeView — client/coach home screen
 
 Route `/home` (roles: `cliente`, `coach`). Shows:

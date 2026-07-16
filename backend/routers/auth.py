@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -7,6 +7,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from database import get_db
+from fechas import TZ_BOGOTA, hoy_bogota
 from models import Pago, Plan, RolUsuario, Usuario
 from schemas.usuario import UsuarioUpdate
 from security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, get_password_hash, verify_password, get_current_user
@@ -16,6 +17,17 @@ from ratelimit import limitar
 router = APIRouter(tags=["Auth"])
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+# Versión del contrato de adhesión que acepta el usuario al registrarse.
+# Mantener en sincronía con frontend/src/components/TerminosModal.vue.
+TERMINOS_VERSION = "v2.0-2026"
+
+
+def _calcular_edad(fecha_nacimiento: date) -> int:
+    hoy = hoy_bogota()
+    return hoy.year - fecha_nacimiento.year - (
+        (hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day)
+    )
 
 # Límites por IP: mitigan fuerza bruta en login y spam de registros.
 _limite_login = limitar("login", max_requests=10, window_seconds=300)     # 10 / 5 min
@@ -58,12 +70,48 @@ def registro_publico(
     documento_identidad: str = Form(..., min_length=5, max_length=20),
     genero: str = Form(...),
     telefono: str = Form(..., min_length=7, max_length=20),
+    fecha_nacimiento: date = Form(...),
+    eps: str = Form(..., min_length=2, max_length=100),
+    barrio: str = Form(..., min_length=2, max_length=100),
+    contacto_emergencia_nombre: str = Form(..., min_length=2, max_length=120),
+    contacto_emergencia_telefono: str = Form(..., min_length=7, max_length=20),
+    acepta_terminos: bool = Form(...),
+    es_menor: bool = Form(False),
+    acudiente_nombre: Optional[str] = Form(None, max_length=120),
+    acudiente_telefono: Optional[str] = Form(None, max_length=20),
+    acudiente_documento: Optional[str] = Form(None, max_length=20),
     foto: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     _rl: None = Depends(_limite_registro),
 ):
     if genero not in ("masculino", "femenino"):
         raise HTTPException(status_code=422, detail="Género inválido.")
+    if not acepta_terminos:
+        raise HTTPException(status_code=422, detail="Debes aceptar los Términos, Condiciones y el Consentimiento Informado.")
+    if fecha_nacimiento >= hoy_bogota():
+        raise HTTPException(status_code=422, detail="Fecha de nacimiento inválida.")
+
+    edad = _calcular_edad(fecha_nacimiento)
+    if edad < 18 and not es_menor:
+        raise HTTPException(
+            status_code=422,
+            detail="Según la fecha de nacimiento el usuario es menor de edad: marca la casilla de menor de edad y registra los datos del acudiente.",
+        )
+    if es_menor:
+        if (
+            not (acudiente_nombre or "").strip()
+            or not (acudiente_telefono or "").strip()
+            or not (acudiente_documento or "").strip()
+        ):
+            raise HTTPException(status_code=422, detail="Para menores de edad se requiere nombre, teléfono y cédula del acudiente.")
+        acudiente_nombre = acudiente_nombre.strip()
+        acudiente_telefono = acudiente_telefono.strip()
+        acudiente_documento = acudiente_documento.strip()
+    else:
+        acudiente_nombre = None
+        acudiente_telefono = None
+        acudiente_documento = None
+
     email = (email or "").strip().lower()
     documento_identidad = (documento_identidad or "").strip()
     if db.query(Usuario).filter(Usuario.email == email).first():
@@ -78,6 +126,18 @@ def registro_publico(
         documento_identidad=documento_identidad,
         genero=genero,
         telefono=telefono,
+        fecha_nacimiento=fecha_nacimiento,
+        eps=eps.strip(),
+        barrio=barrio.strip(),
+        contacto_emergencia_nombre=contacto_emergencia_nombre.strip(),
+        contacto_emergencia_telefono=contacto_emergencia_telefono.strip(),
+        es_menor=es_menor,
+        acudiente_nombre=acudiente_nombre,
+        acudiente_telefono=acudiente_telefono,
+        acudiente_documento=acudiente_documento,
+        acepto_terminos=True,
+        terminos_fecha=datetime.now(TZ_BOGOTA).replace(tzinfo=None),
+        terminos_version=TERMINOS_VERSION,
         rol=RolUsuario.PENDIENTE,
     )
 
@@ -122,6 +182,17 @@ def _serialize_me(current_user: Usuario, db: Session) -> dict:
         "telefono": current_user.telefono,
         "documento_identidad": current_user.documento_identidad,
         "fecha_nacimiento": current_user.fecha_nacimiento,
+        "eps": current_user.eps,
+        "barrio": current_user.barrio,
+        "contacto_emergencia_nombre": current_user.contacto_emergencia_nombre,
+        "contacto_emergencia_telefono": current_user.contacto_emergencia_telefono,
+        "es_menor": current_user.es_menor,
+        "acudiente_nombre": current_user.acudiente_nombre,
+        "acudiente_telefono": current_user.acudiente_telefono,
+        "acudiente_documento": current_user.acudiente_documento,
+        "acepto_terminos": current_user.acepto_terminos,
+        "terminos_fecha": current_user.terminos_fecha,
+        "terminos_version": current_user.terminos_version,
         "foto_url": current_user.foto_url,
         "fecha_vencimiento": current_user.fecha_vencimiento,
         "esta_en_gym": current_user.esta_en_gym,
@@ -179,6 +250,27 @@ def actualizar_mi_perfil(
 
     if payload.fecha_nacimiento is not None:
         current_user.fecha_nacimiento = payload.fecha_nacimiento
+
+    if payload.eps is not None:
+        current_user.eps = payload.eps
+
+    if payload.barrio is not None:
+        current_user.barrio = payload.barrio
+
+    if payload.contacto_emergencia_nombre is not None:
+        current_user.contacto_emergencia_nombre = payload.contacto_emergencia_nombre
+
+    if payload.contacto_emergencia_telefono is not None:
+        current_user.contacto_emergencia_telefono = payload.contacto_emergencia_telefono
+
+    if payload.acudiente_nombre is not None:
+        current_user.acudiente_nombre = payload.acudiente_nombre
+
+    if payload.acudiente_telefono is not None:
+        current_user.acudiente_telefono = payload.acudiente_telefono
+
+    if payload.acudiente_documento is not None:
+        current_user.acudiente_documento = payload.acudiente_documento
 
     db.commit()
     db.refresh(current_user)

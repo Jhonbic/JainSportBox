@@ -68,6 +68,19 @@ class Usuario(Base):
     genero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     fecha_nacimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     plan_solicitado_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    eps: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    barrio: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    contacto_emergencia_nombre: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    contacto_emergencia_telefono: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Menores de edad: el registro lo hace el acudiente (cláusula 7 del contrato).
+    es_menor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    acudiente_nombre: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    acudiente_telefono: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    acudiente_documento: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Aceptación del contrato de adhesión (Ley 527 de 1999): quedan fecha y versión.
+    acepto_terminos: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    terminos_fecha: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    terminos_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # ── Relaciones ──

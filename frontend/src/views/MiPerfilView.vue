@@ -88,6 +88,48 @@
             <input v-model="form.fecha_nacimiento" type="date"
               class="block w-full min-w-0 appearance-none px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
           </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">EPS</label>
+            <input v-model="form.eps" type="text" placeholder="Ej. Nueva EPS, Sanitas..."
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Barrio</label>
+            <input v-model="form.barrio" type="text" placeholder="Ej. La Consolata"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Contacto de emergencia (nombre)</label>
+            <input v-model="form.contacto_emergencia_nombre" type="text" placeholder="Ej. María Pérez"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Contacto de emergencia (teléfono)</label>
+            <input v-model="form.contacto_emergencia_telefono" type="tel" placeholder="Ej. 3001234567"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+          </div>
+        </div>
+
+        <!-- Acudiente (solo si el usuario es menor de edad) -->
+        <div v-if="usuario.es_menor" class="mt-5 border border-red-200 bg-red-50 rounded-xl p-4">
+          <p class="text-sm font-bold text-red-900 mb-3">Acudiente (menor de edad)</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Nombre del acudiente</label>
+              <input v-model="form.acudiente_nombre" type="text" placeholder="Ej. Carlos Pérez"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Cédula del acudiente</label>
+              <input v-model="form.acudiente_documento" type="text" placeholder="Ej. 1020456789"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Teléfono del acudiente</label>
+              <input v-model="form.acudiente_telefono" type="tel" placeholder="Ej. 3001234567"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -200,6 +242,13 @@ function resetForm() {
     documento_identidad: usuario.value.documento_identidad || '',
     genero: usuario.value.genero || '',
     fecha_nacimiento: usuario.value.fecha_nacimiento || '',
+    eps: usuario.value.eps || '',
+    barrio: usuario.value.barrio || '',
+    contacto_emergencia_nombre: usuario.value.contacto_emergencia_nombre || '',
+    contacto_emergencia_telefono: usuario.value.contacto_emergencia_telefono || '',
+    acudiente_nombre: usuario.value.acudiente_nombre || '',
+    acudiente_telefono: usuario.value.acudiente_telefono || '',
+    acudiente_documento: usuario.value.acudiente_documento || '',
     password: '',
   }
   cambiarPassword.value = false
@@ -217,6 +266,13 @@ const hayCambios = computed(() => {
     f.documento_identidad !== (usuario.value.documento_identidad || '') ||
     f.genero !== (usuario.value.genero || '') ||
     f.fecha_nacimiento !== (usuario.value.fecha_nacimiento || '') ||
+    f.eps !== (usuario.value.eps || '') ||
+    f.barrio !== (usuario.value.barrio || '') ||
+    f.contacto_emergencia_nombre !== (usuario.value.contacto_emergencia_nombre || '') ||
+    f.contacto_emergencia_telefono !== (usuario.value.contacto_emergencia_telefono || '') ||
+    f.acudiente_nombre !== (usuario.value.acudiente_nombre || '') ||
+    f.acudiente_telefono !== (usuario.value.acudiente_telefono || '') ||
+    f.acudiente_documento !== (usuario.value.acudiente_documento || '') ||
     (cambiarPassword.value && !!f.password)
   )
 })
@@ -237,6 +293,13 @@ async function guardarEdicion() {
   if (form.value.documento_identidad !== (usuario.value.documento_identidad || '')) payload.documento_identidad = form.value.documento_identidad
   if (form.value.genero !== (usuario.value.genero || '')) payload.genero = form.value.genero
   if (form.value.fecha_nacimiento !== (usuario.value.fecha_nacimiento || '')) payload.fecha_nacimiento = form.value.fecha_nacimiento || null
+  if (form.value.eps !== (usuario.value.eps || '')) payload.eps = form.value.eps
+  if (form.value.barrio !== (usuario.value.barrio || '')) payload.barrio = form.value.barrio
+  if (form.value.contacto_emergencia_nombre !== (usuario.value.contacto_emergencia_nombre || '')) payload.contacto_emergencia_nombre = form.value.contacto_emergencia_nombre
+  if (form.value.contacto_emergencia_telefono !== (usuario.value.contacto_emergencia_telefono || '')) payload.contacto_emergencia_telefono = form.value.contacto_emergencia_telefono
+  if (form.value.acudiente_nombre !== (usuario.value.acudiente_nombre || '')) payload.acudiente_nombre = form.value.acudiente_nombre
+  if (form.value.acudiente_telefono !== (usuario.value.acudiente_telefono || '')) payload.acudiente_telefono = form.value.acudiente_telefono
+  if (form.value.acudiente_documento !== (usuario.value.acudiente_documento || '')) payload.acudiente_documento = form.value.acudiente_documento
   if (cambiarPassword.value && form.value.password) payload.password = form.value.password
 
   if (Object.keys(payload).length === 0) return

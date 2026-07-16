@@ -41,6 +41,17 @@ if engine.url.get_backend_name() == "sqlite":
         "ALTER TABLE marcas_rm ADD COLUMN series TEXT",
         "ALTER TABLE medidas_salud ADD COLUMN brazos_cm REAL",
         "ALTER TABLE wod_ejercicios ADD COLUMN superserie_con_anterior BOOLEAN DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN eps VARCHAR(100)",
+        "ALTER TABLE usuarios ADD COLUMN barrio VARCHAR(100)",
+        "ALTER TABLE usuarios ADD COLUMN contacto_emergencia_nombre VARCHAR(120)",
+        "ALTER TABLE usuarios ADD COLUMN contacto_emergencia_telefono VARCHAR(20)",
+        "ALTER TABLE usuarios ADD COLUMN es_menor BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN acudiente_nombre VARCHAR(120)",
+        "ALTER TABLE usuarios ADD COLUMN acudiente_telefono VARCHAR(20)",
+        "ALTER TABLE usuarios ADD COLUMN acudiente_documento VARCHAR(20)",
+        "ALTER TABLE usuarios ADD COLUMN acepto_terminos BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN terminos_fecha DATETIME",
+        "ALTER TABLE usuarios ADD COLUMN terminos_version VARCHAR(20)",
     ]
     with engine.connect() as _conn:
         for _sql in _migraciones:
@@ -194,6 +205,17 @@ if engine.url.get_backend_name() != "sqlite":
         "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS porcentaje_rm REAL",
         "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS tiempo_segundos INTEGER",
         "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS superserie_con_anterior BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eps VARCHAR(100)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS barrio VARCHAR(100)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS contacto_emergencia_nombre VARCHAR(120)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS contacto_emergencia_telefono VARCHAR(20)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_menor BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acudiente_nombre VARCHAR(120)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acudiente_telefono VARCHAR(20)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acudiente_documento VARCHAR(20)",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acepto_terminos BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS terminos_fecha TIMESTAMP",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS terminos_version VARCHAR(20)",
     ]
     with engine.connect() as _conn:
         for _sql in _cols_pg:

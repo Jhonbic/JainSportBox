@@ -1,18 +1,16 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-black px-4 py-8">
-    <div class="max-w-md w-full bg-white rounded-xl shadow-lg overflow-hidden relative">
+    <div class="max-w-md w-full">
+
+      <!-- Logo (se funde con el fondo negro de la página) -->
+      <img src="/logo.png" alt="Jain Sport Box" class="h-36 sm:h-40 w-auto mx-auto mb-6 select-none" draggable="false">
+
+      <div class="w-full bg-white rounded-xl shadow-lg overflow-hidden relative">
       <!-- Barra superior roja -->
       <div class="absolute top-0 left-0 w-full h-2 bg-red-600"></div>
 
-      <!-- Logo -->
-      <div class="text-center pt-10 pb-6 px-8">
-        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-red-100 text-red-600 mb-3 shadow-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-        <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">Jain Sport Box</h1>
-      </div>
+      <!-- Espaciado superior de la tarjeta -->
+      <div class="pt-8"></div>
 
       <!-- Tabs -->
       <div class="flex mx-8 mb-6 bg-gray-100 rounded-xl p-1">
@@ -129,6 +127,44 @@
           </div>
 
           <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Fecha de Nacimiento <span class="text-red-500">*</span></label>
+            <input v-model="regForm.fecha_nacimiento" type="date" required :max="hoyISO"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm">
+            <p v-if="edad !== null" class="text-xs text-gray-400 mt-1">Edad: {{ edad }} años</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">EPS <span class="text-red-500">*</span></label>
+            <input v-model="regForm.eps" type="text" required minlength="2" maxlength="100"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm"
+              placeholder="Ej. Nueva EPS, Sanitas, Sura...">
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Barrio <span class="text-red-500">*</span></label>
+            <input v-model="regForm.barrio" type="text" required minlength="2" maxlength="100"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm"
+              placeholder="Ej. La Consolata">
+          </div>
+
+          <!-- Contacto de emergencia -->
+          <div class="border border-gray-200 rounded-xl p-4 space-y-3">
+            <p class="text-sm font-bold text-gray-700">Contacto de emergencia</p>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Nombre <span class="text-red-500">*</span></label>
+              <input v-model="regForm.contacto_emergencia_nombre" type="text" required minlength="2" maxlength="120"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm"
+                placeholder="Ej. María Pérez">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Teléfono <span class="text-red-500">*</span></label>
+              <input v-model="regForm.contacto_emergencia_telefono" type="tel" required minlength="7" maxlength="20"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm"
+                placeholder="Ej. 3001234567">
+            </div>
+          </div>
+
+          <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">Género <span class="text-red-500">*</span></label>
             <div class="grid grid-cols-2 gap-2">
               <button type="button" @click="regForm.genero = 'masculino'"
@@ -151,6 +187,50 @@
               placeholder="Mínimo 6 caracteres">
           </div>
 
+          <!-- Menor de edad: aparece automáticamente según la fecha de nacimiento -->
+          <div v-if="esMenor" class="border border-red-300 bg-red-50 rounded-xl p-4 space-y-3">
+            <label class="flex items-start gap-2.5 cursor-pointer">
+              <input v-model="regForm.es_menor" type="checkbox" required
+                class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500">
+              <span class="text-sm text-red-900">
+                <span class="font-bold">Confirmo que el usuario es menor de edad</span> y declaro, como padre, madre,
+                tutor legal o representante autorizado, que acepto este registro en su nombre (cláusula 7 del contrato).
+              </span>
+            </label>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Nombre del acudiente <span class="text-red-500">*</span></label>
+              <input v-model="regForm.acudiente_nombre" type="text" required minlength="2" maxlength="120"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm"
+                placeholder="Ej. Carlos Pérez">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Cédula del acudiente <span class="text-red-500">*</span></label>
+              <input v-model="regForm.acudiente_documento" type="text" required minlength="5" maxlength="20"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm"
+                placeholder="Ej. 1020456789">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Teléfono del acudiente <span class="text-red-500">*</span></label>
+              <input v-model="regForm.acudiente_telefono" type="tel" required minlength="7" maxlength="20"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all text-sm"
+                placeholder="Ej. 3001234567">
+            </div>
+          </div>
+
+          <!-- Aceptación de términos y condiciones -->
+          <label class="flex items-start gap-2.5 cursor-pointer">
+            <input v-model="regForm.acepta_terminos" type="checkbox" required
+              class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500">
+            <span class="text-sm text-gray-600">
+              Acepto los
+              <button type="button" @click.prevent="mostrarTerminos = true"
+                class="font-bold text-red-600 underline hover:text-red-700">
+                Términos, Condiciones y el Consentimiento Informado
+              </button>
+              de Jain Sport Box. <span class="text-red-500">*</span>
+            </span>
+          </label>
+
           <div v-if="registroError" class="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100 flex items-start gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -165,14 +245,21 @@
           </button>
         </template>
       </form>
+      </div>
     </div>
+
+    <!-- Modal de Términos y Condiciones -->
+    <TerminosModal v-if="mostrarTerminos"
+      @cerrar="mostrarTerminos = false"
+      @aceptar="regForm.acepta_terminos = true; mostrarTerminos = false" />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import api from '../api'
 import { useRouter } from 'vue-router'
+import TerminosModal from '../components/TerminosModal.vue'
 
 const router = useRouter()
 const tab = ref('login')
@@ -209,12 +296,42 @@ const handleLogin = async () => {
 }
 
 // ── Registro ───────────────────────────────────────────────────
-const regForm = ref({ nombre: '', email: '', documento_identidad: '', telefono: '', genero: '', password: '' })
+const REG_FORM_VACIO = () => ({
+  nombre: '', email: '', documento_identidad: '', telefono: '', genero: '', password: '',
+  fecha_nacimiento: '', eps: '', barrio: '',
+  contacto_emergencia_nombre: '', contacto_emergencia_telefono: '',
+  acepta_terminos: false, es_menor: false, acudiente_nombre: '', acudiente_telefono: '', acudiente_documento: '',
+})
+const regForm = ref(REG_FORM_VACIO())
 const registroError = ref('')
 const registroLoading = ref(false)
 const registroExitoso = ref(false)
 const fotoArchivo = ref(null)
 const fotoPreview = ref('')
+const mostrarTerminos = ref(false)
+
+const hoyISO = new Date().toISOString().slice(0, 10)
+
+// Edad calculada a partir de la fecha de nacimiento (no se envía: el backend la deriva).
+const edad = computed(() => {
+  if (!regForm.value.fecha_nacimiento) return null
+  const nac = new Date(regForm.value.fecha_nacimiento + 'T00:00:00')
+  const hoy = new Date()
+  let e = hoy.getFullYear() - nac.getFullYear()
+  if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) e--
+  return e
+})
+const esMenor = computed(() => edad.value !== null && edad.value >= 0 && edad.value < 18)
+
+// Si cambia la fecha y ya no es menor, limpiar la sección de acudiente.
+watch(esMenor, (v) => {
+  if (!v) {
+    regForm.value.es_menor = false
+    regForm.value.acudiente_nombre = ''
+    regForm.value.acudiente_telefono = ''
+    regForm.value.acudiente_documento = ''
+  }
+})
 
 function onFotoChange(e) {
   const file = e.target.files[0]
@@ -229,6 +346,14 @@ const handleRegistro = async () => {
     registroError.value = 'Selecciona tu género.'
     return
   }
+  if (!regForm.value.acepta_terminos) {
+    registroError.value = 'Debes aceptar los Términos, Condiciones y el Consentimiento Informado.'
+    return
+  }
+  if (esMenor.value && !regForm.value.es_menor) {
+    registroError.value = 'Según la fecha de nacimiento eres menor de edad: marca la casilla y registra los datos del acudiente.'
+    return
+  }
   registroLoading.value = true
   try {
     const fd = new FormData()
@@ -238,11 +363,23 @@ const handleRegistro = async () => {
     fd.append('documento_identidad', regForm.value.documento_identidad)
     fd.append('genero', regForm.value.genero)
     fd.append('telefono', regForm.value.telefono)
+    fd.append('fecha_nacimiento', regForm.value.fecha_nacimiento)
+    fd.append('eps', regForm.value.eps)
+    fd.append('barrio', regForm.value.barrio)
+    fd.append('contacto_emergencia_nombre', regForm.value.contacto_emergencia_nombre)
+    fd.append('contacto_emergencia_telefono', regForm.value.contacto_emergencia_telefono)
+    fd.append('acepta_terminos', regForm.value.acepta_terminos ? 'true' : 'false')
+    fd.append('es_menor', regForm.value.es_menor ? 'true' : 'false')
+    if (regForm.value.es_menor) {
+      fd.append('acudiente_nombre', regForm.value.acudiente_nombre)
+      fd.append('acudiente_telefono', regForm.value.acudiente_telefono)
+      fd.append('acudiente_documento', regForm.value.acudiente_documento)
+    }
     if (fotoArchivo.value) fd.append('foto', fotoArchivo.value)
 
     await api.post('/registro', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     registroExitoso.value = true
-    regForm.value = { nombre: '', email: '', documento_identidad: '', telefono: '', genero: '', password: '' }
+    regForm.value = REG_FORM_VACIO()
     fotoArchivo.value = null
     fotoPreview.value = ''
   } catch (e) {

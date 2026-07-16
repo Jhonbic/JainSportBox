@@ -241,7 +241,9 @@
         No hay usuarios pendientes de aprobación.
       </div>
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="p in pendientes" :key="p.id" class="bg-white rounded-xl border border-red-100 shadow-sm p-5 flex flex-col gap-3">
+        <div v-for="p in pendientes" :key="p.id"
+          class="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-3 border"
+          :class="p.es_menor ? 'border-red-300 ring-1 ring-red-200' : 'border-red-100'">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -252,6 +254,10 @@
               <p class="font-bold text-gray-900 truncate">{{ p.nombre }}</p>
               <p class="text-xs text-gray-500 truncate">{{ p.email }}</p>
             </div>
+            <span v-if="p.es_menor"
+              class="ml-auto flex-shrink-0 text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-full bg-red-600 text-white">
+              Menor de edad
+            </span>
           </div>
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div class="bg-gray-50 rounded-lg px-3 py-2">
@@ -262,12 +268,51 @@
               <p class="text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Teléfono</p>
               <p class="font-semibold text-gray-700">{{ p.telefono || '—' }}</p>
             </div>
-            <div class="bg-gray-50 rounded-lg px-3 py-2 col-span-2">
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
               <p class="text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Género</p>
               <p class="font-semibold text-gray-700 capitalize">{{ p.genero || '—' }}</p>
             </div>
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
+              <p class="text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Nacimiento</p>
+              <p class="font-semibold text-gray-700">{{ p.fecha_nacimiento ? formatFechaCorta(p.fecha_nacimiento) : '—' }}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
+              <p class="text-gray-400 font-semibold uppercase tracking-wide mb-0.5">EPS</p>
+              <p class="font-semibold text-gray-700">{{ p.eps || '—' }}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
+              <p class="text-gray-400 font-semibold uppercase tracking-wide mb-0.5">Barrio</p>
+              <p class="font-semibold text-gray-700">{{ p.barrio || '—' }}</p>
+            </div>
           </div>
-          <p class="text-xs text-gray-400">Registrado {{ formatFechaCorta(p.created_at) }}</p>
+
+          <!-- Datos del acudiente (solo menores): mini-acordeón para no desalinear las cards -->
+          <div v-if="p.es_menor" class="border border-red-200 rounded-lg overflow-hidden">
+            <button type="button" @click="toggleAcudiente(p.id)"
+              class="w-full flex items-center justify-between px-3 py-2 bg-red-50 hover:bg-red-100 transition-colors">
+              <span class="text-xs font-black uppercase tracking-wide text-red-700">Datos del acudiente</span>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 transition-transform"
+                :class="acudienteAbierto[p.id] ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div v-if="acudienteAbierto[p.id]" class="px-3 py-2.5 text-xs space-y-1 border-t border-red-100">
+              <div>
+                <span class="text-gray-400 font-semibold">Nombre: </span>
+                <span class="font-semibold text-gray-800">{{ p.acudiente_nombre || '—' }}</span>
+              </div>
+              <div>
+                <span class="text-gray-400 font-semibold">Cédula: </span>
+                <span class="font-semibold text-gray-800">{{ p.acudiente_documento || '—' }}</span>
+              </div>
+              <div>
+                <span class="text-gray-400 font-semibold">Teléfono: </span>
+                <span class="font-semibold text-gray-800">{{ p.acudiente_telefono || '—' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-xs text-gray-400 mt-auto">Registrado {{ formatFechaCorta(p.created_at) }}</p>
           <button @click="abrirActivar(p)"
             class="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -696,6 +741,44 @@
             <label class="block text-gray-700 text-sm font-semibold mb-2">Fecha de nacimiento <span class="text-gray-400 font-normal">(opcional)</span></label>
             <input v-model="nuevoUsuario.fecha_nacimiento" type="date"
               class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all">
+          </div>
+          <div class="mb-5">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">EPS <span class="text-gray-400 font-normal">(opcional)</span></label>
+            <input v-model="nuevoUsuario.eps" type="text" maxlength="100" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all" placeholder="Ej. Nueva EPS, Sanitas...">
+          </div>
+          <div class="mb-5">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">Barrio <span class="text-gray-400 font-normal">(opcional)</span></label>
+            <input v-model="nuevoUsuario.barrio" type="text" maxlength="100" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all" placeholder="Ej. La Consolata">
+          </div>
+          <div class="mb-5 grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-gray-700 text-sm font-semibold mb-2">Emergencia: nombre <span class="text-gray-400 font-normal">(opcional)</span></label>
+              <input v-model="nuevoUsuario.contacto_emergencia_nombre" type="text" maxlength="120" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all" placeholder="Nombre">
+            </div>
+            <div>
+              <label class="block text-gray-700 text-sm font-semibold mb-2">Emergencia: teléfono <span class="text-gray-400 font-normal">(opcional)</span></label>
+              <input v-model="nuevoUsuario.contacto_emergencia_telefono" type="tel" maxlength="20" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none transition-all" placeholder="Teléfono">
+            </div>
+          </div>
+          <div class="mb-5 border border-gray-200 rounded-xl p-4">
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" v-model="nuevoUsuario.es_menor" class="w-4 h-4 accent-red-600 rounded">
+              <span class="text-sm font-semibold text-gray-700">Es menor de edad</span>
+            </label>
+            <div v-if="nuevoUsuario.es_menor" class="grid grid-cols-2 gap-3 mt-3">
+              <div class="col-span-2">
+                <label class="block text-gray-600 text-xs font-semibold mb-1">Acudiente: nombre</label>
+                <input v-model="nuevoUsuario.acudiente_nombre" type="text" maxlength="120" required class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="Nombre">
+              </div>
+              <div>
+                <label class="block text-gray-600 text-xs font-semibold mb-1">Acudiente: cédula</label>
+                <input v-model="nuevoUsuario.acudiente_documento" type="text" maxlength="20" required class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="Cédula">
+              </div>
+              <div>
+                <label class="block text-gray-600 text-xs font-semibold mb-1">Acudiente: teléfono</label>
+                <input v-model="nuevoUsuario.acudiente_telefono" type="tel" maxlength="20" required class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none text-sm" placeholder="Teléfono">
+              </div>
+            </div>
           </div>
           <div class="mb-6">
             <label class="block text-gray-700 text-sm font-semibold mb-2">Rol</label>
@@ -1180,7 +1263,12 @@ const tabs = computed(() => [
 // ── Crear ────────────────────────────────────────────────────
 const showForm = ref(false)
 const saving = ref(false)
-const nuevoUsuario = ref({ nombre: '', documento_identidad: '', email: '', password: '', rol: 'cliente', telefono: '', genero: '', fecha_nacimiento: '' })
+const NUEVO_USUARIO_VACIO = () => ({
+  nombre: '', documento_identidad: '', email: '', password: '', rol: 'cliente', telefono: '', genero: '', fecha_nacimiento: '',
+  eps: '', barrio: '', contacto_emergencia_nombre: '', contacto_emergencia_telefono: '',
+  es_menor: false, acudiente_nombre: '', acudiente_telefono: '', acudiente_documento: '',
+})
+const nuevoUsuario = ref(NUEVO_USUARIO_VACIO())
 const planSeleccionado = ref('ninguno')
 const montoPlanDefault = ref('')
 const planPersonalizado = ref({ dias: '', monto: '' })
@@ -1313,6 +1401,10 @@ const fetchPlanes = async () => {
   catch (e) { console.error(e) }
 }
 
+// Acordeón "Datos del acudiente" en las cards de pendientes (por id de usuario)
+const acudienteAbierto = ref({})
+const toggleAcudiente = (id) => { acudienteAbierto.value[id] = !acudienteAbierto.value[id] }
+
 const fetchPendientes = async () => {
   loadingPendientes.value = true
   try { pendientes.value = (await api.get('/usuarios/pendientes')).data }
@@ -1372,7 +1464,7 @@ const confirmarRenovacion = async () => {
 // ── Crear ────────────────────────────────────────────────────
 const cerrarFormulario = () => {
   showForm.value = false
-  nuevoUsuario.value = { nombre: '', documento_identidad: '', email: '', password: '', rol: 'cliente', telefono: '', genero: '', fecha_nacimiento: '' }
+  nuevoUsuario.value = NUEVO_USUARIO_VACIO()
   planSeleccionado.value = 'ninguno'
   montoPlanDefault.value = ''
   planPersonalizado.value = { dias: '', monto: '' }
@@ -1395,6 +1487,15 @@ const crearUsuario = async () => {
   try {
     const payload = { ...nuevoUsuario.value }
     if (!payload.fecha_nacimiento) payload.fecha_nacimiento = null
+    // Campos opcionales: no mandar strings vacíos
+    for (const k of ['eps', 'barrio', 'contacto_emergencia_nombre', 'contacto_emergencia_telefono', 'acudiente_nombre', 'acudiente_telefono', 'acudiente_documento']) {
+      if (!payload[k]) payload[k] = null
+    }
+    if (!payload.es_menor) {
+      payload.acudiente_nombre = null
+      payload.acudiente_telefono = null
+      payload.acudiente_documento = null
+    }
     const { data: nuevo } = await api.post('/usuarios/', payload)
 
     if (fotoArchivo.value) {

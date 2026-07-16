@@ -57,6 +57,14 @@ def crear_usuario(
         huella_id=payload.huella_id,
         telefono=payload.telefono,
         fecha_nacimiento=payload.fecha_nacimiento,
+        eps=payload.eps,
+        barrio=payload.barrio,
+        contacto_emergencia_nombre=payload.contacto_emergencia_nombre,
+        contacto_emergencia_telefono=payload.contacto_emergencia_telefono,
+        es_menor=payload.es_menor,
+        acudiente_nombre=payload.acudiente_nombre,
+        acudiente_telefono=payload.acudiente_telefono,
+        acudiente_documento=payload.acudiente_documento,
     )
     db.add(nuevo)
     db.commit()
@@ -115,6 +123,30 @@ def actualizar_usuario(
 
     if payload.fecha_nacimiento is not None:
         usuario.fecha_nacimiento = payload.fecha_nacimiento
+
+    if payload.eps is not None:
+        usuario.eps = payload.eps
+
+    if payload.barrio is not None:
+        usuario.barrio = payload.barrio
+
+    if payload.contacto_emergencia_nombre is not None:
+        usuario.contacto_emergencia_nombre = payload.contacto_emergencia_nombre
+
+    if payload.contacto_emergencia_telefono is not None:
+        usuario.contacto_emergencia_telefono = payload.contacto_emergencia_telefono
+
+    if payload.es_menor is not None:
+        usuario.es_menor = payload.es_menor
+
+    if payload.acudiente_nombre is not None:
+        usuario.acudiente_nombre = payload.acudiente_nombre
+
+    if payload.acudiente_telefono is not None:
+        usuario.acudiente_telefono = payload.acudiente_telefono
+
+    if payload.acudiente_documento is not None:
+        usuario.acudiente_documento = payload.acudiente_documento
 
     db.commit()
     db.refresh(usuario)
@@ -196,6 +228,16 @@ def listar_pendientes(
             "telefono": u.telefono,
             "documento_identidad": u.documento_identidad,
             "genero": u.genero,
+            "fecha_nacimiento": u.fecha_nacimiento,
+            "eps": u.eps,
+            "barrio": u.barrio,
+            "contacto_emergencia_nombre": u.contacto_emergencia_nombre,
+            "contacto_emergencia_telefono": u.contacto_emergencia_telefono,
+            # Menor de edad: el admin debe ver los datos del acudiente antes de activar.
+            "es_menor": u.es_menor,
+            "acudiente_nombre": u.acudiente_nombre,
+            "acudiente_telefono": u.acudiente_telefono,
+            "acudiente_documento": u.acudiente_documento,
             "created_at": u.created_at,
             "plan_solicitado_id": u.plan_solicitado_id,
             "plan_solicitado": plan_solicitado,

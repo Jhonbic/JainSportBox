@@ -78,6 +78,36 @@
             <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Miembro desde</p>
             <p class="text-sm font-semibold text-gray-800">{{ formatFechaCorta(usuario.created_at) }}</p>
           </div>
+          <div class="bg-gray-50 rounded-xl p-3">
+            <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">EPS</p>
+            <p class="text-sm font-semibold text-gray-800">{{ usuario.eps || '—' }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-3">
+            <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Barrio</p>
+            <p class="text-sm font-semibold text-gray-800">{{ usuario.barrio || '—' }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-3">
+            <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Contacto de emergencia</p>
+            <template v-if="usuario.contacto_emergencia_nombre || usuario.contacto_emergencia_telefono">
+              <p class="text-sm font-semibold text-gray-800">{{ usuario.contacto_emergencia_nombre || '—' }}</p>
+              <p class="text-xs text-gray-500 mt-0.5">{{ usuario.contacto_emergencia_telefono || '—' }}</p>
+            </template>
+            <p v-else class="text-sm text-gray-400">—</p>
+          </div>
+          <div v-if="usuario.es_menor" class="bg-red-50 rounded-xl p-3">
+            <p class="text-xs text-red-600 font-semibold uppercase tracking-wide mb-1">Acudiente (menor de edad)</p>
+            <p class="text-sm font-semibold text-gray-800">{{ usuario.acudiente_nombre || '—' }}</p>
+            <p class="text-xs text-gray-500 mt-0.5">CC {{ usuario.acudiente_documento || '—' }} · {{ usuario.acudiente_telefono || '—' }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-3">
+            <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Términos y condiciones</p>
+            <p class="text-sm font-semibold" :class="usuario.acepto_terminos ? 'text-emerald-700' : 'text-gray-400'">
+              {{ usuario.acepto_terminos ? 'Aceptados' : 'No aceptados' }}
+            </p>
+            <p v-if="usuario.acepto_terminos && usuario.terminos_fecha" class="text-xs text-gray-500 mt-0.5">
+              {{ formatFechaCorta(usuario.terminos_fecha) }} · {{ usuario.terminos_version || '' }}
+            </p>
+          </div>
           <div class="bg-gray-50 rounded-xl p-3 flex items-center justify-between gap-2">
             <div>
               <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Huella digital</p>
@@ -296,6 +326,59 @@
             <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Fecha de nacimiento <span class="text-gray-400 font-normal">(opcional)</span></label>
             <input v-model="form.fecha_nacimiento" type="date"
               class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+          </div>
+
+          <!-- EPS -->
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">EPS</label>
+            <input v-model="form.eps" type="text" placeholder="Ej. Nueva EPS, Sanitas..."
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+          </div>
+
+          <!-- Barrio -->
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Barrio</label>
+            <input v-model="form.barrio" type="text" placeholder="Ej. La Consolata"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+          </div>
+
+          <!-- Contacto de emergencia -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Emergencia: nombre</label>
+              <input v-model="form.contacto_emergencia_nombre" type="text" placeholder="Nombre"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Emergencia: teléfono</label>
+              <input v-model="form.contacto_emergencia_telefono" type="tel" placeholder="Teléfono"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+            </div>
+          </div>
+
+          <!-- Menor de edad + acudiente -->
+          <div class="border border-gray-100 rounded-xl p-3">
+            <label class="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" v-model="form.es_menor" class="w-4 h-4 accent-gray-800 rounded"/>
+              <span class="text-sm font-semibold text-gray-700">Es menor de edad</span>
+            </label>
+            <div v-if="form.es_menor" class="grid grid-cols-2 gap-3 mt-3">
+              <div class="col-span-2">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Acudiente: nombre</label>
+                <input v-model="form.acudiente_nombre" type="text" placeholder="Nombre"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Acudiente: cédula</label>
+                <input v-model="form.acudiente_documento" type="text" placeholder="Cédula"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Acudiente: teléfono</label>
+                <input v-model="form.acudiente_telefono" type="tel" placeholder="Teléfono"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition"/>
+              </div>
+            </div>
           </div>
 
           <!-- Contraseña -->
@@ -739,6 +822,14 @@ function abrirEditar() {
     documento_identidad: usuario.value.documento_identidad || '',
     genero: usuario.value.genero || '',
     fecha_nacimiento: usuario.value.fecha_nacimiento || '',
+    eps: usuario.value.eps || '',
+    barrio: usuario.value.barrio || '',
+    contacto_emergencia_nombre: usuario.value.contacto_emergencia_nombre || '',
+    contacto_emergencia_telefono: usuario.value.contacto_emergencia_telefono || '',
+    es_menor: !!usuario.value.es_menor,
+    acudiente_nombre: usuario.value.acudiente_nombre || '',
+    acudiente_telefono: usuario.value.acudiente_telefono || '',
+    acudiente_documento: usuario.value.acudiente_documento || '',
     password: '',
   }
   cambiarPassword.value = false
@@ -762,6 +853,14 @@ async function guardarEdicion() {
   if (form.value.documento_identidad !== (usuario.value.documento_identidad || '')) payload.documento_identidad = form.value.documento_identidad
   if (form.value.genero !== (usuario.value.genero || '')) payload.genero = form.value.genero
   if (form.value.fecha_nacimiento !== (usuario.value.fecha_nacimiento || '')) payload.fecha_nacimiento = form.value.fecha_nacimiento || null
+  if (form.value.eps !== (usuario.value.eps || '')) payload.eps = form.value.eps
+  if (form.value.barrio !== (usuario.value.barrio || '')) payload.barrio = form.value.barrio
+  if (form.value.contacto_emergencia_nombre !== (usuario.value.contacto_emergencia_nombre || '')) payload.contacto_emergencia_nombre = form.value.contacto_emergencia_nombre
+  if (form.value.contacto_emergencia_telefono !== (usuario.value.contacto_emergencia_telefono || '')) payload.contacto_emergencia_telefono = form.value.contacto_emergencia_telefono
+  if (form.value.es_menor !== !!usuario.value.es_menor) payload.es_menor = form.value.es_menor
+  if (form.value.acudiente_nombre !== (usuario.value.acudiente_nombre || '')) payload.acudiente_nombre = form.value.acudiente_nombre
+  if (form.value.acudiente_telefono !== (usuario.value.acudiente_telefono || '')) payload.acudiente_telefono = form.value.acudiente_telefono
+  if (form.value.acudiente_documento !== (usuario.value.acudiente_documento || '')) payload.acudiente_documento = form.value.acudiente_documento
   if (cambiarPassword.value && form.value.password) payload.password = form.value.password
 
   if (Object.keys(payload).length === 0) {

@@ -14,13 +14,10 @@
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <!-- Logo -->
-      <div class="p-6 border-b border-gray-800 flex items-center gap-3">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-        <h1 class="text-xl font-extrabold tracking-wider">Jain Sport Box</h1>
+      <div class="px-6 py-4 border-b border-gray-800 flex items-center gap-3">
+        <img src="/logo.png" alt="Jain Sport Box" class="h-16 w-auto mx-auto select-none" draggable="false">
         <!-- Cerrar en móvil -->
-        <button @click="sidebarOpen = false" class="ml-auto md:hidden text-gray-400 hover:text-white p-1">
+        <button @click="sidebarOpen = false" class="ml-auto md:hidden text-gray-400 hover:text-white p-1 absolute top-3 right-3">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -248,10 +245,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
           </svg>
         </button>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-        </svg>
-        <span class="font-extrabold tracking-wider text-base">Jain Sport Box</span>
+        <img src="/logo.png" alt="Jain Sport Box" class="h-9 w-auto select-none" draggable="false">
       </header>
 
       <!-- Content -->

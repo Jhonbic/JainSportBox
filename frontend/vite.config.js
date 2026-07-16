@@ -16,20 +16,22 @@ export default defineConfig(({ mode }) => {
       vue(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.png'],
         manifest: {
           name: 'JainSportBox',
           short_name: 'JainBox',
           lang: 'es',
           description: 'Gestión de tu box de CrossFit: WODs, marcas, membresía y asistencia.',
           theme_color: '#dc2626',
-          background_color: '#ffffff',
+          // Splash de la PWA: negro para que funda con el fondo del logo.
+          background_color: '#000000',
           display: 'standalone',
           start_url: '/',
           icons: [
             { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
             { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
-            { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+            // Versión con zona segura (logo al 66%) para iconos adaptativos de Android.
+            { src: 'pwa-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         },
         workbox: {

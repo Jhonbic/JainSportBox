@@ -29,9 +29,21 @@ def _form_registro(**overrides):
         "documento_identidad": f"d{sufijo}",
         "genero": "masculino",
         "telefono": "3009998877",
+        "fecha_nacimiento": "1995-05-10",
+        "eps": "Nueva EPS",
+        "barrio": "Centro",
+        "contacto_emergencia_nombre": "Contacto Emergencia",
+        "contacto_emergencia_telefono": "3111112233",
+        "acepta_terminos": "true",
     }
     data.update(overrides)
     return data
+
+
+def _fecha_menor():
+    """Fecha de nacimiento de alguien con ~15 años."""
+    hoy = date.today()
+    return date(hoy.year - 15, hoy.month, hoy.day).isoformat()
 
 
 # ── Login ──────────────────────────────────────────────────────
@@ -80,6 +92,15 @@ def test_registro_ok_sin_foto(client, db_session):
     u = db_session.query(models.Usuario).filter_by(email=data["email"]).first()
     assert u is not None
     assert u.rol == models.RolUsuario.PENDIENTE
+    assert u.eps == "Nueva EPS"
+    assert u.barrio == "Centro"
+    assert u.contacto_emergencia_nombre == "Contacto Emergencia"
+    assert u.contacto_emergencia_telefono == "3111112233"
+    assert u.es_menor is False
+    # Registro de la aceptación del contrato (Ley 527 de 1999)
+    assert u.acepto_terminos is True
+    assert u.terminos_fecha is not None
+    assert u.terminos_version
     # login inmediato con la cuenta creada
     assert _login(client, data["email"], data["password"]).status_code == 200
 
@@ -125,6 +146,86 @@ def test_registro_genero_invalido(client):
 def test_registro_password_corta(client):
     r = client.post("/registro", data=_form_registro(password="corta"))
     assert r.status_code == 422
+
+
+def test_registro_sin_aceptar_terminos(client):
+    r = client.post("/registro", data=_form_registro(acepta_terminos="false"))
+    assert r.status_code == 422
+
+
+def test_registro_sin_campo_terminos(client):
+    data = _form_registro()
+    del data["acepta_terminos"]
+    r = client.post("/registro", data=data)
+    assert r.status_code == 422
+
+
+def test_registro_sin_fecha_nacimiento(client):
+    data = _form_registro()
+    del data["fecha_nacimiento"]
+    r = client.post("/registro", data=data)
+    assert r.status_code == 422
+
+
+def test_registro_menor_sin_casilla(client):
+    # Fecha de nacimiento de menor sin marcar es_menor → 422
+    r = client.post("/registro", data=_form_registro(fecha_nacimiento=_fecha_menor()))
+    assert r.status_code == 422
+
+
+def test_registro_menor_sin_acudiente(client):
+    r = client.post("/registro", data=_form_registro(fecha_nacimiento=_fecha_menor(), es_menor="true"))
+    assert r.status_code == 422
+
+
+def test_registro_menor_sin_cedula_acudiente(client):
+    r = client.post("/registro", data=_form_registro(
+        fecha_nacimiento=_fecha_menor(),
+        es_menor="true",
+        acudiente_nombre="Acudiente Legal",
+        acudiente_telefono="3224445566",
+    ))
+    assert r.status_code == 422
+
+
+def test_registro_menor_con_acudiente(client, db_session):
+    data = _form_registro(
+        fecha_nacimiento=_fecha_menor(),
+        es_menor="true",
+        acudiente_nombre="Acudiente Legal",
+        acudiente_telefono="3224445566",
+        acudiente_documento="1098765432",
+    )
+    r = client.post("/registro", data=data)
+    assert r.status_code == 201
+    u = db_session.query(models.Usuario).filter_by(email=data["email"]).first()
+    assert u.es_menor is True
+    assert u.acudiente_nombre == "Acudiente Legal"
+    assert u.acudiente_telefono == "3224445566"
+    assert u.acudiente_documento == "1098765432"
+
+
+def test_pendientes_expone_datos_acudiente(client, db_session):
+    """El admin debe poder ver en /usuarios/pendientes si el registro es de un
+    menor y los datos del acudiente para confirmarlos antes de activar."""
+    data = _form_registro(
+        fecha_nacimiento=_fecha_menor(),
+        es_menor="true",
+        acudiente_nombre="Acudiente Legal",
+        acudiente_telefono="3224445566",
+        acudiente_documento="1098765432",
+    )
+    assert client.post("/registro", data=data).status_code == 201
+
+    admin_token = token_para(ADMIN_EMAIL)
+    r = client.get("/usuarios/pendientes", headers=auth_headers(admin_token))
+    assert r.status_code == 200
+    pendiente = next(p for p in r.json() if p["email"] == data["email"])
+    assert pendiente["es_menor"] is True
+    assert pendiente["acudiente_nombre"] == "Acudiente Legal"
+    assert pendiente["acudiente_telefono"] == "3224445566"
+    assert pendiente["acudiente_documento"] == "1098765432"
+    assert pendiente["eps"] == "Nueva EPS"
 
 
 def test_registro_rate_limit(client):
