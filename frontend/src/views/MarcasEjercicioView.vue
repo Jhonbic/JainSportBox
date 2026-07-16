@@ -197,7 +197,7 @@
               :class="activeChartTab === 'volumen' ? 'bg-white shadow text-gray-900' : 'text-gray-500'"
               class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all">Volumen</button>
           </div>
-          <div v-if="registrosPorDia.length >= 2" class="flex gap-1">
+          <div v-if="registrosPorDia.length >= 1" class="flex gap-1">
             <button @click="chartUnit = 'kg'"
               :class="chartUnit === 'kg' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500'"
               class="px-3 py-1.5 rounded-full text-xs font-bold transition-colors">kg</button>
@@ -224,14 +224,14 @@
         </div>
 
         <!-- Canvas único -->
-        <div v-if="registros.length >= 2" class="relative h-56">
+        <div v-if="registros.length >= 1" class="relative h-56">
           <canvas ref="chartCanvas"></canvas>
         </div>
         <div v-else class="h-24 flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
           </svg>
-          <span>Agrega al menos 2 registros para ver la gráfica</span>
+          <span>Agrega tu primer registro para ver la gráfica</span>
         </div>
       </div>
 
@@ -717,7 +717,7 @@ async function renderChart() {
   destruirChart()
 
   if (tipo.value === 'reps') {
-    if (registros.value.length < 2) return
+    if (registros.value.length < 1) return
     const labels = registros.value.map(r => formatFecha(r.fecha))
     const valores = registros.value.map(r => r.repeticiones)
     const maxR = Math.max(...valores)
@@ -725,7 +725,7 @@ async function renderChart() {
     return
   }
   if (tipo.value === 'leger') {
-    if (registros.value.length < 2) return
+    if (registros.value.length < 1) return
     const labels = registros.value.map(r => formatFecha(r.fecha))
     const valores = registros.value.map(r => Number(`${r.nivel || 0}.${String(r.palier || 0).padStart(2, '0')}`))
     const maxV = Math.max(...valores)
@@ -733,22 +733,26 @@ async function renderChart() {
     return
   }
 
-  // barra / corporal_lastre — una entrada por día (mejor RM del día)
-  if (registrosPorDia.value.length < 2) return
-  const labels = registrosPorDia.value.map(r => formatFecha(r.fecha))
+  // barra / corporal_lastre — un punto por SERIE registrada (cada peso que
+  // agregas se ve de inmediato en la gráfica; antes se colapsaba al mejor del día)
+  if (registros.value.length < 1) return
+  const datos = [...registros.value].sort((a, b) =>
+    a.fecha === b.fecha ? a.id - b.id : (a.fecha < b.fecha ? -1 : 1)
+  )
+  const labels = datos.map(r => formatFecha(r.fecha))
   const suffix = ` ${chartUnit.value}`
 
   if (activeChartTab.value === 'rm') {
-    const valores = registrosPorDia.value.map(r => {
+    const valores = datos.map(r => {
       const kg = toKg(r.rm_calculado, r.unidad)
       return round1(chartUnit.value === 'lbs' ? fromKg(kg, 'lbs') : kg)
     })
     const prKg = mejorRMkg.value
-    const highlights = registrosPorDia.value.map(r => Math.abs(toKg(r.rm_calculado, r.unidad) - prKg) < 0.01)
+    const highlights = datos.map(r => Math.abs(toKg(r.rm_calculado, r.unidad) - prKg) < 0.01)
     instanciaChart = _lineChart(chartCanvas.value, labels, valores, `1RM estimado (${chartUnit.value})`, suffix, '#f87171', highlights)
 
   } else if (activeChartTab.value === 'peso') {
-    const valores = registrosPorDia.value.map(r => {
+    const valores = datos.map(r => {
       const kg = toKg(r.peso, r.unidad)
       return round1(chartUnit.value === 'lbs' ? fromKg(kg, 'lbs') : kg)
     })
@@ -808,7 +812,7 @@ async function renderChart() {
 }
 
 watch([chartUnit, activeChartTab], async () => {
-  if (registros.value.length < 2) return
+  if (registros.value.length < 1) return
   await nextTick(); await nextTick()
   renderChart()
 })
