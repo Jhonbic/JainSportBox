@@ -72,6 +72,36 @@ def test_entrada_jwt_admin_ok(client, admin_headers, cliente):
     assert _marcar(client, admin_headers, cliente.user.id).status_code == 201
 
 
+# ── POST /asistencia/por-documento/{documento} ─────────────────
+
+
+def test_entrada_por_documento_ok(client, admin_headers, cliente, db_session):
+    doc = cliente.user.documento_identidad
+    r = client.post(f"/asistencia/por-documento/{doc}", headers=admin_headers)
+    assert r.status_code == 201
+    body = r.json()
+    assert body["nombre"] == cliente.user.nombre
+    assert body["usuario_id"] == cliente.user.id
+    assert body["dias_restantes"] >= 0
+    assert _usuario_db(db_session, cliente.user.id).esta_en_gym is True
+
+
+def test_entrada_por_documento_vencida_403(client, admin_headers, cliente_vencido, db_session):
+    doc = cliente_vencido.user.documento_identidad
+    r = client.post(f"/asistencia/por-documento/{doc}", headers=admin_headers)
+    assert r.status_code == 403
+    assert db_session.query(models.Asistencia).filter_by(usuario_id=cliente_vencido.user.id).count() == 0
+
+
+def test_entrada_por_documento_inexistente_404(client, admin_headers):
+    assert client.post("/asistencia/por-documento/00000000", headers=admin_headers).status_code == 404
+
+
+def test_entrada_por_documento_jwt_cliente_403(client, cliente):
+    doc = cliente.user.documento_identidad
+    assert client.post(f"/asistencia/por-documento/{doc}", headers=cliente.headers).status_code == 403
+
+
 # ── POST /asistencia/ (por huella_id) ──────────────────────────
 
 

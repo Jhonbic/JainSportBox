@@ -19,6 +19,7 @@ const WodsPersonalizadosView = () => import('../views/WodsPersonalizadosView.vue
 const HomeView = () => import('../views/HomeView.vue')
 const UsuarioPerfilView = () => import('../views/UsuarioPerfilView.vue')
 const SesionesView = () => import('../views/SesionesView.vue')
+const AccesoView = () => import('../views/AccesoView.vue')
 const EjerciciosView = () => import('../views/EjerciciosView.vue')
 const WodFormView = () => import('../views/WodFormView.vue')
 const MiPerfilView = () => import('../views/MiPerfilView.vue')
@@ -148,6 +149,12 @@ const routes = [
         path: 'sesiones',
         name: 'Sesiones',
         component: SesionesView,
+        meta: { roles: ['admin', 'coach'] },
+      },
+      {
+        path: 'acceso',
+        name: 'Acceso',
+        component: AccesoView,
         meta: { roles: ['admin', 'coach'] },
       },
       {
