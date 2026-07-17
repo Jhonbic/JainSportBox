@@ -7,6 +7,13 @@
         <p class="text-gray-500 mt-1">Gestiona los usuarios y sus membresías</p>
       </div>
       <div class="flex flex-wrap gap-2">
+        <button @click="exportarExcel" :disabled="exportando" class="bg-white border border-gray-300 hover:border-emerald-500 hover:text-emerald-700 disabled:opacity-60 text-gray-700 px-4 py-2.5 rounded-lg shadow-sm hover:shadow transition-all font-semibold flex items-center gap-2 transform active:scale-95">
+          <span v-if="exportando" class="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></span>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          {{ exportando ? 'Exportando…' : 'Exportar Excel' }}
+        </button>
         <button @click="abrirPalanquera" :disabled="palanqueraAbriendo" class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all font-semibold flex items-center gap-2 transform active:scale-95">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M5 9V7a5 5 0 019.9-1 1 1 0 11-1.98.32A3 3 0 007 7v2h6a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm5 3a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -1399,6 +1406,28 @@ const fetchUsuarios = async () => {
 const fetchPlanes = async () => {
   try { planes.value = (await api.get('/planes/')).data }
   catch (e) { console.error(e) }
+}
+
+// ── Exportar Excel ────────────────────────────────────────────
+const exportando = ref(false)
+
+const exportarExcel = async () => {
+  exportando.value = true
+  try {
+    const { data } = await api.get('/usuarios/exportar-excel', { responseType: 'blob' })
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `clientes_jainsportbox_${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('Error al exportar: ' + (e.response?.data?.detail || e.message))
+  } finally {
+    exportando.value = false
+  }
 }
 
 // Acordeón "Datos del acudiente" en las cards de pendientes (por id de usuario)

@@ -93,6 +93,37 @@ def test_pendientes(client, admin_headers, pendiente, cliente, db_session):
     assert body[0]["plan_solicitado"]["id"] == plan.id
 
 
+# ── GET /usuarios/exportar-excel ───────────────────────────────
+
+
+def test_exportar_excel_admin(client, admin_headers, cliente):
+    r = client.get("/usuarios/exportar-excel", headers=admin_headers)
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert "clientes_jainsportbox_" in r.headers["content-disposition"]
+
+    # El .xlsx es válido y contiene al cliente con sus columnas
+    import io
+
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(r.content))
+    ws = wb.active
+    filas = list(ws.iter_rows(values_only=True))
+    encabezados = filas[0]
+    assert "Nombre" in encabezados and "EPS" in encabezados and "Acudiente: cédula" in encabezados
+    nombres = [f[0] for f in filas[1:]]
+    assert cliente.user.nombre in nombres
+
+
+def test_exportar_excel_coach_ok(client, coach):
+    assert client.get("/usuarios/exportar-excel", headers=coach.headers).status_code == 200
+
+
+def test_exportar_excel_cliente_403(client, cliente):
+    assert client.get("/usuarios/exportar-excel", headers=cliente.headers).status_code == 403
+
+
 # ── GET /usuarios/cumpleanos-hoy ───────────────────────────────
 
 

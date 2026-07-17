@@ -101,6 +101,32 @@ def registrar_asistencia_por_id(usuario_id: int, request: Request, db: Session =
     return _registrar(usuario, db)
 
 
+@router.post("/por-documento/{documento}", status_code=status.HTTP_201_CREATED)
+def registrar_asistencia_por_documento(documento: str, request: Request, db: Session = Depends(get_db)):
+    """
+    Acceso manual desde recepción (vista /acceso): busca al usuario por cédula/TI,
+    valida la membresía y registra la entrada. El frontend abre la palanquera vía
+    bridge (localhost:8001) solo si esta llamada responde 201.
+    """
+    _autorizar_bridge_o_admin(request, db)
+    doc = (documento or "").strip()
+    usuario = db.query(Usuario).filter(Usuario.documento_identidad == doc).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail=f"No existe un usuario con documento {doc}.")
+    _validar_membresia(usuario)
+    asistencia = _registrar(usuario, db)
+    dias_restantes = (usuario.fecha_vencimiento - hoy_bogota()).days
+    return {
+        "mensaje": f"Entrada registrada para {usuario.nombre}.",
+        "usuario_id": usuario.id,
+        "nombre": usuario.nombre,
+        "foto_url": usuario.foto_url,
+        "fecha_vencimiento": usuario.fecha_vencimiento,
+        "dias_restantes": dias_restantes,
+        "fecha_hora": asistencia.fecha_hora,
+    }
+
+
 @router.get("/mi-historial")
 def mi_historial(
     meses: int = Query(4, ge=1, le=12),

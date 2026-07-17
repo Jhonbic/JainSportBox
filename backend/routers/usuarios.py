@@ -245,6 +245,105 @@ def listar_pendientes(
     return result
 
 
+@router.get("/exportar-excel")
+def exportar_excel(
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(_require_admin_or_coach),
+):
+    """Exporta todos los clientes (rol cliente) con sus datos completos a un .xlsx."""
+    import io
+
+    from fastapi.responses import Response
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    hoy = hoy_bogota()
+
+    def _edad(fn):
+        if not fn:
+            return None
+        return hoy.year - fn.year - ((hoy.month, hoy.day) < (fn.month, fn.day))
+
+    clientes = (
+        db.query(Usuario)
+        .options(defer(Usuario.huella_template))
+        .filter(Usuario.rol == RolUsuario.CLIENTE)
+        .order_by(Usuario.nombre.asc())
+        .all()
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Clientes"
+
+    columnas = [
+        "Nombre", "Documento", "Email", "Teléfono", "Género",
+        "Fecha nacimiento", "Edad", "EPS", "Barrio",
+        "Emergencia: nombre", "Emergencia: teléfono",
+        "Menor de edad", "Acudiente: nombre", "Acudiente: cédula", "Acudiente: teléfono",
+        "Membresía", "Vence", "Días restantes",
+        "Huella", "Términos aceptados", "Fecha aceptación", "Versión términos",
+        "Registrado",
+    ]
+    ws.append(columnas)
+
+    encabezado_fill = PatternFill(start_color="DC2626", end_color="DC2626", fill_type="solid")
+    for celda in ws[1]:
+        celda.font = Font(bold=True, color="FFFFFF")
+        celda.fill = encabezado_fill
+        celda.alignment = Alignment(horizontal="center")
+    ws.freeze_panes = "A2"
+
+    for u in clientes:
+        if u.fecha_vencimiento:
+            dias = (u.fecha_vencimiento - hoy).days
+            membresia = "Activa" if dias >= 0 else "Vencida"
+        else:
+            dias = None
+            membresia = "Sin plan"
+        ws.append([
+            u.nombre,
+            u.documento_identidad,
+            u.email,
+            u.telefono,
+            u.genero,
+            u.fecha_nacimiento.isoformat() if u.fecha_nacimiento else None,
+            _edad(u.fecha_nacimiento),
+            u.eps,
+            u.barrio,
+            u.contacto_emergencia_nombre,
+            u.contacto_emergencia_telefono,
+            "Sí" if u.es_menor else "No",
+            u.acudiente_nombre,
+            u.acudiente_documento,
+            u.acudiente_telefono,
+            membresia,
+            u.fecha_vencimiento.isoformat() if u.fecha_vencimiento else None,
+            dias,
+            "Registrada" if u.huella_id else "No",
+            "Sí" if u.acepto_terminos else "No",
+            u.terminos_fecha.strftime("%Y-%m-%d %H:%M") if u.terminos_fecha else None,
+            u.terminos_version,
+            u.created_at.strftime("%Y-%m-%d") if u.created_at else None,
+        ])
+
+    # Ancho de columna según el contenido (con tope para no desbordar)
+    for idx, col in enumerate(ws.columns, start=1):
+        ancho = max((len(str(c.value)) for c in col if c.value is not None), default=10)
+        ws.column_dimensions[get_column_letter(idx)].width = min(max(ancho + 2, 10), 40)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+
+    nombre_archivo = f"clientes_jainsportbox_{hoy.isoformat()}.xlsx"
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
+    )
+
+
 @router.get("/cumpleanos-hoy", response_model=List[UsuarioResponse])
 def cumpleanos_hoy(
     db: Session = Depends(get_db),

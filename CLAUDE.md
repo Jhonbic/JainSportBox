@@ -210,6 +210,7 @@ Route `/alertas` (admin/coach). Two tabs: **Pendientes** (grouped by `dias_antic
 `backend/routers/asistencia.py` endpoints:
 - `POST /asistencia/` — registra entrada por `huella_id` (bridge); valida membresía vigente (helper `_validar_membresia`)
 - `POST /asistencia/por-usuario/{usuario_id}` — registra entrada por ID (bridge con `X-Bridge-Secret` o admin/coach JWT); valida membresía vigente en cada marcación
+- `POST /asistencia/por-documento/{documento}` — acceso manual desde recepción: busca por cédula/TI, valida membresía y registra entrada; devuelve nombre, foto, `dias_restantes`. Usado por la vista `/acceso` (`AccesoView.vue`, admin/coach, enlace "Acceso Manual" en el sidebar): tras el 201 el frontend abre la palanquera vía bridge (`POST localhost:8001/palanquera/abrir`), así que la apertura física solo funciona en la PC del gym; en otros equipos igual queda registrada la entrada
 - `GET /asistencia/mi-historial?meses=N` — historial propio (cualquier rol autenticado)
 - `GET /asistencia/historial/{usuario_id}?meses=N` — historial de cualquier usuario (admin/coach)
 - `GET /asistencia/en-gym` — usuarios con `esta_en_gym=True`, con `entrada_desde`, `minutos_transcurridos`, `minutos_restantes` y `minutos_sesion` (admin/coach)
@@ -261,6 +262,10 @@ Ruta `/sesiones` (roles: `admin`, `coach`). Tres modos:
 - Helper `whatsappCumpleanos(u)`: formatea el teléfono como `57` + dígitos y genera el link `https://wa.me/...?text=...` con mensaje de felicitación y batido gratis
 - El endpoint backend filtra por `strftime("%m-%d", fecha_nacimiento) == hoy` **y** `fecha_vencimiento >= hoy` — usuarios con membresía vencida no aparecen
 - El endpoint `GET /usuarios/cumpleanos-hoy` debe declararse **antes** de `GET /{usuario_id}` en el router para que FastAPI no lo capture como ID
+
+### Exportar Excel
+
+Botón "Exportar Excel" en el header de `UsuariosView` (admin/coach) → `GET /usuarios/exportar-excel` (en `usuarios.py`, declarado antes de `/{usuario_id}`). Genera un `.xlsx` con **openpyxl** (en `requirements.txt`) con todos los clientes (rol `cliente`) y sus 23 columnas: identidad, contacto, EPS/barrio, emergencia, acudiente, membresía (estado/vence/días), huella, términos y fecha de registro. El frontend lo descarga con `responseType: 'blob'` + link temporal.
 
 ### Panel "En el box ahora"
 
@@ -349,7 +354,7 @@ Para ejercicios de peso, cada serie se guarda **inmediatamente** al presionar `+
 - Al presionar `+`: POST `/marcas/` con `{ ejercicio, fecha: hoy, unidad, series: [{ peso, repeticiones }] }`. Un registro por serie.
 - Mini-lista "Hoy · N series" muestra las series ya guardadas ese día (filtradas de `registros` por fecha).
 
-**Computed `registrosPorDia`** — agrupa los registros por fecha tomando el de mayor `rm_calculado` por día. Usado exclusivamente para la gráfica y para `ultimoRM`/`ultimaUnidad`. El historial sigue mostrando cada registro individual.
+**Computed `registrosPorDia`** — agrupa los registros por fecha tomando el de mayor `rm_calculado` por día. Usado para `ultimoRM`/`ultimaUnidad` (resumen). **La gráfica NO lo usa**: plotea cada serie (registro) como punto propio ordenado por (fecha, id), para que cada peso agregado se refleje de inmediato; renderiza desde 1 solo registro. El historial sigue mostrando cada registro individual.
 
 ## WODs — módulo completo
 
