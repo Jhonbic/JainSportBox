@@ -34,23 +34,39 @@ def extender_vencimiento(
     """Suma `dias` al vencimiento vigente, o desde hoy si ya venció.
 
     Renovar antes de tiempo no le quita los días que le quedaban: la base es la
-    fecha de vencimiento actual mientras siga vigente.
+    fecha de vencimiento actual mientras siga vigente. Con `inicio=None` el cálculo
+    es exactamente ese.
 
-    `inicio` es la fecha de arranque elegida a mano, y entra como un **piso**: si
-    cae antes de lo que ya correspondía, se ignora. Así elegir "hoy" sobre una
-    membresía vigente encola la nueva detrás de la actual en vez de pisar los días
-    que quedaban, que es el mismo criterio con el que la fecha se extiende. Con
-    `inicio=None` el cálculo es idéntico al de siempre.
+    `inicio` es la fecha de arranque elegida a mano y **se ignora en un solo caso**:
+    cuando cae entre hoy y el vencimiento vigente. Ahí no adelanta nada y respetarlo
+    pisaría días ya pagos — es lo que hace que elegir "hoy" (el default del form)
+    sobre una membresía vigente encole la nueva detrás de la actual. Fuera de esa
+    franja el arranque manda, en las dos direcciones:
+
+    * **Futuro** — la ventana corre desde ese día. `membresia_inicio` queda cargada
+      para que `_validar_membresia` niegue el acceso hasta entonces.
+    * **Pasado** — la membresía arrancó ese día, así que los días ya transcurridos
+      cuentan y el vencimiento cae antes que si se contara desde hoy. Es el caso de
+      quien entró unos días antes de que se le cobrara: contar desde hoy le regalaría
+      esos días. No hace falta compuerta, el arranque ya pasó.
+
+    Una carga retroactiva **no puede acortar una membresía vigente**: la fecha nunca
+    retrocede. Un retroactivo sobre alguien que ya tenía días por delante es casi
+    siempre un error de tipeo, y aceptarlo le borraría días pagos en silencio.
     """
-    base = (
+    vigente = (
         usuario.fecha_vencimiento
         if (usuario.fecha_vencimiento and usuario.fecha_vencimiento >= hoy)
-        else hoy
+        else None
     )
-    if inicio and inicio > base:
+    base = vigente or hoy
+    if inicio is not None and not (hoy <= inicio <= base):
         base = inicio
 
-    usuario.fecha_vencimiento = base + timedelta(days=dias)
+    nueva = base + timedelta(days=dias)
+    if vigente and nueva < vigente:
+        nueva = vigente
+    usuario.fecha_vencimiento = nueva
 
     # Solo se marca el arranque cuando es futuro: si no, `_validar_membresia`
     # tendría que comparar contra una fecha ya pasada en cada marcación de huella.

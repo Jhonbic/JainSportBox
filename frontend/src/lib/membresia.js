@@ -12,12 +12,26 @@ export const METODOS = [
   { value: 'transferencia', label: 'Transferencia' },
 ]
 
-/** Fecha de hoy en formato YYYY-MM-DD, que es lo que espera un <input type="date">. */
-export function hoyISO() {
-  const d = new Date()
+/** Una fecha en formato YYYY-MM-DD, que es lo que espera un <input type="date">. */
+function aISO(d) {
   const mes = String(d.getMonth() + 1).padStart(2, '0')
   const dia = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${mes}-${dia}`
+}
+
+export function hoyISO() {
+  return aISO(new Date())
+}
+
+// Espeja MAX_DIAS_RETROACTIVOS de backend/fechas.py. El `min` del date picker no es
+// la validación —esa la hace el backend— sino lo que evita que el año equivocado sea
+// un click de distancia en el calendario.
+export const MAX_DIAS_RETROACTIVOS = 365
+
+export function minimoInicioISO() {
+  const d = new Date()
+  d.setDate(d.getDate() - MAX_DIAS_RETROACTIVOS)
+  return aISO(d)
 }
 
 /** Estado inicial del formulario. `plan` es un id, 'personalizado' o 'ninguno'. */
@@ -42,9 +56,9 @@ function montoEfectivo(form, planes) {
 }
 
 // La fecha de inicio solo viaja si el admin la movió. Mandar "hoy" siempre sería
-// inocuo para el cálculo (el backend la usa como piso y hoy nunca supera la base),
-// pero dejaría `Pago.fecha_inicio` lleno en todos los pagos y ahí ese campo dejaría
-// de significar "esta membresía se programó para otro día".
+// inocuo para el cálculo (el backend ignora el arranque que cae entre hoy y el
+// vencimiento vigente), pero dejaría `Pago.fecha_inicio` lleno en todos los pagos y
+// ahí ese campo dejaría de significar "esta membresía arrancó otro día".
 function inicioSiFueElegido(form) {
   return form.fechaInicio && form.fechaInicio !== hoyISO() ? form.fechaInicio : null
 }
@@ -90,11 +104,14 @@ export function diasDe(form, planes) {
  * Vencimiento que va a quedar, para mostrarlo antes de confirmar.
  *
  * **Espeja `extender_vencimiento()` de `backend/membresia.py`** — si esa regla
- * cambia, hay que tocar las dos. La fecha de inicio entra como piso: si cae antes
- * de lo que ya correspondía se ignora, así renovar antes de tiempo no descarta los
- * días que quedaban.
+ * cambia, hay que tocar las dos. La fecha de inicio se ignora en un solo caso: si
+ * cae entre hoy y el vencimiento vigente, porque ahí no adelanta nada y respetarla
+ * pisaría días ya pagos. Fuera de esa franja manda, hacia adelante (arranque
+ * programado) y hacia atrás (la membresía ya venía corriendo).
  *
- * Devuelve `{ arranca, vence, encolado }`, o null si falta elegir.
+ * Devuelve `{ arranca, vence, encolado, retroactivo, yaVencida }`, o null si falta
+ * elegir. `yaVencida` es la señal de que el retroactivo se pasó de lejos y la
+ * membresía nacería vencida — la pantalla lo avisa antes de cobrar.
  */
 export function previsualizar(form, planes, vencimientoActual) {
   const dias = diasDe(form, planes)
@@ -102,13 +119,23 @@ export function previsualizar(form, planes, vencimientoActual) {
 
   const hoy = new Date(hoyISO() + 'T00:00:00')
   const vence = vencimientoActual ? new Date(vencimientoActual + 'T00:00:00') : null
+  const vigente = vence && vence >= hoy ? vence : null
 
-  let base = vence && vence >= hoy ? vence : hoy
+  let base = vigente || hoy
   const inicio = form.fechaInicio ? new Date(form.fechaInicio + 'T00:00:00') : null
-  const encolado = Boolean(inicio && vence && vence >= hoy && inicio <= vence)
-  if (inicio && inicio > base) base = inicio
+  const ignorado = Boolean(inicio && inicio >= hoy && inicio <= base)
+  if (inicio && !ignorado) base = inicio
 
-  const fin = new Date(base)
+  let fin = new Date(base)
   fin.setDate(fin.getDate() + dias)
-  return { arranca: new Date(base), vence: fin, encolado }
+  // Un retroactivo no acorta lo que ya estaba pago.
+  if (vigente && fin < vigente) fin = new Date(vigente)
+
+  return {
+    arranca: new Date(base),
+    vence: fin,
+    encolado: ignorado && Boolean(vigente),
+    retroactivo: Boolean(inicio && inicio < hoy),
+    yaVencida: fin < hoy,
+  }
 }

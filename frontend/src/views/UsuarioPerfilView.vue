@@ -236,7 +236,16 @@
             <tbody>
               <tr v-for="p in pagos" :key="p.id" class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
                 <td class="px-5 py-3.5 text-gray-600">{{ formatFechaCorta(p.fecha_pago) }}</td>
-                <td class="px-5 py-3.5 font-semibold text-gray-800">{{ p.plan_nombre }}</td>
+                <td class="px-5 py-3.5 font-semibold text-gray-800">
+                  {{ p.plan_nombre }}
+                  <!-- Sin esta línea, un arranque distinto al día del cobro (el socio
+                       que entró antes de pagar, o la membresía programada) no deja
+                       ningún rastro visible y la columna Fecha parece contradecir al
+                       vencimiento. -->
+                  <span v-if="p.fecha_inicio" class="block text-xs font-normal text-gray-400">
+                    Arranca el {{ formatFechaCorta(p.fecha_inicio) }}
+                  </span>
+                </td>
                 <td class="px-5 py-3.5 text-right font-bold text-gray-800">${{ p.monto.toLocaleString('es-CO') }}</td>
                 <td class="px-5 py-3.5 hidden sm:table-cell">
                   <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold"
@@ -887,7 +896,11 @@ function formatFecha(f) {
 
 function formatFechaCorta(f) {
   if (!f) return ''
-  return new Date(f).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+  // Un "YYYY-MM-DD" pelado lo parsea JS como medianoche UTC, que en Bogotá es la
+  // tarde del día ANTERIOR: `fecha_inicio` (columna Date) saldría corrida un día.
+  // `fecha_pago` trae hora y no entra por acá.
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(f) ? `${f}T00:00:00` : f
+  return new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function formatCumpleanos(f) {

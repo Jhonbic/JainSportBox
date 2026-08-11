@@ -6,7 +6,7 @@ que dependa del "día de hoy" (vencimientos, validación de membresía, alertas,
 rangos de historial) debe usar `hoy_bogota()` en lugar de `date.today()`.
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Annotated, Optional
 from zoneinfo import ZoneInfo
 
@@ -20,17 +20,27 @@ def hoy_bogota() -> date:
     return datetime.now(TZ_BOGOTA).date()
 
 
-def _no_esta_en_el_pasado(v: Optional[date]) -> Optional[date]:
-    if v is not None and v < hoy_bogota():
-        raise ValueError("La fecha de inicio no puede ser anterior a hoy.")
+# Tope de retroactividad. La fecha de inicio **sí acepta días pasados**: el caso real
+# es el socio al que se dejó entrar unos días antes de cobrarle, y contar su membresía
+# desde hoy le regalaría los días que ya usó. Un año es holgadísimo para eso; el tope
+# existe para atajar el error de año en el date picker (2025 por 2026), que si no
+# dejaría al socio vencido en el mismo instante en que se le cobra.
+MAX_DIAS_RETROACTIVOS = 365
+
+
+def _inicio_razonable(v: Optional[date]) -> Optional[date]:
+    if v is not None and v < hoy_bogota() - timedelta(days=MAX_DIAS_RETROACTIVOS):
+        raise ValueError(
+            f"La fecha de inicio no puede ser de más de {MAX_DIAS_RETROACTIVOS} días atrás."
+        )
     return v
 
 
 # Fecha de arranque de una membresía. Los tres endpoints que la aceptan
 # (`/pagos/`, `/pagos/directo/` y la activación de un pendiente) comparten el tipo
 # para que la regla viva en un solo lugar; escrita en cada schema, alcanzaría con
-# olvidarse de uno para poder registrar una membresía retroactiva por ese camino.
-FechaInicio = Annotated[Optional[date], AfterValidator(_no_esta_en_el_pasado)]
+# olvidarse de uno para que ese camino aceptara cualquier fecha.
+FechaInicio = Annotated[Optional[date], AfterValidator(_inicio_razonable)]
 
 
 # ── Ventanas de tiempo ────────────────────────────────────────

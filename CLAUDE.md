@@ -712,9 +712,16 @@ Un plan puede cobrarse **por tiempo** (mensualidad de toda la vida) o **por ingr
 
 ## Fecha de inicio de la membresía
 
-Los cuatro caminos que asignan membresía aceptan `fecha_inicio` (solo de hoy en adelante; una fecha pasada da 422 vía el tipo `FechaInicio` de `backend/fechas.py`, compartido por los tres schemas).
+Los cuatro caminos que asignan membresía aceptan `fecha_inicio`, **pasada o futura**. El tipo `FechaInicio` de `backend/fechas.py` (compartido por los tres schemas) solo pone un tope de `MAX_DIAS_RETROACTIVOS = 365` hacia atrás: no es una regla de negocio sino el atajo contra el año equivocado en el date picker, que dejaría al socio vencido en el mismo instante en que se le cobra.
 
-**La fecha de inicio entra como un piso, no como reemplazo** (`extender_vencimiento`): si cae antes de lo que ya correspondía, se ignora. Así elegir "hoy" sobre una membresía vigente **encola** la nueva detrás de la actual en vez de pisar los días que quedaban — el mismo criterio con el que la fecha se extiende. Con `inicio=None` el cálculo es idéntico al de siempre, y hay tests que lo fijan.
+**`extender_vencimiento` ignora el arranque en un solo caso: cuando cae entre hoy y el vencimiento vigente.** Ahí no adelanta nada y respetarlo pisaría días ya pagos — es lo que hace que elegir "hoy" (el default del formulario) sobre una membresía vigente **encole** la nueva detrás de la actual. Fuera de esa franja el arranque manda en las dos direcciones:
+
+- **Futuro** — la ventana corre desde ese día y `membresia_inicio` queda cargada para negar el acceso hasta entonces.
+- **Pasado** — la membresía arrancó ese día, así que los días ya transcurridos cuentan y vence antes que si se contara desde hoy. Es el caso que pidió el cliente: al socio se lo dejó entrar unos días antes de cobrarle. No lleva compuerta, el arranque ya pasó.
+
+**Un retroactivo nunca acorta una membresía vigente** (`if vigente and nueva < vigente`). Sobre alguien que ya tenía días por delante, una fecha vieja es casi siempre un error de tipeo, y aceptarla le borraría días pagos en silencio.
+
+Con `inicio=None` el cálculo es idéntico al de siempre, y hay tests que fijan las cuatro ramas.
 
 **`Usuario.membresia_inicio` es la compuerta, y sin ella la fecha de inicio sería decorativa.** `fecha_vencimiento` es un único campo: una membresía vendida para arrancar el 1-sep ya deja el vencimiento en el futuro, así que los dos ejes de siempre la darían por buena y la palanquera abriría hoy. La columna solo se llena cuando el arranque es futuro; `_validar_membresia` la chequea **antes** que fecha e ingresos y responde 403 con `{"codigo": "no_iniciada", "inicio": …}`, siguiendo el patrón de `sin_ingresos`.
 
@@ -726,7 +733,11 @@ Los cuatro caminos que asignan membresía aceptan `fecha_inicio` (solo de hoy en
 
 **Se extrajo por un bug, no por prolijidad:** tres copias tenían la opción "Personalizado" y la del modal de activar no, así que a un pendiente no se le podían asignar días sueltos. Al agregar un quinto lugar que asigne membresía, **usar el componente** — no copiar el markup.
 
-`previsualizar()` en `lib/membresia.js` **espeja `extender_vencimiento()` del backend** para mostrar el vencimiento antes de confirmar; si esa regla cambia, hay que tocar las dos. Los acentos (`red`/`emerald`) van como strings completos en el mapa `ACENTOS`, nunca interpolados, o Tailwind los purga.
+`previsualizar()` en `lib/membresia.js` **espeja `extender_vencimiento()` del backend** para mostrar el vencimiento antes de confirmar; si esa regla cambia, hay que tocar las dos. Devuelve además `retroactivo` y `yaVencida`, que dan los dos textos extra del campo "¿Cuándo arranca?": el retroactivo explica que los días transcurridos se descuentan, y `yaVencida` avisa **en ámbar** que la membresía nacería vencida — un retroactivo que se pasó de largo, visible antes de cobrar. Los acentos (`red`/`emerald`) van como strings completos en el mapa `ACENTOS`, nunca interpolados, o Tailwind los purga.
+
+El `min` del `<input type="date">` es `minimoInicioISO()` (un año atrás), que espeja `MAX_DIAS_RETROACTIVOS`. **No es la validación** —esa vive en el backend— sino lo que evita que el año equivocado quede a un click en el calendario.
+
+`UsuarioPerfilView` muestra "Arranca el …" bajo el nombre del plan en el historial de pagos cuando `Pago.fecha_inicio` está cargada: sin eso, un arranque distinto al día del cobro no deja rastro visible y la columna Fecha parece contradecir al vencimiento. Ojo con `formatFechaCorta`: `fecha_inicio` es una columna `Date` y llega como `"YYYY-MM-DD"` pelado, que `new Date()` parsea como medianoche **UTC** y en Bogotá muestra el día anterior — por eso el helper le agrega `T00:00:00` a las fechas sin hora.
 
 **Limitación conocida — el Resumen no descuenta los bonos agotados.** `/dashboard/resumen` cuenta activos por `fecha_vencimiento >= hoy`, así que un socio con 0 ingresos y fecha vigente sigue contando como activo. No se corrigió a propósito: `socios-mensuales` reconstruye el pasado desde `pagos` (donde no hay registro de cuántos ingresos se gastaron) y hay un test que exige que su último punto coincida con la tarjeta de activos. Arreglar solo la tarjeta rompería esa coincidencia; arreglar los dos requiere historial de consumo, que hoy no existe.
 

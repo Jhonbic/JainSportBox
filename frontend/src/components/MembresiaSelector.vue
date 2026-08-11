@@ -56,13 +56,25 @@
 
     <!-- Fecha de inicio -->
     <div v-if="hayPlan">
-      <label class="block text-sm font-semibold text-gray-700 mb-1.5">¿Cuándo arranca?</label>
+      <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+        ¿Cuándo arranca?
+        <span class="text-gray-400 font-normal">— puede ser un día pasado</span>
+      </label>
       <input v-model="form.fechaInicio" type="date" :min="minimo"
         class="w-full px-4 py-2.5 rounded-lg border border-gray-300 outline-none focus:ring-2" :class="a.ring">
-      <p v-if="preview" class="mt-1.5 text-xs" :class="preview.encolado ? 'text-gray-500' : 'text-gray-400'">
+      <p v-if="preview" class="mt-1.5 text-xs"
+        :class="preview.yaVencida ? 'text-amber-600' : (preview.encolado || preview.retroactivo ? 'text-gray-500' : 'text-gray-400')">
         <template v-if="preview.encolado">
           Ya tiene membresía hasta el {{ fmt(vencimientoActual) }}, así que esta arranca después y vence el
           <span class="font-semibold text-gray-700">{{ fmt(preview.vence) }}</span>.
+        </template>
+        <template v-else-if="preview.yaVencida">
+          Arranca el {{ fmt(preview.arranca) }}, así que los {{ dias }} días ya se cumplieron:
+          queda <span class="font-semibold">vencida desde el {{ fmt(preview.vence) }}</span>.
+        </template>
+        <template v-else-if="preview.retroactivo">
+          Cuenta desde el {{ fmt(preview.arranca) }}, así que los días ya transcurridos se descuentan
+          y vence el <span class="font-semibold text-gray-700">{{ fmt(preview.vence) }}</span>.
         </template>
         <template v-else>
           Arranca el {{ fmt(preview.arranca) }} y vence el
@@ -99,7 +111,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { METODOS, hoyISO, planDe, previsualizar } from '../lib/membresia'
+import { METODOS, diasDe, minimoInicioISO, planDe, previsualizar } from '../lib/membresia'
 
 // Las clases van como strings completos, nunca interpoladas (`border-${x}-500`):
 // el scanner de content de tailwind.config.js no resuelve interpolación y purgaría
@@ -135,10 +147,13 @@ defineEmits(['update:modelValue'])
 
 const form = computed(() => props.modelValue)
 const a = computed(() => ACENTOS[props.acento] || ACENTOS.red)
-const minimo = hoyISO()
+// El arranque acepta días pasados (el socio al que se dejó entrar antes de cobrarle).
+// El `min` solo acota el error de año en el calendario; la regla la valida el backend.
+const minimo = minimoInicioISO()
 
 const hayPlan = computed(() => form.value.plan && form.value.plan !== 'ninguno')
 const planActual = computed(() => planDe(form.value, props.planes))
+const dias = computed(() => diasDe(form.value, props.planes))
 const preview = computed(() =>
   hayPlan.value ? previsualizar(form.value, props.planes, props.vencimientoActual) : null
 )
