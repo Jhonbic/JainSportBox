@@ -86,6 +86,23 @@ def test_cada_entrada_descuenta_un_ingreso(client, admin_headers, cliente, db_se
     assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 2
 
 
+def test_remarcar_en_la_misma_sesion_no_vuelve_a_descontar(client, admin_headers, cliente, db_session):
+    """El motivo caro del dedup de `_registrar`. Cada toque del lector descontaba una
+    entrada del bono, así que probar el sensor tres veces le costaba tres entradas
+    pagas al socio."""
+    plan = _plan(db_session, nombre="Bono 3b", ingresos=3)
+    client.post("/pagos/", json={"usuario_id": cliente.user.id, "plan_id": plan.id, "monto": 1, "metodo_pago": "efectivo"}, headers=admin_headers)
+
+    doc = cliente.user.documento_identidad
+    for _ in range(3):
+        r = client.post(f"/asistencia/por-documento/{doc}", headers=admin_headers)
+        assert r.status_code == 201
+        assert r.json()["ingresos_restantes"] == 2
+
+    assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 2
+    assert db_session.query(models.Asistencia).filter_by(usuario_id=cliente.user.id).count() == 1
+
+
 def test_el_plan_por_tiempo_no_descuenta_nada(client, admin_headers, cliente, db_session):
     doc = cliente.user.documento_identidad
     r = client.post(f"/asistencia/por-documento/{doc}", headers=admin_headers)

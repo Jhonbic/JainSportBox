@@ -1,7 +1,8 @@
 import hmac
 import os
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func
@@ -93,19 +94,59 @@ def _validar_membresia(usuario: Usuario) -> None:
         )
 
 
+def _entrada_vigente(usuario: Usuario, db: Session) -> Optional[Asistencia]:
+    """La entrada abierta del socio, si volvió a marcar dentro de la misma sesión.
+
+    Mientras el sistema lo considera adentro del box, marcar de nuevo NO es una
+    entrada nueva: es la misma persona poniendo el dedo otra vez porque la
+    palanquera no giró, porque probó dos dedos, o porque está probando el lector.
+    La ventana es `MINUTOS_SESION` a propósito — es el mismo corte con el que
+    `_job_reset_gym` apaga `esta_en_gym`, así que "hay entrada vigente" y "está en
+    el box" no pueden discrepar.
+
+    Se mira la última marcación real y no el flag `esta_en_gym`: el flag lo apaga un
+    job que corre cada 3 minutos, así que entre el vencimiento de la sesión y el
+    apagado hay hasta 3 minutos en los que el flag miente.
+    """
+    corte = datetime.utcnow() - timedelta(minutes=MINUTOS_SESION)
+    return (
+        db.query(Asistencia)
+        .filter(
+            Asistencia.usuario_id == usuario.id,
+            Asistencia.tipo == "entrada",
+            Asistencia.fecha_hora >= corte,
+        )
+        .order_by(Asistencia.fecha_hora.desc())
+        .first()
+    )
+
+
 def _registrar(usuario: Usuario, db: Session) -> AsistenciaResponse:
     # La palanquera solo controla la ENTRADA. No se registran salidas:
     # cada marcación de huella es una entrada y enciende esta_en_gym.
     # El flag vuelve a False solo por tiempo (job _job_reset_gym en main.py).
-    asistencia = Asistencia(usuario_id=usuario.id, tipo="entrada")
-    db.add(asistencia)
-    usuario.esta_en_gym = True
-    # Va acá y no en cada endpoint: los tres caminos de entrada (huella, por id y por
-    # documento) pasan por esta función, y descontar en uno solo dejaría bonos que no
-    # se gastan según por dónde entró el socio.
-    descontar_ingreso(usuario)
-    db.commit()
-    db.refresh(asistencia)
+    #
+    # Re-marcar dentro de la sesión devuelve la entrada que ya existe en vez de crear
+    # otra. Sin esto cada toque del lector era una fila: un socio probando el sensor
+    # dejó 19 marcaciones en una mañana, y como las tarjetas de asistencia del Resumen
+    # cuentan filas (el panel de sesiones deduplica por bloque horario) los dos números
+    # de la misma pantalla se contradecían. Lo caro no era el KPI sino `descontar_ingreso`:
+    # con un plan por ingresos, esos 19 toques le comían 19 entradas del bono.
+    #
+    # Sigue respondiendo 2xx a propósito: el frontend abre la palanquera solo con
+    # respuesta exitosa, y si alguien marca de nuevo es justamente porque la puerta
+    # no le abrió la primera vez.
+    asistencia = _entrada_vigente(usuario, db)
+    if asistencia is None:
+        asistencia = Asistencia(usuario_id=usuario.id, tipo="entrada")
+        db.add(asistencia)
+        usuario.esta_en_gym = True
+        # Va acá y no en cada endpoint: los tres caminos de entrada (huella, por id y por
+        # documento) pasan por esta función, y descontar en uno solo dejaría bonos que no
+        # se gastan según por dónde entró el socio.
+        descontar_ingreso(usuario)
+        db.commit()
+        db.refresh(asistencia)
     return AsistenciaResponse(
         id=asistencia.id,
         usuario_id=asistencia.usuario_id,
@@ -166,8 +207,9 @@ def registrar_asistencia_por_documento(documento: str, request: Request, db: Ses
         "foto_url": usuario.foto_url,
         "fecha_vencimiento": usuario.fecha_vencimiento,
         "dias_restantes": dias_restantes,
-        # Ya descontado el ingreso de esta entrada: es lo que le queda a partir de
-        # ahora, que es lo que tiene sentido mostrarle en el cartel. None = plan por
+        # Lo que le queda a partir de ahora, que es lo que tiene sentido mostrarle en
+        # el cartel: ya está descontado el ingreso si esta marcación abrió una entrada
+        # nueva, y sin descontar si cayó dentro de una sesión en curso. None = plan por
         # tiempo, la pantalla muestra los días en su lugar.
         "ingresos_restantes": usuario.ingresos_restantes,
         "fecha_hora": asistencia.fecha_hora,

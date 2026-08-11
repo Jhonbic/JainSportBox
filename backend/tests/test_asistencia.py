@@ -47,13 +47,46 @@ def test_entrada_sin_vencimiento_403(client, bridge_headers, crear_usuario):
     assert _marcar(client, bridge_headers, actor.user.id).status_code == 403
 
 
-def test_doble_marcacion_crea_dos_entradas(client, bridge_headers, cliente, db_session):
-    assert _marcar(client, bridge_headers, cliente.user.id).status_code == 201
-    assert _marcar(client, bridge_headers, cliente.user.id).status_code == 201
-    # el cooldown anti doble-registro vive en el bridge .NET, no en el backend
+def test_remarcar_dentro_de_la_sesion_no_crea_otra_entrada(client, bridge_headers, cliente, db_session):
+    """Volver a poner el dedo mientras el socio sigue adentro devuelve la entrada que
+    ya existe. Antes cada toque era una fila: un socio probando el lector dejó 19
+    marcaciones en una mañana, y las tarjetas del Resumen (que cuentan filas) quedaron
+    contradiciendo al panel de sesiones (que deduplica por bloque horario)."""
+    primera = _marcar(client, bridge_headers, cliente.user.id)
+    segunda = _marcar(client, bridge_headers, cliente.user.id)
+    assert primera.status_code == 201
+    # Sigue siendo 2xx a propósito: la palanquera solo abre con respuesta exitosa, y
+    # si alguien vuelve a marcar suele ser porque la puerta no giró la primera vez.
+    assert segunda.status_code == 201
+    assert segunda.json()["id"] == primera.json()["id"]
+
     regs = db_session.query(models.Asistencia).filter_by(usuario_id=cliente.user.id).all()
-    assert len(regs) == 2
-    assert all(a.tipo == "entrada" for a in regs)
+    assert len(regs) == 1
+    assert regs[0].tipo == "entrada"
+
+
+def test_remarcar_pasada_la_sesion_si_crea_otra_entrada(client, bridge_headers, cliente, db_session):
+    """La ventana del dedup es MINUTOS_SESION: pasada la sesión, quien vuelve al box
+    es una entrada nueva y tiene que contar como tal."""
+    from routers.asistencia import MINUTOS_SESION
+
+    assert _marcar(client, bridge_headers, cliente.user.id).status_code == 201
+    vieja = db_session.query(models.Asistencia).filter_by(usuario_id=cliente.user.id).one()
+    vieja.fecha_hora = datetime.utcnow() - timedelta(minutes=MINUTOS_SESION + 1)
+    db_session.commit()
+
+    assert _marcar(client, bridge_headers, cliente.user.id).status_code == 201
+    assert db_session.query(models.Asistencia).filter_by(usuario_id=cliente.user.id).count() == 2
+
+
+def test_el_dedup_es_por_usuario(client, bridge_headers, cliente, crear_usuario, db_session):
+    """La entrada vigente de uno no puede tragarse la marcación del que viene atrás
+    en la fila."""
+    otro = crear_usuario("cliente", fecha_vencimiento=date.today() + timedelta(days=5))
+    assert _marcar(client, bridge_headers, cliente.user.id).status_code == 201
+    assert _marcar(client, bridge_headers, otro.user.id).status_code == 201
+    assert db_session.query(models.Asistencia).filter_by(usuario_id=cliente.user.id).count() == 1
+    assert db_session.query(models.Asistencia).filter_by(usuario_id=otro.user.id).count() == 1
 
 
 def test_entrada_usuario_inexistente_404(client, bridge_headers):

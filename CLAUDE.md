@@ -371,7 +371,13 @@ El router `backend/routers/alertas.py` sigue igual y es lo que alimenta ese pane
 
 ## Asistencia routers
 
-**Modelo de acceso solo-entrada:** la palanquera solo controla el ingreso, así que el sistema **no registra salidas**. Cada marcación de huella crea una `Asistencia` con `tipo="entrada"` y pone `esta_en_gym=True`. El flag vuelve a `False` únicamente por tiempo (job `_job_reset_gym`), nunca por una marcación de salida. `_registrar()` en `asistencia.py` ya no alterna entrada/salida.
+**Modelo de acceso solo-entrada:** la palanquera solo controla el ingreso, así que el sistema **no registra salidas**. Una marcación abre una `Asistencia` con `tipo="entrada"` y pone `esta_en_gym=True`. El flag vuelve a `False` únicamente por tiempo (job `_job_reset_gym`), nunca por una marcación de salida. `_registrar()` en `asistencia.py` ya no alterna entrada/salida.
+
+**Una marcación no es siempre una fila: `_registrar()` deduplica por sesión.** Si el socio ya tiene una entrada de menos de `MINUTOS_SESION`, se le devuelve esa en vez de crear otra, y **no se le descuenta otro ingreso**. La ventana es `MINUTOS_SESION` a propósito — es el mismo corte con el que `_job_reset_gym` apaga `esta_en_gym`, así que "hay entrada vigente" y "está en el box" no pueden discrepar; por eso tampoco hace falta re-encender el flag en la marcación repetida. `_entrada_vigente()` mira la última marcación real y **no** el flag, que lo apaga un job cada 3 minutos y arrastra hasta 3 min de desfasaje.
+
+Motivo: cada toque del lector era una fila. Un socio probando el sensor dejó 19 marcaciones en una mañana, y como las tarjetas de asistencia del Resumen cuentan **filas** mientras que el panel de sesiones cuenta **personas por bloque horario**, los dos números de la misma pantalla se contradecían (19 vs 3). Lo caro no era el KPI sino `descontar_ingreso()`: con un plan por ingresos esos 19 toques le comían 19 entradas del bono.
+
+**La marcación repetida sigue respondiendo 2xx**, y no un 409: la palanquera solo abre cuando el backend responde 2xx, y si alguien vuelve a marcar es casi siempre porque la puerta no le giró la primera vez. Devolver un error cerraría el box justo cuando el socio ya está autorizado. **Limitación conocida:** `_validar_membresia` corre antes que `_registrar`, así que a quien gastó su último ingreso en la primera marcación el segundo intento le da 403 `sin_ingresos` aunque esté dentro de su sesión — es el comportamiento previo, no una regresión, pero si la palanquera falla justo ahí hay que abrirla a mano.
 
 `backend/routers/asistencia.py` endpoints:
 - `POST /asistencia/` — registra entrada por `huella_id` (bridge); valida membresía vigente (helper `_validar_membresia`)
@@ -697,7 +703,7 @@ Un plan puede cobrarse **por tiempo** (mensualidad de toda la vida) o **por ingr
 | Paga un plan por ingresos | **Se suman** a los que le quedaban (mismo criterio que la fecha, que se extiende en vez de pisarse) |
 | Paga un plan por tiempo | Vuelve a `NULL`. **Sin este reset**, un socio con un bono agotado (`0`) quedaría bloqueado pese a acabar de pagar la mensualidad |
 | Pago directo (personalizado) | Misma regla que un plan: con `numero_ingresos` se suman, sin él vuelve a `NULL`. **Antes no los tocaba**, y por eso venderle días por tiempo a alguien con el bono en 0 lo dejaba igual de bloqueado |
-| Marca entrada | `descontar_ingreso()` resta 1, y solo si no es `NULL`. Va en `_registrar()` porque los tres caminos de entrada (huella, por id, por documento) pasan por ahí |
+| Marca entrada | `descontar_ingreso()` resta 1, y solo si no es `NULL`. Va en `_registrar()` porque los tres caminos de entrada (huella, por id, por documento) pasan por ahí. **Solo cuando la marcación abre una entrada nueva:** re-marcar dentro de la misma sesión no vuelve a descontar (ver "Modelo de acceso solo-entrada") |
 | Se anula el pago | Se restan los ingresos que cargó. **Limitación:** si el pago anulado era por tiempo, los ingresos previos se perdieron al ponerse en `NULL` y no se pueden restaurar |
 
 **El acceso denegado por falta de ingresos manda `detail` estructurado** (`{"codigo": "sin_ingresos", ...}`) mientras que el vencido manda un string. Los dos son 403, pero en el mostrador son problemas distintos —"renová la fecha" vs "comprá más entradas"— y `AccesoView` los pinta distinto. Es la excepción a la regla de que la distinción vive en el status code.
