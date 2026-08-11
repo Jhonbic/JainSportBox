@@ -1188,6 +1188,7 @@ import { useAuth } from '../composables/useAuth'
 import { nuevoFormulario, payloadActivacion, payloadPago } from '../lib/membresia'
 import PendienteDetalle from '../components/PendienteDetalle.vue'
 import MembresiaSelector from '../components/MembresiaSelector.vue'
+import InputPassword from '../components/InputPassword.vue'
 
 const route  = useRoute()
 const router = useRouter()
