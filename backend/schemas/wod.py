@@ -15,11 +15,11 @@ class WODEjercicioItem(BaseModel):
 
 
 class WODEjercicioResponse(BaseModel):
+    # `nombre` y `video_url` salen de properties de WODEjercicio que delegan al
+    # Ejercicio. Había también `descripcion`, que se fue con la columna.
     ejercicio_id: int
     nombre: Optional[str] = None
     video_url: Optional[str] = None
-    descripcion: Optional[str] = None
-    categoria: Optional[str] = None
     orden: int
 
     model_config = {"from_attributes": True}

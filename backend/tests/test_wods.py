@@ -6,10 +6,10 @@ from datetime import date, timedelta
 import models
 
 
-def _crear_ejercicios(db_session, n=3, categoria=None):
+def _crear_ejercicios(db_session, n=3):
     ejercicios = []
     for i in range(n):
-        e = models.Ejercicio(nombre=f"Ejercicio Test {i} {id(db_session)}", categoria=categoria)
+        e = models.Ejercicio(nombre=f"Ejercicio Test {i} {id(db_session)}")
         db_session.add(e)
         ejercicios.append(e)
     db_session.commit()
@@ -60,11 +60,10 @@ def test_crear_wod_ejercicio_inexistente_422(client, admin_headers):
 
 
 def test_videos_serializan_datos_del_catalogo(client, admin_headers, db_session):
-    """La rutina va en descripcion; cada video expone nombre/url/categoría del catálogo."""
+    """La rutina va en descripcion; cada video expone solo nombre y url del catálogo."""
     e = models.Ejercicio(
         nombre=f"Snatch Test {id(db_session)}",
         video_url="https://youtu.be/abc123",
-        categoria="Olímpico",
     )
     db_session.add(e)
     db_session.commit()
@@ -74,9 +73,11 @@ def test_videos_serializan_datos_del_catalogo(client, admin_headers, db_session)
     video = r.json()["ejercicios"][0]
     assert video["nombre"] == e.nombre
     assert video["video_url"] == "https://youtu.be/abc123"
-    assert video["categoria"] == "Olímpico"
-    # los campos de prescripción ya no forman parte del contrato
-    assert not {"rep_min", "porcentaje_rm", "tiempo_segundos", "superserie_con_anterior"} & video.keys()
+    # ni los campos de prescripción ni los del catálogo que se eliminaron
+    assert not {
+        "rep_min", "porcentaje_rm", "tiempo_segundos", "superserie_con_anterior",
+        "categoria", "descripcion",
+    } & video.keys()
 
 
 def test_videos_respetan_orden_y_se_reemplazan_al_editar(client, admin_headers, db_session):
@@ -215,27 +216,42 @@ def test_personalizados_no_salen_en_listado_regular(client, admin_headers):
 def test_ejercicios_crud(client, admin_headers, cliente):
     r = client.post(
         "/ejercicios/",
-        json={"nombre": "Burpee Test", "categoria": "Cardio"},
+        json={"nombre": "Burpee Test", "video_url": "https://youtu.be/abc123"},
         headers=admin_headers,
     )
     assert r.status_code == 201
     eid = r.json()["id"]
+    assert r.json()["video_url"] == "https://youtu.be/abc123"
 
     # duplicado (case-insensitive) → 409
     assert client.post("/ejercicios/", json={"nombre": "burpee test"}, headers=admin_headers).status_code == 409
 
-    # filtro por categoría
-    ids = [e["id"] for e in client.get("/ejercicios/?categoria=Cardio", headers=cliente.headers).json()]
-    assert eid in ids
-    ids_fuerza = [e["id"] for e in client.get("/ejercicios/?categoria=Fuerza", headers=cliente.headers).json()]
-    assert eid not in ids_fuerza
+    # el listado lo ve cualquier autenticado, ordenado por nombre
+    nombres = [e["nombre"] for e in client.get("/ejercicios/", headers=cliente.headers).json()]
+    assert "Burpee Test" in nombres
+    assert nombres == sorted(nombres)
 
     # update
-    r = client.put(f"/ejercicios/{eid}", json={"categoria": "Gimnasia"}, headers=admin_headers)
-    assert r.json()["categoria"] == "Gimnasia"
+    r = client.put(f"/ejercicios/{eid}", json={"video_url": "https://youtu.be/xyz789"}, headers=admin_headers)
+    assert r.json()["video_url"] == "https://youtu.be/xyz789"
 
     # cliente no puede crear/editar
     assert client.post("/ejercicios/", json={"nombre": "Otro"}, headers=cliente.headers).status_code == 403
+
+
+def test_ejercicio_solo_tiene_nombre_y_video(client, admin_headers):
+    """El catálogo quedó en dos campos: `categoria` y `descripcion` se eliminaron.
+
+    Pydantic ignora las claves de más en vez de rechazarlas, así que mandarlas no da
+    error — lo que se verifica es que no vuelvan en la respuesta ni se guarden.
+    """
+    r = client.post(
+        "/ejercicios/",
+        json={"nombre": "Sin Extras", "categoria": "Cardio", "descripcion": "algo"},
+        headers=admin_headers,
+    )
+    assert r.status_code == 201
+    assert set(r.json()) == {"id", "nombre", "video_url", "created_at"}
 
 
 def test_eliminar_ejercicio_usado_en_wod_409(client, admin_headers, db_session):

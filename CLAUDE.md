@@ -79,6 +79,7 @@ La suite (`backend/tests/`) cubre todos los routers; el plan completo y los hall
 - `frontend/src/api.js` — Axios instance with `baseURL: http://127.0.0.1:8000`
 - `frontend/src/router/index.js` — Route guards using `meta.requiresAuth` and `meta.roles`; clients default to `/home`, admin to `/usuarios`, coach to `/home`. `pendiente` → forzado a `/planes`. Clientes con membresía vencida (`membresiaVencidaFor`) solo acceden a `RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/']`.
 - `frontend/src/composables/useAuth.js` — Reactive role helpers: `isAdmin`, `isCoach`, `isCliente`, `canManage`
+- `frontend/src/lib/whatsapp.js` — `telefonoWa()` / `linkWa()`: única normalización de teléfonos del frontend (ver "Teléfonos de WhatsApp").
 - `frontend/src/views/` — One large SFC per page: `LoginView`, `DashboardView` (la página de resumen; no confundir con `components/Dashboard.vue`, que es el layout), `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `WodsPersonalizadosView`, `FinanzasView`, `PlanesView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`, `MiPerfilView`.
 - `frontend/src/components/Dashboard.vue` — Main layout shell (sidebar + navigation). Does NOT show membership status in the sidebar — that info lives in `HomeView`. Sidebar organizado en tres secciones: **Gestión** (admin+coach), **Contenido** (todos), **Mi Box** (coach+cliente). Ver sección de sidebar más abajo.
 - `frontend/src/components/InputPassword.vue` — Input de contraseña con ojito para mostrarla. **Los 7 campos de contraseña de la app lo usan**: login, registro, crear/editar cliente, Mi Perfil, perfil de cliente y el desbloqueo del kiosco. Es un componente y no markup repetido porque el SVG del ojo son 6 líneas por campo. Las clases del input las pasa quien lo usa (`input-class`): cada pantalla tiene su estilo de borde y focus. Expone `focus()` — un `ref` sobre el componente apunta a la instancia, no al `<input>`, y el modal del kiosco necesita enfocarlo al abrirse. Arranca siempre oculta.
@@ -157,6 +158,18 @@ El historial pagina de a 15 en cliente sobre `movimientosFiltrados` (la petició
 
 **Términos y condiciones + datos de afiliación (registro):** el registro exige `acepta_terminos=true` (422 si falta) y campos obligatorios `fecha_nacimiento`, `eps`, `barrio`, `contacto_emergencia_nombre/telefono`. Al aceptar se guardan `acepto_terminos`, `terminos_fecha` (hora Bogotá) y `terminos_version` — la constante `TERMINOS_VERSION` vive en `routers/auth.py` y debe mantenerse en sincronía con `frontend/src/components/TerminosModal.vue` (modal con el texto completo del contrato de adhesión). **Menores de edad:** si la fecha de nacimiento da < 18 años, el backend exige `es_menor=true` + `acudiente_nombre/telefono/documento` (cláusula 7 del contrato: quien registra declara ser el acudiente); el frontend muestra la sección de acudiente automáticamente. `GET /usuarios/pendientes` expone `es_menor` y los datos del acudiente — la fila de pendientes en `UsuariosView` marca a los menores con un badge ámbar y muestra el bloque del acudiente (también ámbar) dentro del detalle desplegable, para que el admin confirme antes de activar. La **edad no se almacena** — se calcula de `fecha_nacimiento` (`_calcular_edad` en `auth.py`, computed `edad` en `LoginView`). Los usuarios existentes no se ven afectados (columnas nullable / default false); admin puede completar los datos desde el perfil.
 
+## Teléfonos de WhatsApp
+
+**Hay exactamente dos implementaciones y tienen que dar el mismo resultado:** `telefonoWa()` en `frontend/src/lib/whatsapp.js` y `normalizar_telefono()` en `backend/whatsapp.py`. Regla: **`'57'` + los últimos 10 dígitos**, `null`/`None` si no hay al menos 10. En el frontend se usa siempre `linkWa(telefono, mensaje)`, que devuelve el `wa.me` armado o `null`.
+
+**"Últimos 10 dígitos + 57" y no "agregar 57 si falta"** — así el resultado es el mismo venga el número como `3165300987`, `+57 316 530 0987` o `57 316 530 0987`. El admin carga el teléfono a mano desde el perfil y ninguno de esos formatos es raro.
+
+**Llegó a haber tres.** `PlanesView` hacía solo `.replace(/\D/g,'')`, sin prefijo: con un teléfono guardado como `3165300987` generaba `wa.me/3165300987`, que no es un número internacional válido y WhatsApp rechaza. Era el botón de "enviar el comprobante de pago", o sea la ruta por la que un socio nuevo paga. Al agregar un botón de WhatsApp nuevo, **importar el helper, no escribir la normalización**.
+
+**`null` en vez de una cadena corta, y el llamador esconde el botón.** Un link a medio armar manda a WhatsApp a una pantalla de error y quien lo aprieta no sabe si falló el link o si el gym no contesta. Por eso los `v-if` preguntan por el link, no por el teléfono.
+
+**`GET /contacto`** (público, lo consulta un `pendiente` que aún no puede autenticarse) devuelve el teléfono del admin para ese botón. Usa `order_by(Usuario.id)` antes del `.first()`: sin orden, el motor elige la fila, y si hubiera más de un ADMIN el botón podía apuntar a uno distinto en cada consulta. Devuelve **solo** el teléfono — no agregar nombre ni email.
+
 ## Paleta de colores
 
 La fuente única de los colores categóricos es `frontend/src/data/paleta.js`. No hay tokens custom en `tailwind.config.js` (se evaluó y se descartó: convivirían con 600 usos de `red-*` ya escritos, creando dos formas válidas de decir lo mismo). La paleta es una convención documentada, no una capa de indirección.
@@ -172,16 +185,9 @@ La fuente única de los colores categóricos es `frontend/src/data/paleta.js`. N
 
 `green` no se usa: es `emerald`. `red` cubre marca y destructivo (no hay una quinta familia para "peligro").
 
-**Escala categórica — 5 hues fríos, solo como punto.** Para datos sin semántica (categoría de ejercicio): `sky-500`, `slate-600`, `violet-500`, `fuchsia-500`, `gray-400`. Hoy su único consumidor es `WodVideosEditor`, donde la categoría va inline junto al nombre y no hay columna que la rotule; `puntoRol()` se eliminó al quedar sin uso. Todos en la mitad fría del círculo, así nunca leen como éxito/alerta/peligro. Se aplican sobre un badge neutro:
+**No hay escala categórica.** `paleta.js` exporta solo `BADGE_NEUTRO`. Existió una escala de 5 hues fríos (`CATEGORICOS`, `CATEGORIA_EJERCICIO`, `puntoCategoria()`) cuyo último consumidor fue `WodVideosEditor`; se eliminó junto con la columna `ejercicios.categoria`. `puntoRol()` ya se había ido antes por lo mismo.
 
-```html
-<span class="inline-flex items-center gap-1.5 ... rounded-full" :class="BADGE_NEUTRO">
-  <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="puntoCategoria(cat)"></span>
-  {{ cat }}
-</span>
-```
-
-**Regla de las 6 categorías:** puntos de color con ≤ 6 categorías. Por encima de eso el color deja de distinguirse y estorba — las 10 categorías de `FinanzasView` van con badge neutro y sin punto (`colorCategoria()` devuelve `BADGE_NEUTRO`); el signo del movimiento ya se lee en el color del monto.
+**Si vuelve a hacer falta colorear datos categóricos**, estas eran las reglas y siguen valiendo: hues **fríos** (`sky-500`, `slate-600`, `violet-500`, `fuchsia-500`, `gray-400`), nunca rojo/verde/ámbar —que ya significan otra cosa—; como **punto** sobre un badge neutro, no como fondo; y **hasta 6 categorías**, porque por encima de eso el color deja de distinguirse y estorba. Las 10 categorías de `FinanzasView` van justamente con badge neutro y sin punto (`colorCategoria()` devuelve `BADGE_NEUTRO`): el signo del movimiento ya se lee en el color del monto.
 
 **Chips seleccionados** (filtros, selector de género): activo `bg-gray-800 text-white`, inactivo `border-gray-200 text-gray-500`. El género **no** usa azul/violeta.
 
@@ -204,9 +210,17 @@ Ruta `/dashboard` (roles `admin`, `coach`), archivo `frontend/src/views/Dashboar
 
 Cada bloque carga por separado con su propio skeleton: si un endpoint falla, el resto de la pantalla sigue viva.
 
+**Auto-refresh — la pantalla vive abierta todo el día en recepción.** Antes todo cargaba en `onMounted` y ahí quedaba: "Hoy" no se movía mientras la gente marcaba huella y la única forma de ver datos frescos era recargar a mano. Ahora hay un `setInterval` de 60 s que refresca **solo `/dashboard/resumen`** (lo barato y lo que se mueve solo) y se saltea si `document.visibilityState !== 'visible'`. `/socios-mensuales` y `/alertas/generar` **no entran al intervalo**: el primero reconstruye la serie sobre toda la tabla `pagos` y cambia como mucho una vez al día, y el segundo es una **escritura**. Esos dos se refrescan en el `visibilitychange`, con throttle de 60 s porque cambiar de pestaña es un gesto que se repite mucho.
+
+**`ahora` es un ref reactivo, no `new Date()` suelto.** La fecha del encabezado, los días que faltan para cada vencimiento y la clave de felicitados se derivan de él para que crucen la medianoche solos; fijados al montar, a las 00:05 el encabezado seguía diciendo ayer y `felicitados:` seguía marcando a los de la víspera. El `watch` sobre `claveFelicitados` relee el localStorage al cambiar el día.
+
+**El watch de la gráfica observa también `sociosMensuales`, no solo `puedeGraficar`:** al refrescar, `puedeGraficar` ya está en `true` y no volvería a dispararse, así que la gráfica se quedaría con los datos viejos.
+
+**Los días de vencimiento se derivan de `fecha_vencimiento`, nunca de `dias_anticipacion`.** Esa columna se congela cuando `generar_alertas` crea la alerta y no se actualiza nunca, así que a los dos días miente: el panel llegaba a decir "Vence en 5 días" el mismo día del vencimiento, y `whatsappAlerta()` le mandaba ese plazo equivocado al socio. El backend ya lo hace bien para el envío automático (`alertas.py` calcula contra `Usuario.fecha_vencimiento`); el helper `diasParaVencer()` alinea el camino manual. Por lo mismo, `pendientes` se reordena en el frontend por `fecha_vencimiento` — el backend ordena por la columna congelada.
+
 **Tarjetas navegables:** en el bloque Usuarios, *Activos* y *Pendientes* son `router-link` (a `/usuarios` y a `/usuarios?tab=pendientes`) y lo señalan con una flecha → en el encabezado que se acenta y se desplaza en hover. `UsuariosView` lee `route.query.tab` al montar y preselecciona esa pestaña si la clave existe en `tabs`; cualquier otro valor cae en el default `todos`. Las otras dos tarjetas (Recuperables, Renovación) no navegan y por eso no llevan flecha — la flecha es la señal de que la tarjeta es un enlace, no decoración.
 
-Las dos listas accionables (cumpleaños y por vencer) llevan botón de WhatsApp con mensaje pregenerado, vía el helper `_telefono()` que normaliza a `57` + últimos 10 dígitos. Las dos tienen la misma estructura: pestañas *pendientes* / *enviados* y tope de 4 filas visibles con scroll (`max-h-[12.5rem]` para cumpleaños, `max-h-[14rem]` para vencimientos — las filas de vencimiento llevan dos líneas y por eso son más altas).
+Las dos listas accionables (cumpleaños y por vencer) llevan botón de WhatsApp con mensaje pregenerado, vía `linkWa()` de `frontend/src/lib/whatsapp.js` (ver "Teléfonos de WhatsApp" más abajo). Los botones se condicionan al **link**, no al teléfono (`v-if="whatsappAlerta(a) && …"`): un número cargado incompleto generaba un botón que llevaba a un error de WhatsApp. Las dos tienen la misma estructura: pestañas *pendientes* / *enviados* y tope de 4 filas visibles con scroll (`max-h-[12.5rem]` para cumpleaños, `max-h-[14rem]` para vencimientos — las filas de vencimiento llevan dos líneas y por eso son más altas).
 
 **Cumpleaños felicitados — se guardan en `localStorage`, no en la BD.** A diferencia de las alertas de vencimiento, los cumpleaños no tienen tabla propia: no hay dónde persistir "ya lo felicité". Se usa la clave `felicitados:YYYY-MM-DD`, que incluye la fecha para vaciarse sola al día siguiente; al montar se borran las claves de días anteriores para que no se acumulen. **Limitación conocida:** el registro es por dispositivo, así que felicitar desde el celular no se refleja en la PC del gym. Si eso llega a molestar, la solución es una tabla o una columna, no más localStorage.
 
@@ -220,7 +234,11 @@ Las dos listas accionables (cumpleaños y por vencer) llevan botón de WhatsApp 
 
 `backend/routers/dashboard.py`. Dos reglas que valen para todo el módulo y que son la fuente de bugs sutiles:
 
-1. **Zona horaria.** `Asistencia.fecha_hora`, `Pago.fecha_pago`, `Venta.fecha_venta` y `MovimientoFinanciero.fecha` se guardan como datetime **naive en UTC**. Todo agrupado por día, hora o mes convierte a Bogotá primero (helpers `_a_bogota`, `_inicio_dia_utc`, `_fin_dia_utc`); si no, lo ocurrido después de las 19:00 locales cae en el día o el mes siguiente. Para el "hoy" del negocio, `hoy_bogota()`. Hay un test explícito de esto (`test_afluencia_agrupa_en_hora_de_bogota`).
+1. **Zona horaria.** `Asistencia.fecha_hora`, `Pago.fecha_pago`, `Venta.fecha_venta` y `MovimientoFinanciero.fecha` se guardan como datetime **naive en UTC**. Todo agrupado por día, hora o mes convierte a Bogotá primero; si no, lo ocurrido después de las 19:00 locales cae en el día o el mes siguiente. Para el "hoy" del negocio, `hoy_bogota()`. Hay un test explícito de esto (`test_afluencia_agrupa_en_hora_de_bogota`).
+
+   **Los helpers viven en `backend/fechas.py`, no en un router:** `a_bogota()`, `inicio_dia_utc()`, `fin_dia_utc()`, `a_utc()`. `dashboard.py` los importa con alias (`_a_bogota`, etc.) para no tocar sus decenas de llamadas. **No los redefinas localmente** — tenerlos duplicados fue exactamente la causa de que `/asistencia/sesiones-por-bloque` construyera su ventana con `datetime(desde, 00:00)` naive: eso es medianoche **UTC**, o sea las 19:00 de Bogotá del día anterior, así que el rango quedaba corrido 5 horas, arrastraba la noche del día previo y **perdía la del último día** (con el box entrenando de 19:00 a 21:00, las entradas de la noche no aparecían en el calendario hasta el día siguiente). Cubierto por `test_sesiones_ventana_es_el_dia_de_bogota_no_el_de_utc`, que ataca las dos puntas — el test viejo usaba las 14:00 UTC, lejos del borde, y pasaba con la ventana mal construida.
+
+   **Regla de test:** un caso de zona horaria a mediodía no prueba nada. Poné el dato entre las 19:00 y la medianoche de Bogotá, que es donde el bug aparece.
 2. **`/ingresos-mensuales` no usa `extract()` en SQL** justamente por lo anterior: agrupar por mes en UTC correría los movimientos de fin de mes. El bucketing se hace en Python sobre una ventana acotada.
 
 | Endpoint | Rol | Notas |
@@ -327,7 +345,7 @@ El router `backend/routers/alertas.py` sigue igual y es lo que alimenta ese pane
 
 **El filtro de envío va contra `Usuario.fecha_vencimiento`, nunca contra `AlertaMembresia.dias_anticipacion`.** Esa columna se congela al crear la alerta y `generar_alertas` no la actualiza nunca, así que a los dos días ya miente. (El texto del panel sí la lee — `textoVence(a.dias_anticipacion)` — y por eso se desactualiza; bug preexistente, conocido.)
 
-**`backend/whatsapp.py`** — sigue el patrón de `storage.py`: env vars a nivel de módulo, flag `HABILITADO`, cliente `httpx` perezoso y **degradación segura**. Si faltan `WA_PHONE_NUMBER_ID`/`WA_ACCESS_TOKEN` o `WA_ENVIO_AUTOMATICO=0`, todo sigue funcionando en modo manual. **Ninguna función levanta excepciones**: todo error vuelve en `Resultado`, porque el llamador recorre una lista de socios y reventar a la mitad dejaría media tanda sin enviar y sin registro. `normalizar_telefono()` espeja a `_telefono()` de `DashboardView.vue` — **mantener las dos en sincronía**, si no el link manual y el automático escriben a números distintos.
+**`backend/whatsapp.py`** — sigue el patrón de `storage.py`: env vars a nivel de módulo, flag `HABILITADO`, cliente `httpx` perezoso y **degradación segura**. Si faltan `WA_PHONE_NUMBER_ID`/`WA_ACCESS_TOKEN` o `WA_ENVIO_AUTOMATICO=0`, todo sigue funcionando en modo manual. **Ninguna función levanta excepciones**: todo error vuelve en `Resultado`, porque el llamador recorre una lista de socios y reventar a la mitad dejaría media tanda sin enviar y sin registro. `normalizar_telefono()` espeja a `telefonoWa()` de `frontend/src/lib/whatsapp.js` — **mantener las dos en sincronía**, si no el link manual y el automático escriben a números distintos (ver "Teléfonos de WhatsApp").
 
 **La ventana de 24 h de WhatsApp:** solo se puede mandar texto libre si el cliente le escribió al negocio en las últimas 24 h. Los socios nunca escriben primero, así que **el único mensaje enviable es una plantilla aprobada por Meta** (texto libre → error 131047). El cuerpo aprobado vive en los servidores de Meta y el fallback manual en `whatsappAlerta()` del `.vue`: **cambiar uno obliga a revisar el otro**, y editar la plantilla en Meta la manda de nuevo a aprobación. Los tres parámetros son posicionales (`{{1}}` nombre, `{{2}}` cuándo, `{{3}}` fecha); cruzarlos no da error, solo manda el mensaje mal.
 
@@ -549,7 +567,7 @@ El "Mejor marca" sale del computed `resumen`, **un solo recorrido de `/marcas/`*
 - `reps`: número + "reps"
 - `leger`: `nivel N.P`
 
-El badge `⏱ Ns` de "sesión en curso" se eliminó junto con su composable (`useSessionMarca`): desde que el registro pasa a ser directo por serie, nadie llamaba a `iniciarSesion()`, así que el chip del sidebar no podía aparecer nunca.
+**`useSessionMarca` se eliminó**, junto con el badge `⏱ Ns` de "sesión en curso" del sidebar de `Dashboard.vue`. Desde que el registro pasó a ser directo por serie nadie llamaba a `iniciarSesion()`, así que no se podía crear una sesión nueva — pero el composable seguía leyendo la clave `jain_sesion_marca` del localStorage al arrancar, y a quien la tuviera guardada de la versión vieja le quedaba un chip permanente de "N series en progreso" que al clickearlo llevaba a una vista donde esas series ya no existían.
 
 **`MarcasEjercicioView.vue`** — UI condicional según `tipo`:
 - Resumen: muestra "Último vs PR" según tipo (1RM, max reps, o nivel.palier). "Último 1RM" refleja el mejor del día más reciente (via `registrosPorDia`).
@@ -639,26 +657,22 @@ Campos del form: `titulo`, `fecha`, **`tipo`** (select con 6 opciones, opcional)
 
 ### Catálogo de ejercicios
 
-**Modelo `Ejercicio`** — campo nuevo:
-- `categoria: String(50)`, nullable — `"Cardio"` \| `"Fuerza"` \| `"Gimnasia"` \| `"Olímpico"` \| `"Otro"`
+**Modelo `Ejercicio` — dos campos y nada más: `nombre` y `video_url`.**
 
-**`GET /ejercicios/`** acepta `categoria: Optional[str]` para filtrar por categoría en el backend.
+Tuvo también `categoria` (`Cardio`/`Fuerza`/`Gimnasia`/`Olímpico`/`Otro`) y `descripcion`, y se eliminaron: lo que el coach necesita al armar un WOD es encontrar el ejercicio por nombre y tener el video a mano. **Las columnas NO se dropearon de la base** — siguen ahí con sus datos, el modelo simplemente no las mapea, así que volver atrás es re-agregar dos líneas en `models.py`. Por eso tampoco están en los bloques de migración de `main.py`: en una base nueva no se crean, y en una existente no se tocan.
+
+Lo que se fue con ellas: el filtro `?categoria=` de `GET /ejercicios/`, la property `WODEjercicio.descripcion` y su campo en `WODEjercicioResponse`, los chips de filtro de `EjerciciosView` y `WodEjerciciosEditor`, y la escala categórica entera de `paleta.js` (ver "Paleta de colores").
 
 **`EjerciciosView.vue`** (admin/coach):
-- **Tabla** (desktop) + cards (móvil), mismo patrón responsive que el listado de Clientes. Columnas: Ejercicio · Categoría · Video · Acciones. Era un grid de cards de 3 columnas; con el catálogo pasando de 27 ejercicios se volvió scroll inútil, y esta pantalla se usa para *buscar* uno y editarlo, no para explorar.
-- **Sin paginación ni selector de orden**: el buscador y los chips ya acotan, y `GET /ejercicios/` devuelve ordenado por nombre (alfabético es el orden correcto para buscar). No replicar acá el `ORDENES`/paginación de `UsuariosView`.
-- La **descripción no está en la tabla** — se trunca igual y estorba en una fila; se ve completa al abrir el modal de edición.
-- Chips de filtro por categoría encima de la tabla (se combinan con el buscador)
-- La **categoría va como texto gris plano**, sin badge ni punto de color: la columna ya está rotulada y los chips de filtro están arriba, así que el color no desambiguaba nada. No "arreglarlo" devolviéndole el badge. Sin categoría o sin video, la celda muestra `—`
-- Campo select de categoría en el modal de crear/editar
+- **Tabla** (desktop) + cards (móvil), mismo patrón responsive que el listado de Clientes. Columnas: Ejercicio · Video · Acciones. Era un grid de cards de 3 columnas; con el catálogo pasando de 27 ejercicios se volvió scroll inútil, y esta pantalla se usa para *buscar* uno y editarlo, no para explorar.
+- **Sin paginación ni selector de orden**: el buscador ya acota, y `GET /ejercicios/` devuelve ordenado por nombre (alfabético es el orden correcto para buscar). No replicar acá el `ORDENES`/paginación de `UsuariosView`.
+- Sin video, la celda muestra `—`. El modal de crear/editar tiene dos campos: nombre y link del video.
 
-**Videos del catálogo sembrado:** `EJERCICIOS_DEFAULT` en `seed.py` son tuplas de 4 (`nombre, categoria, descripcion, video_url`) con demos del canal oficial de CrossFit. **Las URLs se obtienen buscando en la web y verificando cada una** (que la página cargue y el título corresponda al movimiento); nunca de memoria — los IDs de YouTube son el caso típico de dato que se alucina y termina en link muerto o en otro ejercicio.
+**Videos del catálogo sembrado:** `EJERCICIOS_DEFAULT` en `seed.py` son tuplas de 2 (`nombre, video_url`) con demos del canal oficial de CrossFit. Los comentarios de sección (`# ── Olímpico ──`) son solo para leer la lista cómodo; ya no hay una columna detrás. **Las URLs se obtienen buscando en la web y verificando cada una** (que la página cargue y el título corresponda al movimiento); nunca de memoria — los IDs de YouTube son el caso típico de dato que se alucina y termina en link muerto o en otro ejercicio.
 
 Para las bases **ya sembradas** hay que correr `backend/scripts/backfill_videos.py`: `seed_ejercicios()` se corta apenas la tabla tiene filas, así que no las alcanza. El script es idempotente (solo toca `video_url` vacío, matchea por nombre) y usa el `DATABASE_URL` del entorno — **confirmar contra qué base se está corriendo antes de ejecutarlo**. No se puso como bloque de arranque en `main.py` a pesar de que ahí viven otras limpiezas de datos: correría en cada boot y le devolvería el video a un ejercicio al que el coach se lo borró a propósito (el form guarda el vacío como `NULL`).
 
-**`WodVideosEditor.vue`** (componente de selección al crear/editar un WOD):
-- Chips de filtro por categoría encima del select — facilita encontrar el video al armar el WOD
-- Muestra la categoría como badge junto al nombre en la lista de videos del WOD (el backend la expone vía la property `WODEjercicio.categoria`)
+**`WodVideosEditor.vue`** (componente de selección al crear/editar un WOD): select de los videos disponibles (los ya agregados se excluyen) + reordenar y quitar. Los chips de filtro por categoría y el badge junto al nombre se eliminaron con la columna `ejercicios.categoria`; el select queda ordenado alfabéticamente, que con un catálogo de ~27 nombres alcanza para encontrar el video.
 
 ## Planes por ingresos (bonos)
 

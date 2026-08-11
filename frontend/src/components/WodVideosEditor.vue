@@ -5,22 +5,6 @@
       Los videos que el cliente debe ver. La rutina va en el campo de notas.
     </p>
 
-    <!-- Filtro de categoría -->
-    <div class="flex flex-wrap gap-1.5 mb-2">
-      <button
-        v-for="cat in ['', ...CATEGORIAS_EJERCICIO]"
-        :key="cat"
-        type="button"
-        @click="categoriaFiltro = cat"
-        class="text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors"
-        :class="categoriaFiltro === cat
-          ? 'bg-gray-800 text-white border-gray-800'
-          : 'bg-white text-gray-400 border-gray-200 hover:border-gray-400'"
-      >
-        {{ cat || 'Todas' }}
-      </button>
-    </div>
-
     <!-- Selector + agregar -->
     <div class="flex gap-2 mb-3">
       <select
@@ -57,10 +41,6 @@
         <div class="flex items-center gap-2 min-w-0">
           <span class="text-xs font-bold text-gray-400 w-5 flex-shrink-0">{{ idx + 1 }}.</span>
           <span class="font-semibold text-gray-800 text-sm truncate">{{ it.nombre }}</span>
-          <span v-if="it.categoria" class="inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" :class="BADGE_NEUTRO">
-            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :class="puntoCategoria(it.categoria)"></span>
-            {{ it.categoria }}
-          </span>
           <span v-if="it.video_url" class="flex-shrink-0 inline-flex items-center text-red-500" title="Tiene video">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
           </span>
@@ -90,7 +70,6 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { BADGE_NEUTRO, CATEGORIAS_EJERCICIO, puntoCategoria } from '../data/paleta'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -98,19 +77,16 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue'])
 
-const items           = ref([...props.modelValue])
-const categoriaFiltro = ref('')
-const seleccionado    = ref('')
+const items        = ref([...props.modelValue])
+const seleccionado = ref('')
 
 watch(() => props.modelValue, (val) => {
   items.value = [...val]
 }, { deep: true })
 
-const disponibles = computed(() => {
-  let result = props.catalogo.filter(ej => !items.value.some(it => it.ejercicio_id === ej.id))
-  if (categoriaFiltro.value) result = result.filter(ej => ej.categoria === categoriaFiltro.value)
-  return result
-})
+const disponibles = computed(() =>
+  props.catalogo.filter(ej => !items.value.some(it => it.ejercicio_id === ej.id))
+)
 
 function emitir() {
   emit('update:modelValue', items.value.map(it => ({ ...it })))
@@ -124,8 +100,6 @@ function agregar() {
     ejercicio_id: ej.id,
     nombre:       ej.nombre,
     video_url:    ej.video_url,
-    descripcion:  ej.descripcion || null,
-    categoria:    ej.categoria || null,
   })
   seleccionado.value = ''
   emitir()

@@ -28,10 +28,10 @@ PLANES_DEFAULT = [
 ]
 
 # Movimientos base de CrossFit para que el box pueda armar WODs desde el primer
-# arranque. La categoria debe ser una de las cinco que filtra el router y colorea
-# EjerciciosView: Cardio | Fuerza | Gimnasia | Olimpico | Otro.
+# arranque. Formato: (nombre, video_url) — el catalogo tiene esos dos campos y nada
+# mas. Los comentarios de seccion (Olimpico / Fuerza / ...) son solo para leer la
+# lista comoda; ya no existe una columna `categoria` detras.
 # Los nombres que se solapan con Mis Marcas van identicos a ejerciciosMarcas.js.
-# (nombre, categoría, descripción, video_url)
 #
 # Los videos son demos del canal oficial de CrossFit. Se obtuvieron buscando en la
 # web y verificando cada URL una por una (que la página cargue y el título
@@ -39,67 +39,37 @@ PLANES_DEFAULT = [
 # el caso típico de dato que se inventa con seguridad y termina en link muerto o
 # apuntando a otro ejercicio.
 EJERCICIOS_DEFAULT = [
-    # ── Olímpico ───────────────────────────────────────────────
-    ("Snatch", "Olímpico", "Arranque: de suelo a por encima de la cabeza en un solo movimiento",
-     "https://www.youtube.com/watch?v=9xQp2sldyts"),
-    ("Clean", "Olímpico", "Cargada: de suelo a posición de rack delantero",
-     "https://www.youtube.com/watch?v=EKRiW9Yt3Ps"),
-    ("Clean and Jerk", "Olímpico", "Cargada seguida de envión por encima de la cabeza",
-     "https://www.youtube.com/watch?v=PjY1rH4_MOA"),
-    ("Power Clean", "Olímpico", "Cargada recibida por encima del paralelo, sin sentadilla completa",
-     "https://www.youtube.com/watch?v=qtOfbyDLAeM"),
-
-    # ── Fuerza ─────────────────────────────────────────────────
-    ("Back Squat", "Fuerza", "Sentadilla con la barra apoyada en la espalda",
-     "https://www.youtube.com/watch?v=ultWZbUMPL8"),
-    ("Front Squat", "Fuerza", "Sentadilla con la barra en posición de rack delantero",
-     "https://www.youtube.com/watch?v=m4ytaCJZpl0"),
-    ("Overhead Squat", "Fuerza", "Sentadilla sosteniendo la barra por encima de la cabeza",
-     "https://www.youtube.com/watch?v=RD_vUnqwqqI"),
-    ("Deadlift", "Fuerza", "Peso muerto: levantar la barra del suelo hasta la cadera",
-     "https://www.youtube.com/watch?v=op9kVnSso6Q"),
-    ("Bench Press", "Fuerza", "Press de banca acostado",
-     "https://www.youtube.com/watch?v=XSza8hVTlmM"),
-    ("Press Militar", "Fuerza", "Press estricto de hombros, sin impulso de piernas",
-     "https://www.youtube.com/watch?v=xe19t2_6yis"),
-    ("Push Press", "Fuerza", "Press de hombros con impulso de piernas",
-     "https://www.youtube.com/watch?v=X6-DMh-t4nQ"),
-    ("Thruster", "Fuerza", "Front squat encadenado con press por encima de la cabeza",
-     "https://www.youtube.com/watch?v=aea5BGj9a8Y"),
-    ("Kettlebell Swing", "Fuerza", "Balanceo de pesa rusa impulsado por la cadera",
-     "https://www.youtube.com/watch?v=vdezTMulJ-k"),
-    ("Wall Ball", "Fuerza", "Squat con balón medicinal lanzado al objetivo en la pared",
-     "https://www.youtube.com/watch?v=EqjGKsiIMCE"),
-
-    # ── Gimnasia ───────────────────────────────────────────────
-    ("Dominadas", "Gimnasia", "Tracción en barra hasta pasar el mentón",
-     "https://www.youtube.com/watch?v=aAggnpPyR6E"),
-    ("Toes to Bar", "Gimnasia", "Colgado de la barra, llevar los pies hasta tocarla",
-     "https://www.youtube.com/watch?v=_03pCKOv4l4"),
-    ("Muscle Up", "Gimnasia", "Tracción y transición a fondo por encima de la barra o anillas",
-     "https://www.youtube.com/watch?v=o69WaY_7k2c"),
-    ("Handstand Push Up", "Gimnasia", "Flexión de brazos en parada de manos",
-     "https://www.youtube.com/watch?v=0wDEO6shVjc"),
-    ("Burpee", "Gimnasia", "Del suelo (pecho abajo) al salto con palmada arriba",
-     "https://www.youtube.com/watch?v=TU8QYVW0gDU"),
-    ("Push Up", "Gimnasia", "Flexión de brazos con el cuerpo alineado",
-     "https://www.youtube.com/watch?v=_l3ySVKYVJ8"),
-    ("Air Squat", "Gimnasia", "Sentadilla sin peso, cadera por debajo de la rodilla",
-     "https://www.youtube.com/watch?v=C_VtOYc6j5c"),
-    ("Sit Up", "Gimnasia", "Abdominal completo hasta tocar los pies",
-     "https://www.youtube.com/watch?v=P8Bv5QY_auo"),
-    ("Box Jump", "Gimnasia", "Salto al cajón con extensión completa de cadera arriba",
-     "https://www.youtube.com/watch?v=52r_Ul5k03g"),
-
-    # ── Cardio ─────────────────────────────────────────────────
-    ("Remo", "Cardio", "Remo en máquina, medido en metros o calorías",
-     "https://www.youtube.com/watch?v=S7HEm-fd534"),
-    ("Carrera", "Cardio", "Carrera continua, medida en metros",
-     "https://www.youtube.com/watch?v=y1wnFWIisq8"),
-    ("Assault Bike", "Cardio", "Bicicleta de aire, medida en calorías",
-     "https://www.youtube.com/watch?v=kpoQl-POgKQ"),
-    ("Double Under", "Cardio", "Salto de cuerda con dos pasadas por salto",
-     "https://www.youtube.com/watch?v=-tF3hUsPZAI"),
+    # ── Olímpico ────────────────────────────────────────────────
+    ("Snatch",              "https://www.youtube.com/watch?v=9xQp2sldyts"),
+    ("Clean",               "https://www.youtube.com/watch?v=EKRiW9Yt3Ps"),
+    ("Clean and Jerk",      "https://www.youtube.com/watch?v=PjY1rH4_MOA"),
+    ("Power Clean",         "https://www.youtube.com/watch?v=qtOfbyDLAeM"),
+    # ── Fuerza ──────────────────────────────────────────────────
+    ("Back Squat",          "https://www.youtube.com/watch?v=ultWZbUMPL8"),
+    ("Front Squat",         "https://www.youtube.com/watch?v=m4ytaCJZpl0"),
+    ("Overhead Squat",      "https://www.youtube.com/watch?v=RD_vUnqwqqI"),
+    ("Deadlift",            "https://www.youtube.com/watch?v=op9kVnSso6Q"),
+    ("Bench Press",         "https://www.youtube.com/watch?v=XSza8hVTlmM"),
+    ("Press Militar",       "https://www.youtube.com/watch?v=xe19t2_6yis"),
+    ("Push Press",          "https://www.youtube.com/watch?v=X6-DMh-t4nQ"),
+    ("Thruster",            "https://www.youtube.com/watch?v=aea5BGj9a8Y"),
+    ("Kettlebell Swing",    "https://www.youtube.com/watch?v=vdezTMulJ-k"),
+    ("Wall Ball",           "https://www.youtube.com/watch?v=EqjGKsiIMCE"),
+    # ── Gimnasia ────────────────────────────────────────────────
+    ("Dominadas",           "https://www.youtube.com/watch?v=aAggnpPyR6E"),
+    ("Toes to Bar",         "https://www.youtube.com/watch?v=_03pCKOv4l4"),
+    ("Muscle Up",           "https://www.youtube.com/watch?v=o69WaY_7k2c"),
+    ("Handstand Push Up",   "https://www.youtube.com/watch?v=0wDEO6shVjc"),
+    ("Burpee",              "https://www.youtube.com/watch?v=TU8QYVW0gDU"),
+    ("Push Up",             "https://www.youtube.com/watch?v=_l3ySVKYVJ8"),
+    ("Air Squat",           "https://www.youtube.com/watch?v=C_VtOYc6j5c"),
+    ("Sit Up",              "https://www.youtube.com/watch?v=P8Bv5QY_auo"),
+    ("Box Jump",            "https://www.youtube.com/watch?v=52r_Ul5k03g"),
+    # ── Cardio ──────────────────────────────────────────────────
+    ("Remo",                "https://www.youtube.com/watch?v=S7HEm-fd534"),
+    ("Carrera",             "https://www.youtube.com/watch?v=y1wnFWIisq8"),
+    ("Assault Bike",        "https://www.youtube.com/watch?v=kpoQl-POgKQ"),
+    ("Double Under",        "https://www.youtube.com/watch?v=-tF3hUsPZAI"),
 ]
 
 
@@ -147,8 +117,8 @@ def seed_ejercicios():
             print("  · Catálogo de ejercicios ya poblado, se omite")
             return
         db.add_all(
-            Ejercicio(nombre=nombre, categoria=categoria, descripcion=descripcion, video_url=video_url)
-            for nombre, categoria, descripcion, video_url in EJERCICIOS_DEFAULT
+            Ejercicio(nombre=nombre, video_url=video_url)
+            for nombre, video_url in EJERCICIOS_DEFAULT
         )
         db.commit()
         print(f"  + {len(EJERCICIOS_DEFAULT)} ejercicios sembrados")
@@ -177,7 +147,7 @@ def seed_admin():
             if not admin.documento_identidad:
                 admin.documento_identidad = cfg["documento_identidad"]
                 db.commit()
-                print(f"  · Admin actualizado con documento de identidad")
+                print("  · Admin actualizado con documento de identidad")
             else:
                 print(f"  · Usuario admin '{cfg['email']}' ya existe")
     finally:

@@ -35,7 +35,7 @@ def backfill_videos() -> None:
     try:
         actualizados, ya_tenian, no_encontrados = 0, 0, []
 
-        for nombre, _categoria, _descripcion, video_url in EJERCICIOS_DEFAULT:
+        for nombre, video_url in EJERCICIOS_DEFAULT:
             if not video_url:
                 continue
             ejercicio = db.query(Ejercicio).filter(Ejercicio.nombre == nombre).first()

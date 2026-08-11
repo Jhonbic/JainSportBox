@@ -7,7 +7,6 @@ from datetime import datetime, date
 from typing import Optional, List
 
 from sqlalchemy import (
-    create_engine,
     String,
     Integer,
     Float,
@@ -210,11 +209,15 @@ class Ejercicio(Base):
     """Ejercicio reutilizable (nombre + video) para armar los WODs."""
     __tablename__ = "ejercicios"
 
+    # Dos campos y nada más, a propósito. El catálogo tuvo `categoria`
+    # (Cardio/Fuerza/Gimnasia/Olímpico/Otro) y `descripcion`, y se sacaron: lo que el
+    # coach necesita al armar un WOD es encontrar el ejercicio por nombre y tener el
+    # video a mano. Las columnas NO se borraron de la base — siguen ahí con sus datos,
+    # solo que el modelo ya no las mapea, así que volver atrás es re-agregar estas dos
+    # líneas. Si se decide que los datos viejos no van más, ahí sí un DROP COLUMN.
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(150), nullable=False, unique=True)
     video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    categoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)        # Cardio | Fuerza | Gimnasia | Olímpico | Otro
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self) -> str:
@@ -257,14 +260,6 @@ class WODEjercicio(Base):
     @property
     def video_url(self) -> Optional[str]:
         return self.ejercicio.video_url if self.ejercicio else None
-
-    @property
-    def descripcion(self) -> Optional[str]:
-        return self.ejercicio.descripcion if self.ejercicio else None
-
-    @property
-    def categoria(self) -> Optional[str]:
-        return self.ejercicio.categoria if self.ejercicio else None
 
     def __repr__(self) -> str:
         return f"<WODEjercicio WOD {self.wod_id} → Ejercicio {self.ejercicio_id}>"
@@ -472,15 +467,9 @@ class MetodoPago(Base):
     def __repr__(self) -> str:
         return f"<MetodoPago {self.id} – {self.banco} ({self.tipo_cuenta})>"
 
-
-# ──────────────────── Utilidad: crear tablas ──────────────────
-
-def init_db(database_url: str = "sqlite:///crossfit_box.db") -> None:
-    """Crea todas las tablas en la base de datos."""
-    engine = create_engine(database_url, echo=True)
-    Base.metadata.create_all(engine)
-    print("✅ Tablas creadas exitosamente.")
-
-
-if __name__ == "__main__":
-    init_db()
+# El esquema lo crea `main.py` al arrancar (`Base.metadata.create_all(bind=engine)`),
+# contra el engine de `database.py` — que es el único que sabe leer DATABASE_URL. Acá
+# vivía un `init_db()` con un `if __name__ == "__main__"` que creaba las tablas contra
+# un `sqlite:///crossfit_box.db` hardcodeado: nombre parecido pero DISTINTO del real
+# (`crossfit.db`), así que correr `python models.py` dejaba una base vacía paralela que
+# no era la que usa la app. No re-agregar un camino alternativo de creación de tablas.

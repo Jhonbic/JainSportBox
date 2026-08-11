@@ -31,21 +31,6 @@
       />
     </div>
 
-    <!-- Filtro por categoría -->
-    <div class="flex flex-wrap gap-2 mb-5">
-      <button
-        v-for="cat in ['', ...CATEGORIAS_EJERCICIO]"
-        :key="cat"
-        @click="categoriaFiltro = cat"
-        class="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors"
-        :class="categoriaFiltro === cat
-          ? 'bg-gray-800 text-white border-gray-800'
-          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'"
-      >
-        {{ cat || 'Todas' }}
-      </button>
-    </div>
-
     <!-- Loading: filas, para que no salte el layout al llegar la tabla -->
     <div v-if="cargando" class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
       <div v-for="i in 6" :key="i" class="h-12 bg-gray-100 rounded-lg animate-pulse" />
@@ -60,9 +45,9 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
       <p class="text-gray-500 font-medium">
-        {{ (busqueda || categoriaFiltro) ? 'No se encontraron ejercicios.' : 'Aún no hay ejercicios registrados.' }}
+        {{ busqueda ? 'No se encontraron ejercicios.' : 'Aún no hay ejercicios registrados.' }}
       </p>
-      <button v-if="puedeEditar && !busqueda && !categoriaFiltro" @click="abrirFormulario()" class="mt-4 text-red-600 font-semibold hover:underline text-sm">
+      <button v-if="puedeEditar && !busqueda" @click="abrirFormulario()" class="mt-4 text-red-600 font-semibold hover:underline text-sm">
         + Crear el primero
       </button>
     </div>
@@ -76,7 +61,6 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-gray-900 truncate">{{ ej.nombre }}</h3>
-              <p class="text-xs text-gray-500 mt-0.5">{{ ej.categoria || '—' }}</p>
             </div>
             <div v-if="puedeEditar" class="flex gap-1 flex-shrink-0">
               <button @click="abrirFormulario(ej)" title="Editar"
@@ -110,7 +94,6 @@
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ejercicio</th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Categoría</th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Video</th>
                 <th v-if="puedeEditar" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
@@ -119,12 +102,6 @@
               <tr v-for="ej in ejerciciosFiltrados" :key="ej.id" class="hover:bg-gray-50 transition-colors group">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span class="text-sm font-semibold text-gray-900 group-hover:text-red-600 transition-colors">{{ ej.nombre }}</span>
-                </td>
-                <!-- Sin badge ni punto: la columna ya se llama Categoría y los chips
-                     de filtro están arriba, así que el color no desambigua nada. -->
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span v-if="ej.categoria" class="text-sm text-gray-600">{{ ej.categoria }}</span>
-                  <span v-else class="text-sm text-gray-300">—</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <a v-if="ej.video_url" :href="ej.video_url" target="_blank" rel="noopener noreferrer"
@@ -189,25 +166,6 @@
               class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
             />
           </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Descripción <span class="text-gray-400 font-normal">(opcional)</span></label>
-            <textarea
-              v-model="form.descripcion"
-              rows="3"
-              placeholder="Explica la técnica, puntos clave, variantes…"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all resize-none text-sm"
-            ></textarea>
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Categoría <span class="text-gray-400 font-normal">(opcional)</span></label>
-            <select
-              v-model="form.categoria"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all bg-white text-sm"
-            >
-              <option value="">Sin categoría</option>
-              <option v-for="cat in CATEGORIAS_EJERCICIO" :key="cat" :value="cat">{{ cat }}</option>
-            </select>
-          </div>
           <div v-if="errorForm" class="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100">
             {{ errorForm }}
           </div>
@@ -229,17 +187,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '../api'
-import { CATEGORIAS_EJERCICIO } from '../data/paleta'
 
 const ejercicios      = ref([])
 const cargando        = ref(true)
 const busqueda        = ref('')
-const categoriaFiltro = ref('')
 const mostrarModal    = ref(false)
 const editando        = ref(null)
 const guardando       = ref(false)
 const errorForm       = ref('')
-const form            = ref({ nombre: '', video_url: '', descripcion: '', categoria: '' })
+const form            = ref({ nombre: '', video_url: '' })
 
 const userRol     = computed(() => localStorage.getItem('userRol') || 'cliente')
 const puedeEditar = computed(() => ['admin', 'coach'].includes(userRol.value))
@@ -248,7 +204,6 @@ const ejerciciosFiltrados = computed(() => {
   let result = ejercicios.value
   const q = busqueda.value.trim().toLowerCase()
   if (q) result = result.filter(e => e.nombre.toLowerCase().includes(q))
-  if (categoriaFiltro.value) result = result.filter(e => e.categoria === categoriaFiltro.value)
   return result
 })
 
@@ -266,8 +221,8 @@ function abrirFormulario(ej = null) {
   editando.value = ej
   errorForm.value = ''
   form.value = ej
-    ? { nombre: ej.nombre, video_url: ej.video_url || '', descripcion: ej.descripcion || '', categoria: ej.categoria || '' }
-    : { nombre: '', video_url: '', descripcion: '', categoria: '' }
+    ? { nombre: ej.nombre, video_url: ej.video_url || '' }
+    : { nombre: '', video_url: '' }
   mostrarModal.value = true
 }
 
@@ -283,8 +238,6 @@ async function guardar() {
     const payload = {
       nombre: form.value.nombre.trim(),
       video_url: form.value.video_url.trim() || null,
-      descripcion: form.value.descripcion.trim() || null,
-      categoria: form.value.categoria || null,
     }
     if (editando.value) {
       await api.put(`/ejercicios/${editando.value.id}`, payload)

@@ -1,38 +1,22 @@
-// Paleta del proyecto — fuente única de los colores categóricos.
+// Paleta del proyecto — ver la sección "Paleta de colores" en CLAUDE.md.
 //
-// El núcleo semántico son 4 familias de Tailwind y NO se usan para datos
-// categóricos (ver la sección "Paleta de colores" en CLAUDE.md):
+// El núcleo semántico son 4 familias de Tailwind, y se usan directas en las clases
+// (no hay tokens custom en tailwind.config.js, fue una decisión consciente):
 //   gray    → neutro / chrome
 //   red     → marca, acción primaria, destructivo
 //   emerald → éxito / vigente
 //   amber   → alerta / por vencer
 //
-// Para datos sin semántica (categoría de ejercicio) se usa un badge neutro con un
-// punto de color de la escala de abajo. El punto identifica sin competir con el
-// rojo/verde/ámbar. Único consumidor hoy: WodVideosEditor, donde la categoría
-// va inline junto al nombre y no hay columna que la rotule. En la tabla de
-// /ejercicios la categoría va como texto plano: ahí el color no desambigua nada.
-//
-// OJO: las clases van como strings completos, nunca interpoladas (`bg-${x}-500`),
-// porque el scanner de content de tailwind.config.js no resuelve interpolación y
-// purgaría la clase del build.
+// Acá vivía además una escala categórica de 5 hues fríos (`CATEGORICOS`,
+// `CATEGORIA_EJERCICIO`, `CATEGORIAS_EJERCICIO`, `puntoCategoria()`) para pintar la
+// categoría del ejercicio. Se eliminó junto con la columna `ejercicios.categoria`:
+// el catálogo quedó en (nombre, video_url) y esa escala se quedó sin un solo
+// consumidor. Si alguna vez vuelve a hacer falta colorear datos categóricos, la regla
+// era: hues fríos —nunca rojo/verde/ámbar, que ya significan otra cosa—, como punto
+// sobre un badge neutro, y solo hasta 6 categorías (más arriba el color deja de
+// distinguirse). Y las clases van como strings completos, nunca interpoladas
+// (`bg-${x}-500`), porque el scanner de Tailwind no resuelve interpolación y purgaría
+// la clase del build.
 
-/** Clase base del badge categórico (el color lo aporta el punto). */
+/** Badge neutro. El color, cuando hace falta, lo aporta un punto aparte. */
 export const BADGE_NEUTRO = 'bg-gray-100 text-gray-700'
-
-/** Punto por categoría de ejercicio. Escala de 5 hues fríos, ninguno confundible
- *  con éxito/alerta/peligro. */
-export const CATEGORIA_EJERCICIO = {
-  'Cardio':   'bg-sky-500',
-  'Fuerza':   'bg-slate-600',
-  'Gimnasia': 'bg-violet-500',
-  'Olímpico': 'bg-fuchsia-500',
-  'Otro':     'bg-gray-400',
-}
-
-/** Categorías de ejercicio en orden de UI (chips de filtro y select del form). */
-export const CATEGORIAS_EJERCICIO = ['Cardio', 'Fuerza', 'Gimnasia', 'Olímpico', 'Otro']
-
-export function puntoCategoria(cat) {
-  return CATEGORIA_EJERCICIO[cat] || 'bg-gray-400'
-}

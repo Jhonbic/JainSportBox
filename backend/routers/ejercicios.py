@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -19,14 +19,13 @@ def _require_admin_or_coach(current_user: Usuario = Depends(get_current_user)):
 
 @router.get("/", response_model=List[EjercicioResponse])
 def listar_ejercicios(
-    categoria: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    q = db.query(Ejercicio)
-    if categoria:
-        q = q.filter(Ejercicio.categoria == categoria)
-    return q.order_by(Ejercicio.nombre.asc()).all()
+    # Orden alfabético y sin paginar: el catálogo son decenas de filas y esta pantalla
+    # se usa para BUSCAR un ejercicio, no para explorarlo. El filtro por categoría se
+    # eliminó junto con la columna.
+    return db.query(Ejercicio).order_by(Ejercicio.nombre.asc()).all()
 
 
 @router.post("/", response_model=EjercicioResponse, status_code=status.HTTP_201_CREATED)
@@ -41,8 +40,6 @@ def crear_ejercicio(
     ej = Ejercicio(
         nombre=payload.nombre.strip(),
         video_url=(payload.video_url or None),
-        descripcion=(payload.descripcion or None),
-        categoria=(payload.categoria or None),
     )
     db.add(ej)
     db.commit()
@@ -73,10 +70,6 @@ def actualizar_ejercicio(
         ej.nombre = nuevo
     if "video_url" in data:
         ej.video_url = data["video_url"] or None
-    if "descripcion" in data:
-        ej.descripcion = data["descripcion"] or None
-    if "categoria" in data:
-        ej.categoria = data["categoria"] or None
     db.commit()
     db.refresh(ej)
     return ej

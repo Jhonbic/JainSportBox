@@ -30,14 +30,16 @@ if engine.url.get_backend_name() == "sqlite":
         "ALTER TABLE marcas_rm ADD COLUMN nivel INTEGER",
         "ALTER TABLE marcas_rm ADD COLUMN palier INTEGER",
         "ALTER TABLE usuarios ADD COLUMN fecha_nacimiento DATE",
-        "ALTER TABLE ejercicios ADD COLUMN descripcion TEXT",
         "ALTER TABLE wod_ejercicios ADD COLUMN rep_min INTEGER",
         "ALTER TABLE wod_ejercicios ADD COLUMN rep_max INTEGER",
         "ALTER TABLE wod_ejercicios ADD COLUMN rir INTEGER",
         "ALTER TABLE wod_ejercicios ADD COLUMN porcentaje_rm REAL",
         "ALTER TABLE wod_ejercicios ADD COLUMN tiempo_segundos INTEGER",
         "ALTER TABLE wods ADD COLUMN tipo VARCHAR(50)",
-        "ALTER TABLE ejercicios ADD COLUMN categoria VARCHAR(50)",
+        # `ejercicios.categoria` y `ejercicios.descripcion` ya no se agregan: el catálogo
+        # quedó en (nombre, video_url). Las columnas siguen existiendo en las bases que
+        # ya las tenían —no se dropean, así los datos viejos se pueden recuperar— pero
+        # el modelo no las mapea y no hace falta crearlas en una base nueva.
         "ALTER TABLE marcas_rm ADD COLUMN series TEXT",
         "ALTER TABLE medidas_salud ADD COLUMN brazos_cm REAL",
         "ALTER TABLE wod_ejercicios ADD COLUMN superserie_con_anterior BOOLEAN DEFAULT 0",
@@ -203,8 +205,8 @@ if engine.url.get_backend_name() != "sqlite":
         "ALTER TABLE marcas_rm ADD COLUMN IF NOT EXISTS palier INTEGER",
         "ALTER TABLE marcas_rm ADD COLUMN IF NOT EXISTS series TEXT",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS fecha_nacimiento DATE",
-        "ALTER TABLE ejercicios ADD COLUMN IF NOT EXISTS descripcion TEXT",
-        "ALTER TABLE ejercicios ADD COLUMN IF NOT EXISTS categoria VARCHAR(50)",
+        # Ver la nota del bloque SQLite: `ejercicios.categoria`/`descripcion` salieron
+        # del modelo y ya no se crean, pero tampoco se dropean donde ya existen.
         "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS rep_min INTEGER",
         "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS rep_max INTEGER",
         "ALTER TABLE wod_ejercicios ADD COLUMN IF NOT EXISTS rir INTEGER",
