@@ -97,16 +97,14 @@ def test_listado_cliente_403(client, cliente):
 
 
 def test_pendientes(client, admin_headers, pendiente, cliente, db_session):
-    plan = db_session.query(models.Plan).first()
     db_session.query(models.Usuario).filter_by(id=pendiente.user.id).update(
-        {"plan_solicitado_id": plan.id, "foto_url": "fotos/pendiente.jpg"}
+        {"foto_url": "fotos/pendiente.jpg"}
     )
     db_session.commit()
     r = client.get("/usuarios/pendientes", headers=admin_headers)
     assert r.status_code == 200
     body = r.json()
     assert [u["id"] for u in body] == [pendiente.user.id]
-    assert body[0]["plan_solicitado"]["id"] == plan.id
     # El listado muestra el avatar del pendiente, así que la foto viaja en el payload.
     assert body[0]["foto_url"] == "fotos/pendiente.jpg"
 
@@ -255,7 +253,6 @@ def test_activar_pendiente(client, admin_headers, pendiente, db_session):
     u = db_session.query(models.Usuario).filter_by(id=pendiente.user.id).first()
     db_session.refresh(u)
     assert u.rol == models.RolUsuario.CLIENTE
-    assert u.plan_solicitado_id is None
     pago = db_session.query(models.Pago).filter_by(usuario_id=u.id).first()
     assert pago is not None and pago.monto == 100000
 

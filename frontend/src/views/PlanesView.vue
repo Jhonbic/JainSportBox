@@ -115,20 +115,10 @@
           <p v-else class="text-sm text-gray-400 italic flex-1">Sin beneficios definidos.</p>
 
           <!-- Botón: igual para coach, cliente y pendiente -->
-          <template v-if="!isAdmin">
-            <button v-if="isPendiente && planSolicitadoId === plan.id"
-              @click="abrirAdquirir(plan)"
-              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl mt-2 flex items-center justify-center gap-2 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              Solicitud registrada · Ver pasos
-            </button>
-            <button v-else @click="abrirAdquirir(plan)"
-              class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 mt-2">
-              Adquirir Plan
-            </button>
-          </template>
+          <button v-if="!isAdmin" @click="abrirAdquirir(plan)"
+            class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 mt-2">
+            Adquirir Plan
+          </button>
         </div>
       </div>
     </div>
@@ -475,7 +465,7 @@ import api from '../api'
 import { useAuth } from '../composables/useAuth'
 import { linkWa } from '../lib/whatsapp'
 
-const { isAdmin, isPendiente } = useAuth()
+const { isAdmin } = useAuth()
 
 const planes        = ref([])
 const loading       = ref(true)
@@ -492,7 +482,6 @@ const copiadoId        = ref(null)
 
 // Plan seleccionado para adquirir
 const planAdquiriendo  = ref(null)
-const planSolicitadoId = ref(null)
 
 // Admin CRUD
 const planAEliminar = ref(null)
@@ -505,16 +494,9 @@ const form = ref({ nombre: '', precio: '', duracion_dias: '', por_ingresos: fals
 
 const formatPrecio = (v) => Number(v).toLocaleString('es-CO')
 
-// Abre el modal y registra solicitud si el usuario es pendiente
-const abrirAdquirir = async (plan) => {
-  planAdquiriendo.value = plan
-  if (isPendiente.value && planSolicitadoId.value !== plan.id) {
-    try {
-      await api.post(`/planes/${plan.id}/solicitar`)
-      planSolicitadoId.value = plan.id
-    } catch { /* silencioso: puede que ya esté registrado */ }
-  }
-}
+// Abre el modal con los pasos para pagar. No registra nada: la asignación del plan
+// la hace el admin a mano cuando recibe el comprobante.
+const abrirAdquirir = (plan) => { planAdquiriendo.value = plan }
 
 // Genera el link de WhatsApp con mensaje prearmado.
 // El número se normaliza con `linkWa` (lib/whatsapp.js), que es la misma regla del
@@ -691,12 +673,6 @@ onMounted(async () => {
     const { data } = await api.get('/contacto')
     adminTelefono.value = data.telefono || ''
   } catch { /* silencioso */ }
-  if (isPendiente.value) {
-    try {
-      const { data } = await api.get('/me')
-      planSolicitadoId.value = data.plan_solicitado_id || null
-    } catch { /* silencioso */ }
-  }
 })
 </script>
 

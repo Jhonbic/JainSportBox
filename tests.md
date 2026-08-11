@@ -101,7 +101,7 @@ backend/tests/
 |---|---|---|
 | 4.1 | `GET /planes/` autenticado (cualquier rol, incl. pendiente) | 200 |
 | 4.2 | CRUD de planes solo admin | coach/cliente → 403 |
-| 4.3 | `POST /planes/{id}/solicitar` como pendiente | 200/201 |
+| 4.3 | `POST /planes/{id}/solicitar` (eliminado: el admin asigna el plan a mano) | 404 |
 | 4.4 | `DELETE /planes/{id}` con pagos asociados | comportamiento definido (no 500) |
 | 4.5 | `POST /pagos/` (plan) sobre usuario sin membresía | `fecha_vencimiento = hoy + duracion_dias` |
 | 4.6 | `POST /pagos/` sobre membresía vigente (renovación) | extiende desde `fecha_vencimiento`, no desde hoy |
@@ -280,7 +280,7 @@ Contra `httpx.MockTransport`, **no** monkeypatcheando `enviar_recordatorio`: moc
 
 Correr backend local + `npm run dev`. Checklist por rol:
 
-**Pendiente:** login → forzado a `/planes`; sidebar solo muestra Planes; solicitar plan funciona; intento de URL directa a `/wods` redirige.
+**Pendiente:** login → forzado a `/planes`; sidebar solo muestra Planes; el modal de un plan muestra los pasos de pago y el botón de WhatsApp; intento de URL directa a `/wods` redirige.
 
 **Cliente vigente:** `/home` (tarjetas membresía/plan sin flash de "-999 días" — spinner de `cargandoPerfil`), calendario de asistencia con navegación de meses, WODs activos visibles (sin toggle/editar), WODs personalizados de su género si su plan lo incluye, Mi Salud (6 medidas, gráfica, alta y borrado, IMC), Mis Marcas (los 4 tipos: barra con panel de series directas, dominadas con peso corporal de Mi Salud, reps con modal, Léger nivel+palier; editar y borrar; gráfica con PRs en oro; kg/lbs), Mi Perfil (editar datos, cambiar contraseña, foto; `localStorage.userName` actualizado).
 

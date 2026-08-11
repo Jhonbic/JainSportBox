@@ -63,14 +63,10 @@ def test_eliminar_plan_es_soft_delete(client, admin_headers, cliente, db_session
     assert plan_id not in [x["id"] for x in client.get("/planes/", headers=cliente.headers).json()]
 
 
-def test_solicitar_plan(client, pendiente, cliente, db_session):
+def test_solicitar_plan_ya_no_existe(client, pendiente, db_session):
+    """El pendiente no reserva plan: el admin se lo asigna a mano cuando recibe el pago."""
     plan_id = _plan_mes_id(db_session)
-    assert client.post(f"/planes/{plan_id}/solicitar", headers=cliente.headers).status_code == 403
-    r = client.post(f"/planes/{plan_id}/solicitar", headers=pendiente.headers)
-    assert r.status_code == 200
-    u = db_session.query(models.Usuario).filter_by(id=pendiente.user.id).first()
-    db_session.refresh(u)
-    assert u.plan_solicitado_id == plan_id
+    assert client.post(f"/planes/{plan_id}/solicitar", headers=pendiente.headers).status_code == 404
 
 
 # ── Pagos con plan ─────────────────────────────────────────────

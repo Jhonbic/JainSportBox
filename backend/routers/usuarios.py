@@ -239,11 +239,6 @@ def listar_pendientes(
     pendientes = db.query(Usuario).filter(Usuario.rol == RolUsuario.PENDIENTE).all()
     result = []
     for u in pendientes:
-        plan_solicitado = None
-        if u.plan_solicitado_id:
-            p = db.query(Plan).filter(Plan.id == u.plan_solicitado_id).first()
-            if p:
-                plan_solicitado = {"id": p.id, "nombre": p.nombre, "precio": p.precio, "duracion_dias": p.duracion_dias}
         result.append({
             "id": u.id,
             "nombre": u.nombre,
@@ -263,8 +258,6 @@ def listar_pendientes(
             "acudiente_telefono": u.acudiente_telefono,
             "acudiente_documento": u.acudiente_documento,
             "created_at": u.created_at,
-            "plan_solicitado_id": u.plan_solicitado_id,
-            "plan_solicitado": plan_solicitado,
         })
     return result
 
@@ -508,7 +501,6 @@ def activar_usuario(
             raise HTTPException(status_code=404, detail="Plan no encontrado.")
 
     usuario.rol = RolUsuario.CLIENTE
-    usuario.plan_solicitado_id = None
     # Las dos funciones cargan también los accesos. Un pendiente no tiene vencimiento
     # previo, así que la base termina siendo hoy (o la fecha de inicio, si es futura).
     hoy = hoy_bogota()

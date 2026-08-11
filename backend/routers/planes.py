@@ -112,22 +112,6 @@ def actualizar_plan(
     return _serializar(plan)
 
 
-@router.post("/{plan_id}/solicitar")
-def solicitar_plan(
-    plan_id: int,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-):
-    if current_user.rol != RolUsuario.PENDIENTE:
-        raise HTTPException(status_code=403, detail="Solo usuarios pendientes pueden solicitar un plan.")
-    plan = db.query(Plan).filter(Plan.id == plan_id, Plan.activo == True).first()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan no encontrado.")
-    current_user.plan_solicitado_id = plan_id
-    db.commit()
-    return {"message": f"Solicitud para '{plan.nombre}' registrada. El administrador la revisará pronto.", "plan_id": plan_id}
-
-
 @router.delete("/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_plan(
     plan_id: int,

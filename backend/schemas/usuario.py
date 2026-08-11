@@ -69,7 +69,6 @@ class UsuarioResponse(BaseModel):
     acepto_terminos: bool = False
     terminos_fecha: Optional[datetime] = None
     terminos_version: Optional[str] = None
-    plan_solicitado_id: Optional[int]
     created_at: datetime
 
     model_config = {"from_attributes": True}

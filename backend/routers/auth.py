@@ -254,7 +254,6 @@ def _serialize_me(current_user: Usuario, db: Session) -> dict:
         "fecha_vencimiento": current_user.fecha_vencimiento,
         "ingresos_restantes": current_user.ingresos_restantes,   # None = plan por tiempo
         "esta_en_gym": current_user.esta_en_gym,
-        "plan_solicitado_id": current_user.plan_solicitado_id,
         "incluye_wods_personalizados": incluye_wods_personalizados,
         "plan_actual": plan_actual,
     }

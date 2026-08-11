@@ -318,9 +318,9 @@
                 <p class="font-semibold text-gray-700 truncate">{{ p.telefono || '—' }}</p>
               </div>
             </div>
-            <!-- Solo la antigüedad toma color; el plan queda neutro para no gritar toda la línea. -->
+            <!-- Solo la antigüedad toma color, para no gritar toda la línea. -->
             <p class="text-xs text-gray-400 mb-3">
-              {{ p.plan_solicitado?.nombre || 'Sin plan solicitado' }} · Registrado
+              Registrado
               <span :class="colorAntiguedad(p.created_at)">{{ antiguedadPendiente(p.created_at) }}</span>
             </p>
             <PendienteDetalle v-if="detalleAbierto[p.id]" :p="p" class="mb-3" />
@@ -355,7 +355,6 @@
                   </th>
                   <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
                   <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Contacto</th>
-                  <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Plan solicitado</th>
                   <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Registrado</th>
                   <th class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -385,7 +384,6 @@
                       <p class="text-sm text-gray-700">{{ p.telefono || '—' }}</p>
                       <p class="text-xs text-gray-400">CC {{ p.documento_identidad || '—' }}</p>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ p.plan_solicitado?.nombre || '—' }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                       <p class="text-sm text-gray-600">{{ formatFechaCorta(p.created_at) }}</p>
                       <p class="text-xs" :class="colorAntiguedad(p.created_at)">
@@ -412,7 +410,8 @@
                     </td>
                   </tr>
                   <tr v-if="detalleAbierto[p.id]" class="bg-gray-50">
-                    <td :colspan="isAdmin ? 6 : 5" class="px-6 py-4">
+                    <!-- Cliente · Contacto · Registrado · Acciones (+ checkbox si es admin) -->
+                    <td :colspan="isAdmin ? 5 : 4" class="px-6 py-4">
                       <PendienteDetalle :p="p" />
                     </td>
                   </tr>
@@ -1515,9 +1514,8 @@ const errorActivar = ref('')
 
 const abrirActivar = (u) => {
   activarUsuario.value = u
-  // Precarga el plan que el cliente pidió al registrarse, con su precio de sugerencia.
-  activarForm.value = nuevoFormulario(u.plan_solicitado_id || null)
-  activarForm.value.monto = u.plan_solicitado?.precio || null
+  // Sin plan precargado: el admin elige el que corresponde cuando recibe el pago.
+  activarForm.value = nuevoFormulario()
   errorActivar.value = ''
   showActivar.value = true
 }

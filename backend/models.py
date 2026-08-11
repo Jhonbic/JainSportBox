@@ -75,7 +75,6 @@ class Usuario(Base):
     foto_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     genero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     fecha_nacimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    plan_solicitado_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     eps: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     barrio: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     contacto_emergencia_nombre: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
