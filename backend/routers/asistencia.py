@@ -2,14 +2,13 @@ import hmac
 import os
 from collections import defaultdict
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from fechas import hoy_bogota
+from fechas import a_bogota, fin_dia_utc, hoy_bogota, inicio_dia_utc
 from membresia import descontar_ingreso
 from models import Asistencia, RolUsuario, Usuario
 from schemas.asistencia import (
@@ -269,9 +268,6 @@ def usuarios_en_gym(
     return resultado
 
 
-_BOGOTA = ZoneInfo("America/Bogota")
-
-
 @router.get("/sesiones-por-bloque", response_model=SesionesPorBloqueResponse)
 def sesiones_por_bloque(
     desde: date = Query(..., description="Fecha inicio YYYY-MM-DD"),
@@ -284,8 +280,14 @@ def sesiones_por_bloque(
     if (hasta - desde).days > 31:
         raise HTTPException(status_code=422, detail="El rango no puede superar 31 días.")
 
-    desde_utc = datetime(desde.year, desde.month, desde.day, 0, 0, 0)
-    hasta_utc = datetime(hasta.year, hasta.month, hasta.day, 23, 59, 59)
+    # `desde`/`hasta` son días del NEGOCIO (Bogotá), pero la columna está en UTC. Antes
+    # acá se construía `datetime(desde, 00:00)` naive y se comparaba directo contra la
+    # columna: eso es medianoche UTC, o sea las 19:00 de Bogotá del día anterior. La
+    # ventana quedaba corrida 5 horas — arrastraba la noche del día previo al rango y
+    # perdía la del último día. Con el box entrenando de 19:00 a 21:00, las entradas de
+    # la noche de hoy no aparecían en el calendario hasta el día siguiente.
+    desde_utc = inicio_dia_utc(desde)
+    hasta_utc = fin_dia_utc(hasta)
 
     asistencias = (
         db.query(Asistencia)
@@ -304,7 +306,7 @@ def sesiones_por_bloque(
     vistos: dict[tuple, set[int]] = defaultdict(set)
     bloques: dict[tuple, list[AsistenteBloqueItem]] = defaultdict(list)
     for a in asistencias:
-        hora_local = a.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).astimezone(_BOGOTA)
+        hora_local = a_bogota(a.fecha_hora)
         key = (hora_local.date().isoformat(), hora_local.hour)
         if a.usuario_id in vistos[key]:
             continue  # ya registrado en este bloque, ignorar entradas repetidas

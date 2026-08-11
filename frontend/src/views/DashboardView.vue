@@ -128,7 +128,9 @@
                   </p>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
-                  <a v-if="u.telefono && tabCumple === 'pendientes'" :href="whatsappCumpleanos(u)" target="_blank"
+                  <!-- Se pregunta por el link, no por el teléfono: un número incompleto
+                       genera un botón que lleva a un error de WhatsApp. -->
+                  <a v-if="whatsappCumpleanos(u) && tabCumple === 'pendientes'" :href="whatsappCumpleanos(u)" target="_blank"
                     @click="marcarFelicitado(u)"
                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -179,8 +181,8 @@
                 <div v-for="a in pendientes" :key="a.id" class="flex items-center justify-between gap-3 px-4 py-2.5">
                   <div class="min-w-0">
                     <p class="text-sm font-semibold text-gray-800 truncate">{{ a.usuario_nombre }}</p>
-                    <p class="text-xs" :class="a.dias_anticipacion <= 1 ? 'text-red-600 font-semibold' : 'text-gray-400'">
-                      {{ textoVence(a.dias_anticipacion) }}
+                    <p class="text-xs" :class="diasParaVencer(a) <= 1 ? 'text-red-600 font-semibold' : 'text-gray-400'">
+                      {{ textoVence(diasParaVencer(a)) }}
                     </p>
                   </div>
                   <div class="flex items-center gap-2 flex-shrink-0">
@@ -192,7 +194,7 @@
                       class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide cursor-help">
                       Envío automático falló
                     </span>
-                    <a v-if="a.usuario_telefono && mostrarBotonManual(a)" :href="whatsappAlerta(a)" target="_blank"
+                    <a v-if="whatsappAlerta(a) && mostrarBotonManual(a)" :href="whatsappAlerta(a)" target="_blank"
                       @click="marcarEnviada(a)"
                       class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors">
                       Recordar
@@ -310,6 +312,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../api'
 import { getChart } from '../lib/chart'
+import { linkWa, telefonoWa } from '../lib/whatsapp'
 import SesionesPanel from '../components/SesionesPanel.vue'
 
 const router = useRouter()
@@ -340,8 +343,15 @@ const cargandoResumen = ref(true)
 const cargandoAlertas = ref(true)
 const cargandoSocios = ref(true)
 
+/** Reloj reactivo, actualizado por el mismo intervalo que refresca los datos.
+ *  Esta pantalla vive abierta todo el día en la PC de recepción, así que "hoy" no puede
+ *  quedar congelado en el momento del montaje: la fecha del encabezado, los días que
+ *  faltan para cada vencimiento y la clave de felicitados se derivan de acá para que
+ *  crucen la medianoche solos. */
+const ahora = ref(new Date())
+
 const fechaHoyTexto = computed(() =>
-  new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  ahora.value.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 )
 /** Activos hoy menos activos al cierre del mes pasado, de la misma serie que dibuja
  *  la gráfica. `null` mientras no haya dos meses: sin mes anterior no hay comparación
@@ -352,10 +362,11 @@ const deltaActivos = computed(() => {
 })
 
 // ── WhatsApp ─────────────────────────────────────────────────
-const _telefono = (t) => '57' + String(t).replace(/\D/g, '').slice(-10)
+// La normalización vive en lib/whatsapp.js, que espeja la del backend. Acá había una
+// copia local (`_telefono`) y en PlanesView una tercera que ni ponía el prefijo 57.
 
 const whatsappCumpleanos = (u) =>
-  `https://wa.me/${_telefono(u.telefono)}?text=` + encodeURIComponent(
+  linkWa(u.telefono,
     `¡Feliz cumpleaños, ${u.nombre}! 🎉 De parte de todo el equipo de Jain Sport Box. ` +
     `Pasá hoy por el box y te invitamos un batido. 💪`
   )
@@ -365,33 +376,38 @@ const whatsappCumpleanos = (u) =>
 // no hay dónde guardar "ya lo felicité". Se lleva en localStorage con la fecha en la
 // clave, así el registro se vacía solo al día siguiente.
 // LIMITACIÓN: es por dispositivo. Si felicitás desde el celular, la PC del gym no se entera.
-const CLAVE_FELICITADOS = `felicitados:${new Date().toLocaleDateString('en-CA')}`
+// Derivada de `ahora` y no fijada al montar: con la pantalla abierta al cruzar la
+// medianoche, una clave congelada seguiría marcando como felicitados a los de ayer.
+const claveFelicitados = computed(() => `felicitados:${ahora.value.toLocaleDateString('en-CA')}`)
 const felicitados = ref(new Set())
 
 function cargarFelicitados() {
   // Limpieza de días anteriores: si no, las claves viejas se acumulan para siempre.
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i)
-    if (k?.startsWith('felicitados:') && k !== CLAVE_FELICITADOS) localStorage.removeItem(k)
+    if (k?.startsWith('felicitados:') && k !== claveFelicitados.value) localStorage.removeItem(k)
   }
   try {
-    felicitados.value = new Set(JSON.parse(localStorage.getItem(CLAVE_FELICITADOS) || '[]'))
+    felicitados.value = new Set(JSON.parse(localStorage.getItem(claveFelicitados.value) || '[]'))
   } catch {
     felicitados.value = new Set()
   }
 }
 
+// Al cambiar el día se relee: descarta los de ayer y arranca la lista nueva vacía.
+watch(claveFelicitados, cargarFelicitados)
+
 function marcarFelicitado(u) {
   const s = new Set(felicitados.value)
   s.add(u.id)
   felicitados.value = s                       // Set nuevo: reasignar para que Vue reaccione
-  localStorage.setItem(CLAVE_FELICITADOS, JSON.stringify([...s]))
+  localStorage.setItem(claveFelicitados.value, JSON.stringify([...s]))
 }
 
 // La lista es siempre la de los cumpleaños de HOY (el endpoint filtra por el día),
 // así que la fecha del cumpleaños es la de la clave de localStorage.
 const fechaCumpleTexto = computed(() =>
-  new Date(CLAVE_FELICITADOS.split(':')[1] + 'T12:00:00')
+  new Date(claveFelicitados.value.split(':')[1] + 'T12:00:00')
     .toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })
 )
 
@@ -401,7 +417,32 @@ const cumpleVisibles = computed(() =>
   tabCumple.value === 'pendientes' ? cumpleSinFelicitar.value : cumpleFelicitados.value
 )
 
-const pendientes = computed(() => alertas.value.filter(a => !a.enviada))
+/** Días que faltan para el vencimiento, calculados AHORA.
+ *
+ *  Deliberadamente NO se usa `a.dias_anticipacion`: esa columna se congela cuando
+ *  `generar_alertas` crea la alerta y nunca se actualiza, así que a los dos días ya
+ *  miente — el panel llegaba a decir "Vence en 5 días" el mismo día del vencimiento, y
+ *  `whatsappAlerta` le mandaba ese plazo equivocado al socio. El backend ya hace esto
+ *  bien para el envío automático (calcula contra `Usuario.fecha_vencimiento` en
+ *  `alertas.py`); esto alinea el camino manual con el automático.
+ *
+ *  `'T00:00:00'` fuerza medianoche LOCAL: sin la hora, `new Date('2026-08-15')` se
+ *  parsea como UTC y en Bogotá cae el día anterior. Depende de `ahora` para que la
+ *  cuenta avance sola al cruzar la medianoche con la pantalla abierta. */
+const diasParaVencer = (a) => {
+  const hoy = new Date(ahora.value)
+  hoy.setHours(0, 0, 0, 0)
+  const vence = new Date(a.fecha_vencimiento + 'T00:00:00')
+  return Math.round((vence - hoy) / 86400000)
+}
+
+// El backend ordena por `dias_anticipacion`, que es la columna congelada: con alertas
+// creadas en días distintos el orden salía cruzado. Se reordena por la fecha real.
+const pendientes = computed(() =>
+  alertas.value
+    .filter(a => !a.enviada)
+    .sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento))
+)
 const enviadas = computed(() =>
   alertas.value
     .filter(a => a.enviada)
@@ -420,15 +461,24 @@ const textoVence = (dias) =>
 const mostrarBotonManual = (a) => !whatsappAutomatico.value || !!a.error_envio
 
 /** Distinto de un fallo de la API: acá no hay a quién escribirle, ni siquiera
- *  a mano. Sin este chip la fila quedaba muda y sin explicación. */
-const sinTelefono = (a) => !a.usuario_telefono
+ *  a mano. Sin este chip la fila quedaba muda y sin explicación.
+ *
+ *  Usa `telefonoWa` y no `!a.usuario_telefono`: un teléfono cargado incompleto
+ *  (menos de 10 dígitos) es igual de inservible, y así el chip coincide con lo que
+ *  el backend cuenta como `omitidas` al mandar los recordatorios automáticos. */
+const sinTelefono = (a) => !telefonoWa(a.usuario_telefono)
 
 // Único lugar donde vive el texto del recordatorio de vencimiento.
 const whatsappAlerta = (a) => {
   const fecha = new Date(a.fecha_vencimiento + 'T12:00:00')
     .toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })
-  const cuando = a.dias_anticipacion === 1 ? `*mañana* (${fecha})` : `en *${a.dias_anticipacion} días* (${fecha})`
-  return `https://wa.me/${_telefono(a.usuario_telefono)}?text=` + encodeURIComponent(
+  // El caso 0 ("vence hoy") hay que contemplarlo: la alerta vive en el panel hasta el
+  // día del vencimiento, y sin esta rama el mensaje decía "en *0 días*".
+  const dias = diasParaVencer(a)
+  const cuando = dias <= 0 ? `*hoy* (${fecha})`
+    : dias === 1 ? `*mañana* (${fecha})`
+    : `en *${dias} días* (${fecha})`
+  return linkWa(a.usuario_telefono,
     `Hola ${a.usuario_nombre}! 👋 Te recordamos que tu membresía en *Jain Sport Box* vence ${cuando}. ` +
     `Para renovar contáctanos. 💪🔥`
   )
@@ -560,18 +610,60 @@ const puedeGraficar = computed(() =>
   !cargandoResumen.value && !cargandoSocios.value && sociosMensuales.value.length > 0
 )
 
-watch(puedeGraficar, async (listo) => {
+// Se observa también la serie: en el primer render alcanzaba con `puedeGraficar`, pero
+// al refrescar ya está en `true` y no volvería a dispararse, así que la gráfica se
+// quedaría con los datos viejos. `sociosMensuales` se reasigna en cada fetch.
+watch([puedeGraficar, sociosMensuales], async ([listo]) => {
   if (!listo) return
   await nextTick()
   renderChart()
 }, { immediate: true })
+
+// ── Auto-refresh ─────────────────────────────────────────────
+// Sin esto la pantalla se congela en el momento del montaje: en recepción queda abierta
+// todo el día y "Hoy" no se movía mientras la gente marcaba huella, los cumpleaños no
+// rotaban a medianoche y la única forma de ver datos frescos era recargar a mano.
+const INTERVALO_MS = 60_000
+
+// `/resumen` es lo barato y lo que se mueve solo, así que es lo único que entra al
+// intervalo. `/socios-mensuales` reconstruye la serie sobre toda la tabla `pagos` y
+// cambia como mucho una vez al día; `/alertas/generar` además es una ESCRITURA. Esos
+// dos se refrescan solo al volver a la pestaña, que es cuando pudo pasar algo.
+let intervalo = null
+let ultimoCompleto = Date.now()
+
+function refrescarLigero() {
+  // Con la pestaña oculta el navegador ya throttlea el timer; igual se salta la
+  // petición para no pegarle al backend desde pantallas que nadie está mirando.
+  if (document.visibilityState !== 'visible') return
+  ahora.value = new Date()
+  cargarResumen()
+}
+
+function alVolverALaPestana() {
+  if (document.visibilityState !== 'visible') return
+  ahora.value = new Date()
+  cargarResumen()
+  // Throttle: cambiar de pestaña es un gesto que se repite mucho y estas dos son las
+  // llamadas caras. Una por minuto como máximo.
+  if (Date.now() - ultimoCompleto < INTERVALO_MS) return
+  ultimoCompleto = Date.now()
+  cargarAlertas()
+  cargarSociosMensuales()
+}
 
 onMounted(() => {
   cargarFelicitados()
   cargarResumen()
   cargarAlertas()
   cargarSociosMensuales()
+  intervalo = setInterval(refrescarLigero, INTERVALO_MS)
+  document.addEventListener('visibilitychange', alVolverALaPestana)
 })
 
-onUnmounted(destruirChart)
+onUnmounted(() => {
+  clearInterval(intervalo)
+  document.removeEventListener('visibilitychange', alVolverALaPestana)
+  destruirChart()
+})
 </script>

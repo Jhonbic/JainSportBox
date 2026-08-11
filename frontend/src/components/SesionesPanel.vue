@@ -150,8 +150,14 @@ const error            = ref('')
 // ── Helpers de fecha ──
 const MESES_LARGO = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
+/** "YYYY-MM-DD" del día LOCAL. `toISOString()` da la fecha en UTC, y Bogotá es UTC-5:
+ *  de 19:00 en adelante devolvía el día siguiente, así que el calendario pintaba "hoy"
+ *  en la celda equivocada justo en el horario de más gente. Peor el último día del mes:
+ *  la preselección de `cargarMes` dejaba de reconocer el mes visible y caía en "el
+ *  último día con datos". `en-CA` formatea ISO y respeta la zona del navegador — es el
+ *  mismo recurso que usa DashboardView para la clave de felicitados. */
 function isoHoy() {
-  return new Date().toISOString().slice(0, 10)
+  return new Date().toLocaleDateString('en-CA')
 }
 
 function getMesInfo(offset) {

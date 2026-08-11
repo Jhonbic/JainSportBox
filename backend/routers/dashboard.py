@@ -13,16 +13,22 @@ Dos reglas transversales a todas las consultas de este módulo:
 """
 
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
-from fechas import TZ_BOGOTA, hoy_bogota
+# Los helpers de ventana viven en `fechas` para que los use también `asistencia.py`;
+# se importan con alias para no tocar las decenas de llamadas de este módulo.
+from fechas import (
+    hoy_bogota,
+    a_bogota as _a_bogota,
+    fin_dia_utc as _fin_dia_utc,
+    inicio_dia_utc as _inicio_dia_utc,
+)
 from models import (
     Asistencia,
     MovimientoFinanciero,
@@ -49,32 +55,6 @@ def _require_admin(current_user: Usuario = Depends(get_current_user)):
     if current_user.rol != RolUsuario.ADMIN:
         raise HTTPException(status_code=403, detail="Solo el administrador puede ver datos financieros.")
     return current_user
-
-
-# ── Helpers de zona horaria ───────────────────────────────────
-
-
-_UTC = ZoneInfo("UTC")
-
-
-def _a_utc(dt_local: datetime) -> datetime:
-    """Datetime de Bogotá → datetime naive en UTC, que es como está guardado."""
-    return dt_local.replace(tzinfo=TZ_BOGOTA).astimezone(_UTC).replace(tzinfo=None)
-
-
-def _inicio_dia_utc(dia: date) -> datetime:
-    """00:00 de Bogotá de ese día, expresado en UTC naive."""
-    return _a_utc(datetime.combine(dia, time.min))
-
-
-def _fin_dia_utc(dia: date) -> datetime:
-    """23:59:59 de Bogotá de ese día, expresado en UTC naive."""
-    return _a_utc(datetime.combine(dia, time.max))
-
-
-def _a_bogota(dt_utc: datetime) -> datetime:
-    """Datetime naive en UTC (como viene de la BD) → datetime en hora de Bogotá."""
-    return dt_utc.replace(tzinfo=_UTC).astimezone(TZ_BOGOTA)
 
 
 def _duracion_pago(duracion_pago: Optional[int], duracion_plan: Optional[int]) -> Optional[int]:
@@ -345,11 +325,16 @@ def afluencia(
     else:
         rango = range(0)
 
+    # Dos decimales, no uno: el divisor de los días hábiles es grande (~21 en la ventana
+    # por defecto, hasta ~60 con semanas=12), así que una sola visita en una hora daba
+    # 1/21 = 0.05 y a un decimal se volvía 0.0 — la hora desaparecía del gráfico y
+    # `_pico`, que descarta los ceros, no encontraba ningún pico. Con dos decimales el
+    # peor caso del rango de `semanas` sigue siendo visible (1/60 = 0.02).
     horas = [
         {
             "hora": h,
-            "semana": round(por_hora_semana.get(h, 0) / dias_habiles, 1),
-            "sabado": round(por_hora_sabado.get(h, 0) / dias_sabado, 1),
+            "semana": round(por_hora_semana.get(h, 0) / dias_habiles, 2),
+            "sabado": round(por_hora_sabado.get(h, 0) / dias_sabado, 2),
         }
         for h in rango
     ]

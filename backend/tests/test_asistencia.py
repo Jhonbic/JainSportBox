@@ -1,10 +1,11 @@
 """§5 de tests.md — Asistencia: entrada por bridge, membresía, historiales,
 en-gym, sesiones-por-bloque y job de reset."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 import models
 from conftest import SessionLocal
+from fechas import hoy_bogota
 
 
 def _marcar(client, headers, usuario_id):
@@ -231,6 +232,38 @@ def test_sesiones_dedup_y_zona_horaria(client, admin_headers, cliente, crear_usu
     assert bloque9["total"] == 2  # deduplica al cliente repetido
     horas = {a["usuario_id"]: a["hora_exacta"] for a in bloque9["asistentes"]}
     assert horas[cliente.user.id] == "09:05"  # conserva la PRIMERA entrada, en hora Bogotá
+
+
+def test_sesiones_ventana_es_el_dia_de_bogota_no_el_de_utc(client, admin_headers, cliente, db_session):
+    """`desde`/`hasta` son días del negocio (Bogotá), no días UTC.
+
+    El test de arriba usa las 14:00 UTC (09:00 Bogotá), que cae lejos del borde y pasaba
+    igual con la ventana mal construida. Acá se atacan las dos puntas: antes se filtraba
+    con `datetime(desde, 00:00)` naive contra una columna guardada en UTC, así que la
+    ventana quedaba corrida 5 horas — se comía la noche del día anterior y perdía la del
+    último día. Con el box entrenando de 19:00 a 21:00, las entradas de la noche no
+    aparecían en el calendario hasta el día siguiente.
+    """
+    dia = hoy_bogota() - timedelta(days=3)
+
+    db_session.add_all([
+        # 19:10 de Bogotá del día ANTERIOR = 00:10 UTC de `dia`. Queda FUERA del rango.
+        models.Asistencia(usuario_id=cliente.user.id, tipo="entrada",
+                          fecha_hora=datetime.combine(dia, time(0, 10))),
+        # 20:00 de Bogotá de `dia` = 01:00 UTC del día SIGUIENTE. Queda DENTRO.
+        models.Asistencia(usuario_id=cliente.user.id, tipo="entrada",
+                          fecha_hora=datetime.combine(dia + timedelta(days=1), time(1, 0))),
+    ])
+    db_session.commit()
+
+    r = client.get(
+        f"/asistencia/sesiones-por-bloque?desde={dia.isoformat()}&hasta={dia.isoformat()}",
+        headers=admin_headers,
+    )
+    assert r.status_code == 200
+    bloques = r.json()["bloques"]
+    assert [b["hora_inicio"] for b in bloques] == [20]
+    assert [b["fecha"] for b in bloques] == [dia.isoformat()]
 
 
 def test_sesiones_cliente_403(client, cliente):
