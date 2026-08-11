@@ -68,6 +68,9 @@ class Usuario(Base):
     # marcación: sin este centinela, un socio con mensualidad tendría 0 ingresos y
     # no habría forma de distinguirlo de un bono agotado.
     ingresos_restantes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Solo se llena cuando la membresía se vendió para arrancar en el futuro; hasta
+    # ese día `_validar_membresia` niega el acceso. NULL = ya está corriendo.
+    membresia_inicio: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     esta_en_gym: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     foto_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     genero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -136,6 +139,8 @@ class Pago(Base):
     usuario_id: Mapped[int] = mapped_column(Integer, ForeignKey("usuarios.id"), nullable=False)
     plan_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("planes.id"), nullable=True)
     duracion_dias: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)   # solo para pagos personalizados (plan_id NULL)
+    numero_ingresos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # accesos de un pago personalizado; el plan trae los suyos
+    fecha_inicio: Mapped[Optional[date]] = mapped_column(Date, nullable=True)       # arranque elegido a mano; NULL = arrancó al pagarse
     fecha_pago: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     monto: Mapped[float] = mapped_column(Float, nullable=False)
     metodo_pago: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)   # efectivo, transferencia, etc.

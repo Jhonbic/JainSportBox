@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 
 from database import get_db
-from fechas import hoy_bogota
-from membresia import aplicar_plan, extender_vencimiento, revertir_plan
+from fechas import FechaInicio, hoy_bogota
+from membresia import aplicar_personalizado, aplicar_plan, revertir_plan
 from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario
 from schemas.pago import PagoCreate, PagoResponse
 from security import get_current_user
@@ -39,10 +39,11 @@ def registrar_pago(
         plan_id=payload.plan_id,
         monto=payload.monto,
         metodo_pago=payload.metodo_pago,
+        fecha_inicio=payload.fecha_inicio,
     )
     db.add(pago)
 
-    nueva_fecha = aplicar_plan(usuario, plan, hoy_bogota())
+    nueva_fecha = aplicar_plan(usuario, plan, hoy_bogota(), payload.fecha_inicio)
 
     db.commit()
     db.refresh(pago)
@@ -61,8 +62,11 @@ def registrar_pago(
 class PagoDirectoCreate(BaseModel):
     usuario_id: int
     duracion_dias: int = Field(..., ge=1, le=365)
+    # Accesos incluidos. Vacío = membresía sin tope de entradas (solo por fecha).
+    numero_ingresos: Optional[int] = Field(None, ge=1)
     monto: float = Field(..., ge=0)
     metodo_pago: str = Field(..., pattern=r'^(efectivo|transferencia)$')
+    fecha_inicio: FechaInicio = None
 
 
 @router.post("/directo/", status_code=status.HTTP_201_CREATED)
@@ -75,15 +79,22 @@ def registrar_pago_directo(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    # El pago directo es siempre por tiempo (no hay plan detrás que defina ingresos).
-    nueva_fecha = extender_vencimiento(usuario, payload.duracion_dias, hoy_bogota())
+    nueva_fecha = aplicar_personalizado(
+        usuario,
+        payload.duracion_dias,
+        payload.numero_ingresos,
+        hoy_bogota(),
+        payload.fecha_inicio,
+    )
 
     pago = Pago(
         usuario_id=payload.usuario_id,
         plan_id=None,
         duracion_dias=payload.duracion_dias,
+        numero_ingresos=payload.numero_ingresos,
         monto=payload.monto,
         metodo_pago=payload.metodo_pago,
+        fecha_inicio=payload.fecha_inicio,
     )
     db.add(pago)
 
@@ -94,6 +105,7 @@ def registrar_pago_directo(
         "id": pago.id,
         "usuario_id": usuario.id,
         "duracion_dias": payload.duracion_dias,
+        "numero_ingresos": payload.numero_ingresos,
         "monto": payload.monto,
         "nueva_fecha_vencimiento": nueva_fecha,
     }
@@ -148,7 +160,7 @@ def anular_pago(
     usuario = db.query(Usuario).filter(Usuario.id == pago.usuario_id).first()
     plan = db.query(Plan).filter(Plan.id == pago.plan_id).first() if pago.plan_id else None
     dias_a_restar = plan.duracion_dias if plan else (pago.duracion_dias or 0)
-    ingresos_a_restar = plan.numero_ingresos if plan else None
+    ingresos_a_restar = plan.numero_ingresos if plan else pago.numero_ingresos
 
     if usuario:
         revertir_plan(usuario, dias_a_restar, ingresos_a_restar)
@@ -177,6 +189,8 @@ def historial_pagos(
             "plan_id": p.plan_id,
             "plan_nombre": p.plan.nombre if p.plan else (f"Personalizado ({p.duracion_dias} días)" if p.duracion_dias else "Personalizado"),
             "duracion_dias": p.duracion_dias,
+            "numero_ingresos": p.numero_ingresos,
+            "fecha_inicio": p.fecha_inicio,
             "fecha_pago": p.fecha_pago,
             "monto": p.monto,
             "metodo_pago": p.metodo_pago,

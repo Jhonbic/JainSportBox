@@ -688,13 +688,31 @@ Un plan puede cobrarse **por tiempo** (mensualidad de toda la vida) o **por ingr
 |---|---|
 | Paga un plan por ingresos | **Se suman** a los que le quedaban (mismo criterio que la fecha, que se extiende en vez de pisarse) |
 | Paga un plan por tiempo | Vuelve a `NULL`. **Sin este reset**, un socio con un bono agotado (`0`) quedaría bloqueado pese a acabar de pagar la mensualidad |
-| Pago directo (personalizado) | No los toca: no hay plan detrás que defina ingresos |
+| Pago directo (personalizado) | Misma regla que un plan: con `numero_ingresos` se suman, sin él vuelve a `NULL`. **Antes no los tocaba**, y por eso venderle días por tiempo a alguien con el bono en 0 lo dejaba igual de bloqueado |
 | Marca entrada | `descontar_ingreso()` resta 1, y solo si no es `NULL`. Va en `_registrar()` porque los tres caminos de entrada (huella, por id, por documento) pasan por ahí |
 | Se anula el pago | Se restan los ingresos que cargó. **Limitación:** si el pago anulado era por tiempo, los ingresos previos se perdieron al ponerse en `NULL` y no se pueden restaurar |
 
 **El acceso denegado por falta de ingresos manda `detail` estructurado** (`{"codigo": "sin_ingresos", ...}`) mientras que el vencido manda un string. Los dos son 403, pero en el mostrador son problemas distintos —"renová la fecha" vs "comprá más entradas"— y `AccesoView` los pinta distinto. Es la excepción a la regla de que la distinción vive en el status code.
 
 **En el form de planes, `numero_ingresos: 0` significa "volver a plan por tiempo".** El `PATCH` no puede usar `null` para eso: lo interpretaría como "campo no enviado" y no lo cambiaría. Por eso `PlanUpdate` acepta `ge=0` y el router hace `payload.numero_ingresos or None`.
+
+## Fecha de inicio de la membresía
+
+Los cuatro caminos que asignan membresía aceptan `fecha_inicio` (solo de hoy en adelante; una fecha pasada da 422 vía el tipo `FechaInicio` de `backend/fechas.py`, compartido por los tres schemas).
+
+**La fecha de inicio entra como un piso, no como reemplazo** (`extender_vencimiento`): si cae antes de lo que ya correspondía, se ignora. Así elegir "hoy" sobre una membresía vigente **encola** la nueva detrás de la actual en vez de pisar los días que quedaban — el mismo criterio con el que la fecha se extiende. Con `inicio=None` el cálculo es idéntico al de siempre, y hay tests que lo fijan.
+
+**`Usuario.membresia_inicio` es la compuerta, y sin ella la fecha de inicio sería decorativa.** `fecha_vencimiento` es un único campo: una membresía vendida para arrancar el 1-sep ya deja el vencimiento en el futuro, así que los dos ejes de siempre la darían por buena y la palanquera abriría hoy. La columna solo se llena cuando el arranque es futuro; `_validar_membresia` la chequea **antes** que fecha e ingresos y responde 403 con `{"codigo": "no_iniciada", "inicio": …}`, siguiendo el patrón de `sin_ingresos`.
+
+**Limitación:** anular un pago con inicio futuro no revierte exacto — `revertir_plan` resta días, pero si hubo un salto hasta la fecha de arranque el vencimiento se movió más que eso. Y no existen membresías con hueco: una futura y una vigente no pueden coexistir con un intervalo muerto entre ambas.
+
+### `MembresiaSelector.vue` — un solo formulario para los cuatro
+
+`components/MembresiaSelector.vue` + `lib/membresia.js` reemplazan las **cuatro copias** del mismo formulario (activar pendiente, renovar, crear cliente con plan inicial, agregar membresía desde el perfil). El `if personalizado` que elige entre `/pagos/` y `/pagos/directo/` vive una sola vez, en `payloadPago()`.
+
+**Se extrajo por un bug, no por prolijidad:** tres copias tenían la opción "Personalizado" y la del modal de activar no, así que a un pendiente no se le podían asignar días sueltos. Al agregar un quinto lugar que asigne membresía, **usar el componente** — no copiar el markup.
+
+`previsualizar()` en `lib/membresia.js` **espeja `extender_vencimiento()` del backend** para mostrar el vencimiento antes de confirmar; si esa regla cambia, hay que tocar las dos. Los acentos (`red`/`emerald`) van como strings completos en el mapa `ACENTOS`, nunca interpolados, o Tailwind los purga.
 
 **Limitación conocida — el Resumen no descuenta los bonos agotados.** `/dashboard/resumen` cuenta activos por `fecha_vencimiento >= hoy`, así que un socio con 0 ingresos y fecha vigente sigue contando como activo. No se corrigió a propósito: `socios-mensuales` reconstruye el pasado desde `pagos` (donde no hay registro de cuántos ingresos se gastaron) y hay un test que exige que su último punto coincida con la tarjeta de activos. Arreglar solo la tarjeta rompería esa coincidencia; arreglar los dos requiere historial de consumo, que hoy no existe.
 

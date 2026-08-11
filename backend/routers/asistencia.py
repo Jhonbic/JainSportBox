@@ -57,10 +57,25 @@ def _validar_membresia(usuario: Usuario) -> None:
     if usuario.rol in (RolUsuario.ADMIN, RolUsuario.COACH):
         return
 
+    hoy = hoy_bogota()
+
+    # Compuerta previa: la membresía se vendió para arrancar más adelante. Va antes
+    # que el resto porque `fecha_vencimiento` ya está en el futuro y los dos ejes de
+    # abajo la darían por buena — sin esto, "arranca el 1-sep" dejaría entrar hoy.
+    if usuario.membresia_inicio and hoy < usuario.membresia_inicio:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "codigo": "no_iniciada",
+                "mensaje": f"La membresía de {usuario.nombre} arranca el {usuario.membresia_inicio.isoformat()}.",
+                "inicio": usuario.membresia_inicio.isoformat(),
+            },
+        )
+
     # Toda marcación es una entrada → siempre se valida la membresía. Son DOS ejes y
     # se validan los dos: un bono de ingresos también caduca por fecha, y una
     # mensualidad vigente no consume ingresos (los tiene en NULL).
-    if not usuario.fecha_vencimiento or usuario.fecha_vencimiento < hoy_bogota():
+    if not usuario.fecha_vencimiento or usuario.fecha_vencimiento < hoy:
         raise HTTPException(
             status_code=403,
             detail=f"Membresía vencida o sin plan activo para {usuario.nombre}.",

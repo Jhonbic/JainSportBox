@@ -3,12 +3,15 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from fechas import FechaInicio
+
 
 class PagoCreate(BaseModel):
     usuario_id: int
     plan_id: int
     monto: float = Field(..., gt=0)
     metodo_pago: Literal['efectivo', 'transferencia']
+    fecha_inicio: FechaInicio = None
 
 
 class PagoResponse(BaseModel):

@@ -7,7 +7,10 @@ rangos de historial) debe usar `hoy_bogota()` en lugar de `date.today()`.
 """
 
 from datetime import date, datetime, time
+from typing import Annotated, Optional
 from zoneinfo import ZoneInfo
+
+from pydantic import AfterValidator
 
 TZ_BOGOTA = ZoneInfo("America/Bogota")
 UTC = ZoneInfo("UTC")
@@ -15,6 +18,19 @@ UTC = ZoneInfo("UTC")
 
 def hoy_bogota() -> date:
     return datetime.now(TZ_BOGOTA).date()
+
+
+def _no_esta_en_el_pasado(v: Optional[date]) -> Optional[date]:
+    if v is not None and v < hoy_bogota():
+        raise ValueError("La fecha de inicio no puede ser anterior a hoy.")
+    return v
+
+
+# Fecha de arranque de una membresía. Los tres endpoints que la aceptan
+# (`/pagos/`, `/pagos/directo/` y la activación de un pendiente) comparten el tipo
+# para que la regla viva en un solo lugar; escrita en cada schema, alcanzaría con
+# olvidarse de uno para poder registrar una membresía retroactiva por ese camino.
+FechaInicio = Annotated[Optional[date], AfterValidator(_no_esta_en_el_pasado)]
 
 
 # ── Ventanas de tiempo ────────────────────────────────────────

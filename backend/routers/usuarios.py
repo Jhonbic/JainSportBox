@@ -5,13 +5,13 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session, defer
 
 from database import get_db
-from fechas import hoy_bogota
-from membresia import aplicar_plan
+from fechas import FechaInicio, hoy_bogota
+from membresia import aplicar_personalizado, aplicar_plan
 from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario
 from schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
 from security import get_current_user, get_password_hash
@@ -470,9 +470,24 @@ def obtener_usuario(
 
 
 class ActivarUsuarioPayload(BaseModel):
-    plan_id: int
+    """Activación de un pendiente, con plan del catálogo o membresía personalizada.
+
+    `plan_id` y `duracion_dias` son excluyentes: uno define la membresía por el
+    catálogo y el otro a mano. Aceptar los dos obligaría a elegir cuál gana, y
+    cualquier criterio sería una sorpresa para quien cargó el otro.
+    """
+    plan_id: Optional[int] = None
+    duracion_dias: Optional[int] = Field(None, ge=1, le=365)
+    numero_ingresos: Optional[int] = Field(None, ge=1)
     monto: float = Field(..., ge=0)
     metodo_pago: str = Field(..., pattern=r'^(efectivo|transferencia)$')
+    fecha_inicio: FechaInicio = None
+
+    @model_validator(mode="after")
+    def _plan_o_dias(self):
+        if bool(self.plan_id) == bool(self.duracion_dias):
+            raise ValueError("Indicá un plan del catálogo o una cantidad de días, pero no ambos.")
+        return self
 
 
 @router.post("/{usuario_id}/activar")
@@ -486,21 +501,32 @@ def activar_usuario(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario pendiente no encontrado.")
 
-    plan = db.query(Plan).filter(Plan.id == payload.plan_id, Plan.activo == True).first()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan no encontrado.")
+    plan = None
+    if payload.plan_id:
+        plan = db.query(Plan).filter(Plan.id == payload.plan_id, Plan.activo == True).first()
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan no encontrado.")
 
     usuario.rol = RolUsuario.CLIENTE
     usuario.plan_solicitado_id = None
-    # aplicar_plan también carga los ingresos si el plan es por ingresos. Un pendiente
-    # no tiene vencimiento previo, así que la base termina siendo hoy igual.
-    nueva_fecha = aplicar_plan(usuario, plan, hoy_bogota())
+    # Las dos funciones cargan también los accesos. Un pendiente no tiene vencimiento
+    # previo, así que la base termina siendo hoy (o la fecha de inicio, si es futura).
+    hoy = hoy_bogota()
+    if plan:
+        nueva_fecha = aplicar_plan(usuario, plan, hoy, payload.fecha_inicio)
+    else:
+        nueva_fecha = aplicar_personalizado(
+            usuario, payload.duracion_dias, payload.numero_ingresos, hoy, payload.fecha_inicio
+        )
 
     pago = Pago(
         usuario_id=usuario.id,
-        plan_id=plan.id,
+        plan_id=plan.id if plan else None,
+        duracion_dias=None if plan else payload.duracion_dias,
+        numero_ingresos=None if plan else payload.numero_ingresos,
         monto=payload.monto,
         metodo_pago=payload.metodo_pago,
+        fecha_inicio=payload.fecha_inicio,
     )
     db.add(pago)
 

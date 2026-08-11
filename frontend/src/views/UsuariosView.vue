@@ -621,52 +621,13 @@
         </div>
 
         <div class="px-6 py-5 overflow-y-auto flex-1 space-y-5">
-          <!-- Selección de plan -->
-          <div>
-            <p class="text-sm font-semibold text-gray-700 mb-3">Selecciona el plan a asignar</p>
-            <div class="grid grid-cols-2 gap-3">
-              <label v-for="plan in planes" :key="plan.id"
-                class="flex flex-col items-center p-4 rounded-xl border-2 cursor-pointer transition-all"
-                :class="activarPlan === plan.id ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                <input type="radio" v-model="activarPlan" :value="plan.id" class="sr-only">
-                <span class="text-2xl font-black mb-0.5" :class="activarPlan === plan.id ? 'text-red-600' : 'text-gray-700'">
-                  {{ plan.duracion_dias }}<span class="text-sm font-bold">d</span>
-                </span>
-                <span class="text-sm font-bold text-center" :class="activarPlan === plan.id ? 'text-red-700' : 'text-gray-600'">{{ plan.nombre }}</span>
-                <span class="text-xs mt-1" :class="activarPlan === plan.id ? 'text-red-500' : 'text-gray-400'">${{ plan.precio.toLocaleString() }}</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Monto -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-              Monto cobrado ($)
-              <span v-if="activarPlan" class="text-gray-400 font-normal">— sugerido ${{ (planes.find(p => p.id === activarPlan)?.precio || 0).toLocaleString() }}</span>
-            </label>
-            <input v-model.number="activarMonto" type="number" min="0" step="any"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none"
-              :placeholder="activarPlan ? '$' + (planes.find(p => p.id === activarPlan)?.precio || 0).toLocaleString() : ''">
-          </div>
-
-          <!-- Método de pago -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Método de pago</label>
-            <div class="grid grid-cols-2 gap-2">
-              <label v-for="m in metodos" :key="m.value"
-                class="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm font-semibold"
-                :class="activarMetodo === m.value ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'">
-                <input type="radio" v-model="activarMetodo" :value="m.value" class="sr-only">
-                {{ m.label }}
-              </label>
-            </div>
-          </div>
+          <MembresiaSelector v-model="activarForm" :planes="planes" acento="red" />
 
           <div v-if="errorActivar" class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">{{ errorActivar }}</div>
 
           <div class="flex gap-3">
             <button @click="showActivar = false" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors">Cancelar</button>
-            <button @click="confirmarActivar" :disabled="guardandoActivar || !activarPlan"
+            <button @click="confirmarActivar" :disabled="guardandoActivar || !activarForm.plan"
               class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-colors disabled:bg-red-300 flex items-center justify-center gap-2">
               <span v-if="guardandoActivar" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
               {{ guardandoActivar ? 'Activando...' : 'Activar Cliente' }}
@@ -799,66 +760,14 @@
             <p v-else class="text-sm text-gray-500">Sin membresía activa — los días contarán desde hoy.</p>
           </div>
 
-          <!-- Selección de plan -->
-          <p class="text-sm font-semibold text-gray-700 mb-3">Selecciona un plan</p>
-          <div class="grid grid-cols-2 gap-3 mb-4">
-            <label v-for="plan in planes" :key="plan.id"
-              class="flex flex-col items-center p-4 rounded-xl border-2 cursor-pointer transition-all"
-              :class="renovarPlan === plan.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'">
-              <input type="radio" v-model="renovarPlan" :value="plan.id" class="sr-only">
-              <span class="text-2xl font-black mb-0.5" :class="renovarPlan === plan.id ? 'text-emerald-600' : 'text-gray-700'">
-                {{ plan.duracion_dias }}<span class="text-sm font-bold">d</span>
-              </span>
-              <span class="text-sm font-bold" :class="renovarPlan === plan.id ? 'text-emerald-700' : 'text-gray-600'">{{ plan.nombre }}</span>
-              <span class="text-xs mt-1" :class="renovarPlan === plan.id ? 'text-emerald-500' : 'text-gray-400'">${{ plan.precio.toLocaleString() }}</span>
-            </label>
+          <MembresiaSelector v-model="renovarForm" :planes="planes" acento="emerald"
+            titulo="Selecciona un plan" :vencimiento-actual="renovarUsuario?.fecha_vencimiento || null" />
 
-            <label class="flex flex-col items-center p-4 rounded-xl border-2 cursor-pointer transition-all col-span-2"
-              :class="renovarPlan === 'personalizado' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'">
-              <input type="radio" v-model="renovarPlan" value="personalizado" class="sr-only">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mb-1" :class="renovarPlan === 'personalizado' ? 'text-emerald-500' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-              <span class="text-sm font-bold" :class="renovarPlan === 'personalizado' ? 'text-emerald-700' : 'text-gray-600'">Personalizado (días)</span>
-            </label>
-          </div>
+          <div v-if="errorRenovar" class="mt-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">{{ errorRenovar }}</div>
 
-          <!-- Días personalizados -->
-          <div v-if="renovarPlan === 'personalizado'" class="mb-4">
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Días a agregar</label>
-            <input v-model.number="renovarDias" type="number" min="1" max="365"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-500 outline-none">
-          </div>
-
-          <!-- Monto -->
-          <div class="mb-4">
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-              Monto cobrado ($)
-              <span v-if="renovarPlan !== 'personalizado' && planSeleccionadoObj" class="text-gray-400 font-normal">
-                — sugerido ${{ planSeleccionadoObj.precio.toLocaleString() }}
-              </span>
-            </label>
-            <input v-model.number="renovarMonto" type="number" min="0" step="any"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-500 outline-none"
-              :placeholder="planSeleccionadoObj ? '$' + planSeleccionadoObj.precio.toLocaleString() : ''">
-          </div>
-
-          <!-- Método de pago -->
-          <div class="mb-5">
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Método de pago</label>
-            <div class="grid grid-cols-3 gap-2">
-              <label v-for="m in metodos" :key="m.value"
-                class="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm font-semibold"
-                :class="renovarMetodo === m.value ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'">
-                <input type="radio" v-model="renovarMetodo" :value="m.value" class="sr-only">
-                {{ m.label }}
-              </label>
-            </div>
-          </div>
-
-          <div v-if="errorRenovar" class="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">{{ errorRenovar }}</div>
-
-          <div class="flex gap-3">
+          <div class="flex gap-3 mt-5">
             <button @click="showRenovar = false" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors">Cancelar</button>
-            <button @click="confirmarRenovacion" :disabled="guardandoRenovar || !renovarPlan"
+            <button @click="confirmarRenovacion" :disabled="guardandoRenovar || !renovarForm.plan"
               class="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition-colors disabled:bg-emerald-200 flex items-center justify-center gap-2">
               <span v-if="guardandoRenovar" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
               {{ guardandoRenovar ? 'Guardando...' : 'Confirmar Renovación' }}
@@ -1065,62 +974,8 @@
 
           <!-- Plan inicial — al staff no le aplica membresía -->
           <div v-if="!creandoStaff" class="border-t border-gray-100 pt-5 mb-6">
-            <label class="block text-gray-700 text-sm font-semibold mb-3">Plan de Membresía <span class="text-gray-400 font-normal">(opcional)</span></label>
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex flex-col items-center p-3 rounded-xl border-2 cursor-pointer transition-all"
-                :class="planSeleccionado === 'ninguno' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                <input type="radio" v-model="planSeleccionado" value="ninguno" class="sr-only">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mb-1" :class="planSeleccionado === 'ninguno' ? 'text-red-400' : 'text-gray-300'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                <span class="text-xs font-semibold" :class="planSeleccionado === 'ninguno' ? 'text-red-700' : 'text-gray-500'">Sin plan</span>
-              </label>
-              <label v-for="plan in planes" :key="plan.id"
-                class="flex flex-col items-center p-3 rounded-xl border-2 cursor-pointer transition-all"
-                :class="planSeleccionado === plan.id ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                <input type="radio" v-model="planSeleccionado" :value="plan.id" class="sr-only">
-                <span class="text-lg font-black" :class="planSeleccionado === plan.id ? 'text-red-600' : 'text-gray-700'">{{ plan.duracion_dias }}d</span>
-                <span class="text-xs font-semibold" :class="planSeleccionado === plan.id ? 'text-red-700' : 'text-gray-600'">{{ plan.nombre }}</span>
-                <span class="text-xs mt-0.5" :class="planSeleccionado === plan.id ? 'text-red-500' : 'text-gray-400'">${{ plan.precio.toLocaleString() }}</span>
-              </label>
-              <label class="flex flex-col items-center p-3 rounded-xl border-2 cursor-pointer transition-all col-span-2"
-                :class="planSeleccionado === 'personalizado' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                <input type="radio" v-model="planSeleccionado" value="personalizado" class="sr-only">
-                <span class="text-xs font-semibold" :class="planSeleccionado === 'personalizado' ? 'text-red-700' : 'text-gray-600'">Personalizado (días)</span>
-              </label>
-            </div>
-
-            <div v-if="planSeleccionado === 'personalizado'" class="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-gray-600 text-xs font-semibold mb-1">Días de acceso</label>
-                <input v-model.number="planPersonalizado.dias" type="number" min="1" max="365" class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none text-sm" required>
-              </div>
-              <div>
-                <label class="block text-gray-600 text-xs font-semibold mb-1">Monto ($)</label>
-                <input v-model.number="planPersonalizado.monto" type="number" min="0" step="any" class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none text-sm" required>
-              </div>
-            </div>
-            <div v-if="planSeleccionado !== 'ninguno' && planSeleccionado !== 'personalizado'" class="mt-3">
-              <label class="block text-gray-600 text-xs font-semibold mb-1">Monto cobrado ($)</label>
-              <input v-model.number="montoPlanDefault" type="number" min="0" step="1000"
-                class="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none text-sm"
-                :placeholder="'Sugerido: $' + (planes.find(p => p.id === planSeleccionado)?.precio?.toLocaleString() || '')">
-            </div>
-
-            <!-- Método de pago: visible cuando se elige cualquier plan -->
-            <div v-if="planSeleccionado !== 'ninguno'" class="mt-3">
-              <label class="block text-gray-600 text-xs font-semibold mb-1">Método de pago <span class="text-red-500">*</span></label>
-              <div class="grid grid-cols-2 gap-2">
-                <label class="flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-all"
-                  :class="metodoPago === 'efectivo' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                  <input type="radio" v-model="metodoPago" value="efectivo" class="sr-only">
-                  <span class="text-sm font-semibold" :class="metodoPago === 'efectivo' ? 'text-red-700' : 'text-gray-600'">💵 Efectivo</span>
-                </label>
-                <label class="flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-all"
-                  :class="metodoPago === 'transferencia' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                  <input type="radio" v-model="metodoPago" value="transferencia" class="sr-only">
-                  <span class="text-sm font-semibold" :class="metodoPago === 'transferencia' ? 'text-red-700' : 'text-gray-600'">🏦 Transferencia</span>
-                </label>
-              </div>
-            </div>
+            <MembresiaSelector v-model="planInicial" :planes="planes" acento="red"
+              titulo="Plan de Membresía (opcional)" permitir-ninguno />
           </div>
 
           <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
@@ -1330,7 +1185,9 @@ import api, { mediaUrl } from '../api'
 import { fotoSrc } from '../lib/avatar'
 import { BADGE_NEUTRO } from '../data/paleta'
 import { useAuth } from '../composables/useAuth'
+import { nuevoFormulario, payloadActivacion, payloadPago } from '../lib/membresia'
 import PendienteDetalle from '../components/PendienteDetalle.vue'
+import MembresiaSelector from '../components/MembresiaSelector.vue'
 
 const route  = useRoute()
 const router = useRouter()
@@ -1629,17 +1486,14 @@ const nuevoUsuario = ref(NUEVO_USUARIO_VACIO())
 // El modal es el mismo para cliente y staff; cambia el rol precargado, las opciones
 // del select y si se muestra el bloque de plan (al staff no le aplica).
 const creandoStaff = ref(false)
-const planSeleccionado = ref('ninguno')
+const planInicial = ref(nuevoFormulario('ninguno'))
 
 function abrirFormulario(staff = false) {
   creandoStaff.value = staff
   nuevoUsuario.value = { ...NUEVO_USUARIO_VACIO(), rol: staff ? 'coach' : 'cliente' }
-  planSeleccionado.value = 'ninguno'
+  planInicial.value = nuevoFormulario('ninguno')
   showForm.value = true
 }
-const montoPlanDefault = ref('')
-const planPersonalizado = ref({ dias: '', monto: '' })
-const metodoPago = ref('efectivo')
 const fotoArchivo = ref(null)
 const fotoPreview = ref(null)
 
@@ -1654,32 +1508,28 @@ const editFotoPreview = ref(null)
 // ── Activar pendiente ─────────────────────────────────────────
 const showActivar = ref(false)
 const activarUsuario = ref(null)
-const activarPlan = ref(null)
-const activarMonto = ref('')
-const activarMetodo = ref('efectivo')
+const activarForm = ref(nuevoFormulario())
 const guardandoActivar = ref(false)
 const errorActivar = ref('')
 
 const abrirActivar = (u) => {
   activarUsuario.value = u
-  activarPlan.value = u.plan_solicitado_id || null
-  activarMonto.value = u.plan_solicitado?.precio || ''
-  activarMetodo.value = 'efectivo'
+  // Precarga el plan que el cliente pidió al registrarse, con su precio de sugerencia.
+  activarForm.value = nuevoFormulario(u.plan_solicitado_id || null)
+  activarForm.value.monto = u.plan_solicitado?.precio || null
   errorActivar.value = ''
   showActivar.value = true
 }
 
 const confirmarActivar = async () => {
-  if (!activarPlan.value) return
+  if (!activarForm.value.plan) return
   guardandoActivar.value = true
   errorActivar.value = ''
   try {
-    const plan = planes.value.find(p => p.id === activarPlan.value)
-    await api.post(`/usuarios/${activarUsuario.value.id}/activar`, {
-      plan_id: activarPlan.value,
-      monto: activarMonto.value || plan?.precio || 0,
-      metodo_pago: activarMetodo.value,
-    })
+    await api.post(
+      `/usuarios/${activarUsuario.value.id}/activar`,
+      payloadActivacion(activarForm.value, planes.value),
+    )
     showActivar.value = false
     await fetchPendientes()
     await fetchUsuarios()
@@ -1694,22 +1544,8 @@ const confirmarActivar = async () => {
 const showRenovar = ref(false)
 const guardandoRenovar = ref(false)
 const renovarUsuario = ref(null)
-const renovarPlan = ref(null)
-const renovarDias = ref('')
-const renovarMonto = ref('')
-const renovarMetodo = ref('efectivo')
+const renovarForm = ref(nuevoFormulario())
 const errorRenovar = ref('')
-
-const metodos = [
-  { value: 'efectivo', label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-]
-
-const planSeleccionadoObj = computed(() =>
-  renovarPlan.value && renovarPlan.value !== 'personalizado'
-    ? planes.value.find(p => p.id === renovarPlan.value) || null
-    : null
-)
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -1889,40 +1725,22 @@ const verUsuario = (u) => { router.push(`/usuarios/${u.id}`) }
 // ── Renovar ──────────────────────────────────────────────────
 const abrirRenovar = (user) => {
   renovarUsuario.value = user
-  renovarPlan.value = null
-  renovarDias.value = ''
-  renovarMonto.value = ''
-  renovarMetodo.value = 'efectivo'
+  renovarForm.value = nuevoFormulario()
   errorRenovar.value = ''
   showRenovar.value = true
 }
 
 const confirmarRenovacion = async () => {
-  if (!renovarPlan.value) return
+  if (!renovarForm.value.plan) return
+  if (renovarForm.value.plan === 'personalizado' && !(renovarForm.value.dias >= 1)) {
+    errorRenovar.value = 'Ingresa un número de días válido.'
+    return
+  }
   guardandoRenovar.value = true
   errorRenovar.value = ''
   try {
-    const id = renovarUsuario.value.id
-    if (renovarPlan.value === 'personalizado') {
-      if (!renovarDias.value || renovarDias.value < 1) {
-        errorRenovar.value = 'Ingresa un número de días válido.'
-        return
-      }
-      await api.post('/pagos/directo/', {
-        usuario_id: id,
-        duracion_dias: renovarDias.value,
-        monto: renovarMonto.value || 0,
-        metodo_pago: renovarMetodo.value,
-      })
-    } else {
-      const plan = planes.value.find(p => p.id === renovarPlan.value)
-      await api.post('/pagos/', {
-        usuario_id: id,
-        plan_id: renovarPlan.value,
-        monto: renovarMonto.value || plan?.precio || 0,
-        metodo_pago: renovarMetodo.value,
-      })
-    }
+    const { url, body } = payloadPago(renovarForm.value, planes.value, renovarUsuario.value.id)
+    await api.post(url, body)
     showRenovar.value = false
     await fetchUsuarios()
   } catch (e) {
@@ -1937,10 +1755,7 @@ const cerrarFormulario = () => {
   showForm.value = false
   creandoStaff.value = false
   nuevoUsuario.value = NUEVO_USUARIO_VACIO()
-  planSeleccionado.value = 'ninguno'
-  montoPlanDefault.value = ''
-  planPersonalizado.value = { dias: '', monto: '' }
-  metodoPago.value = 'efectivo'
+  planInicial.value = nuevoFormulario('ninguno')
   fotoArchivo.value = null
   fotoPreview.value = null
 }
@@ -1976,21 +1791,9 @@ const crearUsuario = async () => {
       await api.post(`/usuarios/${nuevo.id}/foto`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     }
 
-    if (planSeleccionado.value === 'personalizado') {
-      await api.post('/pagos/directo/', {
-        usuario_id: nuevo.id,
-        duracion_dias: planPersonalizado.value.dias,
-        monto: planPersonalizado.value.monto,
-        metodo_pago: metodoPago.value,
-      })
-    } else if (planSeleccionado.value !== 'ninguno') {
-      const plan = planes.value.find(p => p.id === planSeleccionado.value)
-      await api.post('/pagos/', {
-        usuario_id: nuevo.id,
-        plan_id: planSeleccionado.value,
-        monto: montoPlanDefault.value || plan?.precio || 0,
-        metodo_pago: metodoPago.value,
-      })
+    if (planInicial.value.plan && planInicial.value.plan !== 'ninguno') {
+      const { url, body } = payloadPago(planInicial.value, planes.value, nuevo.id)
+      await api.post(url, body)
     }
 
     cerrarFormulario()

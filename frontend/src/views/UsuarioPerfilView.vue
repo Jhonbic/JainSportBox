@@ -510,66 +510,14 @@
         </div>
 
         <div class="px-6 py-5 overflow-y-auto flex-1 space-y-5">
-          <!-- Selección de plan -->
-          <div>
-            <p class="text-sm font-semibold text-gray-700 mb-3">Selecciona el plan a asignar</p>
-            <div class="grid grid-cols-2 gap-3">
-              <label v-for="plan in planes" :key="plan.id"
-                class="flex flex-col items-center p-4 rounded-xl border-2 cursor-pointer transition-all"
-                :class="renovarPlan === plan.id ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                <input type="radio" v-model="renovarPlan" :value="plan.id" class="sr-only">
-                <span class="text-2xl font-black mb-0.5" :class="renovarPlan === plan.id ? 'text-red-600' : 'text-gray-700'">
-                  {{ plan.duracion_dias }}<span class="text-sm font-bold">d</span>
-                </span>
-                <span class="text-sm font-bold text-center" :class="renovarPlan === plan.id ? 'text-red-700' : 'text-gray-600'">{{ plan.nombre }}</span>
-                <span class="text-xs mt-1" :class="renovarPlan === plan.id ? 'text-red-500' : 'text-gray-400'">${{ plan.precio.toLocaleString() }}</span>
-              </label>
-
-              <label class="flex flex-col items-center p-4 rounded-xl border-2 cursor-pointer transition-all col-span-2"
-                :class="renovarPlan === 'personalizado' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300'">
-                <input type="radio" v-model="renovarPlan" value="personalizado" class="sr-only">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mb-1" :class="renovarPlan === 'personalizado' ? 'text-red-500' : 'text-gray-400'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                <span class="text-sm font-bold" :class="renovarPlan === 'personalizado' ? 'text-red-700' : 'text-gray-600'">Personalizado (días)</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Días personalizados -->
-          <div v-if="renovarPlan === 'personalizado'">
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Días a agregar</label>
-            <input v-model.number="renovarDias" type="number" min="1" max="365"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none">
-          </div>
-
-          <!-- Monto -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-              Monto cobrado ($)
-              <span v-if="renovarPlan && renovarPlan !== 'personalizado'" class="text-gray-400 font-normal">— sugerido ${{ (planes.find(p => p.id === renovarPlan)?.precio || 0).toLocaleString() }}</span>
-            </label>
-            <input v-model.number="renovarMonto" type="number" min="0" step="any"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 outline-none"
-              :placeholder="renovarPlan && renovarPlan !== 'personalizado' ? '$' + (planes.find(p => p.id === renovarPlan)?.precio || 0).toLocaleString() : ''">
-          </div>
-
-          <!-- Método de pago -->
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Método de pago</label>
-            <div class="grid grid-cols-2 gap-2">
-              <label v-for="m in metodos" :key="m.value"
-                class="flex items-center justify-center gap-1.5 p-2.5 rounded-lg border-2 cursor-pointer transition-all text-sm font-semibold"
-                :class="renovarMetodo === m.value ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'">
-                <input type="radio" v-model="renovarMetodo" :value="m.value" class="sr-only">
-                {{ m.label }}
-              </label>
-            </div>
-          </div>
+          <MembresiaSelector v-model="renovarForm" :planes="planes" acento="red"
+            :vencimiento-actual="usuario?.fecha_vencimiento || null" />
 
           <div v-if="errorRenovar" class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">{{ errorRenovar }}</div>
 
           <div class="flex gap-3">
             <button @click="showRenovar = false" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors">Cancelar</button>
-            <button @click="confirmarRenovacion" :disabled="guardandoRenovar || !renovarPlan"
+            <button @click="confirmarRenovacion" :disabled="guardandoRenovar || !renovarForm.plan"
               class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-colors disabled:bg-red-300 flex items-center justify-center gap-2">
               <span v-if="guardandoRenovar" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
               {{ guardandoRenovar ? 'Guardando...' : 'Agregar Membresía' }}
@@ -689,7 +637,9 @@ import InputPassword from '../components/InputPassword.vue'
 import api from '../api'
 import { fotoSrc } from '../lib/avatar'
 import { BADGE_NEUTRO } from '../data/paleta'
+import { METODOS as metodos, nuevoFormulario, payloadPago } from '../lib/membresia'
 import FotoAmpliada from '../components/FotoAmpliada.vue'
+import MembresiaSelector from '../components/MembresiaSelector.vue'
 
 const route = useRoute()
 const id = route.params.id
@@ -706,15 +656,8 @@ const planes = ref([])
 // ── Renovar / Agregar membresía ─────────────────────────────
 const showRenovar = ref(false)
 const guardandoRenovar = ref(false)
-const renovarPlan = ref(null)
-const renovarDias = ref('')
-const renovarMonto = ref('')
-const renovarMetodo = ref('efectivo')
+const renovarForm = ref(nuevoFormulario())
 const errorRenovar = ref('')
-const metodos = [
-  { value: 'efectivo', label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-]
 
 // ── Editar / Anular pago ────────────────────────────────────
 const showEditarPago = ref(false)
@@ -768,40 +711,22 @@ async function confirmarAnularPago(p) {
 }
 
 function abrirRenovar() {
-  renovarPlan.value = null
-  renovarDias.value = ''
-  renovarMonto.value = ''
-  renovarMetodo.value = 'efectivo'
+  renovarForm.value = nuevoFormulario()
   errorRenovar.value = ''
   showRenovar.value = true
 }
 
 async function confirmarRenovacion() {
-  if (!renovarPlan.value) return
+  if (!renovarForm.value.plan) return
+  if (renovarForm.value.plan === 'personalizado' && !(renovarForm.value.dias >= 1)) {
+    errorRenovar.value = 'Ingresa un número de días válido.'
+    return
+  }
   guardandoRenovar.value = true
   errorRenovar.value = ''
   try {
-    if (renovarPlan.value === 'personalizado') {
-      if (!renovarDias.value || renovarDias.value < 1) {
-        errorRenovar.value = 'Ingresa un número de días válido.'
-        guardandoRenovar.value = false
-        return
-      }
-      await api.post('/pagos/directo/', {
-        usuario_id: Number(id),
-        duracion_dias: renovarDias.value,
-        monto: renovarMonto.value || 0,
-        metodo_pago: renovarMetodo.value,
-      })
-    } else {
-      const plan = planes.value.find(p => p.id === renovarPlan.value)
-      await api.post('/pagos/', {
-        usuario_id: Number(id),
-        plan_id: renovarPlan.value,
-        monto: renovarMonto.value || plan?.precio || 0,
-        metodo_pago: renovarMetodo.value,
-      })
-    }
+    const { url, body } = payloadPago(renovarForm.value, planes.value, Number(id))
+    await api.post(url, body)
     showRenovar.value = false
     const [u, p] = await Promise.allSettled([
       api.get(`/usuarios/${id}`),
