@@ -513,7 +513,6 @@
                       <div>
                         <div class="text-sm font-semibold text-gray-900 group-hover:text-red-600 transition-colors">
                           {{ u.nombre }}
-                          <span v-if="u.id === miId" class="ml-1 text-xs font-bold text-gray-400">(vos)</span>
                         </div>
                         <div class="text-xs text-gray-500">{{ u.email }}</div>
                       </div>

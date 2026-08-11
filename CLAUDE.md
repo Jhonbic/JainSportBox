@@ -316,7 +316,7 @@ El sidebar está dividido en secciones semánticas según el rol:
 **Sección "Mi Box"** (coach + cliente):
 - Inicio
 - Planes (solo cliente)
-- Mi Salud (cliente, membresía vigente)
+- Mi Salud (coach + cliente, membresía vigente)
 - Mis Marcas (coach + cliente, membresía vigente)
 
 **Sección "Cuenta"** (todos los roles no pendientes, incluido admin):
@@ -491,7 +491,7 @@ Ojo con las claves, porque "activo" significa dos cosas distintas en esta pantal
 
 **Modal de creación contextual:** es el mismo modal para ambos casos. Desde Clientes precarga `rol: 'cliente'` y muestra el bloque de plan; desde Equipo (`creandoStaff`) precarga `rol: 'coach'`, saca "Cliente" del select y **oculta el bloque de Plan de Membresía**. Abrirlo siempre pasa por `abrirFormulario(staff)`, nunca por `showForm = true` suelto.
 
-**`miId`:** el id propio no está en `localStorage`, así que la vista lo pide a `GET /me` al montar. Se usa para no ofrecer el botón de eliminar en la fila propia (y para el sufijo "(vos)").
+**`miId`:** el id propio no está en `localStorage`, así que la vista lo pide a `GET /me` al montar. Se usa para no ofrecer el botón de eliminar en la fila propia. Llevaba además un sufijo "(vos)" junto al nombre, que se quitó: el voseo no es el registro del resto de la app y la fila propia no necesitaba marcarse.
 
 ### Guards de `DELETE /usuarios/{id}`
 
@@ -521,6 +521,8 @@ El filtro "En el box ahora" en la tabla de usuarios usa `enGym` (ref), cargado c
 ## Mi Salud — health metrics
 
 Per-measurement routing: each metric has its own page at `/salud/:tipo`. **Excluida del rol `admin`** — el router restringe `/salud` y `/salud/:tipo` a `roles: ['coach', 'cliente']`. El admin no ve esta sección en el sidebar ni puede entrar por URL directa.
+
+**El coach también se mide**, igual que en Mis Marcas: el enlace del sidebar va con `v-if="!membresiaVencida"` dentro del bloque "Mi Box", no con `isCliente`. La ruta ya aceptaba `coach` y el router de backend es por `get_current_user` sin chequeo de rol, así que durante un tiempo la vista existía para el coach pero solo se alcanzaba tecleando la URL. `membresiaVencida` es siempre `false` para staff, así que esa condición no lo excluye.
 
 **Measurement types** (defined in `frontend/src/data/saludTipos.js`):
 `peso`, `altura`, `cintura`, `cuello`, `cadera`, `brazos`

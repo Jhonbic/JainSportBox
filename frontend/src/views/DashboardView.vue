@@ -365,10 +365,13 @@ const deltaActivos = computed(() => {
 // La normalización vive en lib/whatsapp.js, que espeja la del backend. Acá había una
 // copia local (`_telefono`) y en PlanesView una tercera que ni ponía el prefijo 57.
 
+// Los emojis de estos dos mensajes son deliberados: son los únicos de la app y van
+// en el saludo por WhatsApp a un socio, no en la interfaz de gestión. No los saques
+// en una limpieza de copy.
 const whatsappCumpleanos = (u) =>
   linkWa(u.telefono,
     `¡Feliz cumpleaños, ${u.nombre}! 🎉 De parte de todo el equipo de Jain Sport Box. ` +
-    `Pasá hoy por el box y te invitamos un batido. 💪`
+    `Pasa hoy por el box y te invitamos un batido. 💪`
   )
 
 // ── Felicitaciones enviadas ──────────────────────────────────

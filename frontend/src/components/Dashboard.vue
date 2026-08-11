@@ -172,7 +172,11 @@
             </svg>
             Planes
           </router-link>
-          <router-link v-if="isCliente && !membresiaVencida" to="/salud" @click="sidebarOpen = false"
+          <!-- Mismo criterio que Mis Marcas: el coach también se mide. La ruta ya
+               aceptaba `coach`, así que el enlace era lo único que faltaba, y sin él
+               la vista solo se alcanzaba tecleando la URL. `membresiaVencida` es
+               siempre false para staff, así que no hace falta excluirlo acá. -->
+          <router-link v-if="!membresiaVencida" to="/salud" @click="sidebarOpen = false"
             class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
             active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
