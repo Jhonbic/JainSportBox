@@ -12,7 +12,7 @@ from database import get_db
 from fechas import TZ_BOGOTA, hoy_bogota
 from models import Pago, Plan, RolUsuario, Usuario
 from schemas.usuario import UsuarioUpdate
-from security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, get_password_hash, verify_password, get_current_user
+from security import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, get_password_hash, verificar_y_renovar_hash, verify_password, get_current_user
 from storage import guardar_archivo, eliminar_archivo
 from ratelimit import limitar
 
@@ -53,12 +53,25 @@ def login(
 ):
     email_norm = (form_data.username or "").strip().lower()
     usuario = db.query(Usuario).filter(Usuario.email == email_norm).first()
-    if not usuario or not verify_password(form_data.password, usuario.password_hash):
+
+    valida, hash_nuevo = (
+        verificar_y_renovar_hash(form_data.password, usuario.password_hash)
+        if usuario
+        else (False, None)
+    )
+    if not valida:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Migración silenciosa del costo de bcrypt: los hashes viejos (12 rondas) se
+    # reemplazan cuando su dueño entra bien, sin pedirle nada ni cambiarle la clave.
+    if hash_nuevo:
+        usuario.password_hash = hash_nuevo
+        db.commit()
+
     access_token = create_access_token(
         data={"sub": usuario.email},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),

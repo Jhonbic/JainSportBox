@@ -91,6 +91,12 @@ La suite (`backend/tests/`) cubre todos los routers; el plan completo y los hall
 
 **Auth flow:** POST `/login` returns a JWT → stored in `localStorage.token` → injected via Axios interceptor → backend validates via `get_current_user()` dependency → user role checked per-route.
 
+**Costo de bcrypt — `BCRYPT_ROUNDS = 11`** (env var, `security.py`). El default de passlib es 12, y medido contra producción un login con usuario real tardaba **770–960 ms** contra ~220 ms con un email inexistente (que ni llega a hashear): esos ~600 ms eran bcrypt sobre los 0.5 CPU de Render Starter. Cada ronda duplica el trabajo, así que 11 lo deja en ~300 ms y sigue por encima del piso de 10 de OWASP. No es solo comodidad: cada intento quema ese tiempo del único núcleo, y en la hora pico los logins compiten con las marcaciones de huella.
+
+**`bcrypt__max_rounds` no es redundante con `default_rounds`.** passlib solo marca un hash para renovar cuando es **más débil** que lo configurado; bajar el default no alcanza, porque 12 rondas es más fuerte que 11 y no hay razón de *seguridad* para tocarlo. Acá la razón es de rendimiento, así que hace falta el techo explícito para que `verify_and_update` lo reemplace. Sin esa línea la migración no ocurre y el admin —el que más entra— se queda en 12 para siempre. El login llama a `verificar_y_renovar_hash()` y reescribe el hash solo si passlib devuelve uno nuevo; migra a cada persona la próxima vez que entra bien, sin pedirle nada.
+
+**Canal lateral conocido:** un email inexistente responde mucho más rápido que uno real, porque se saltea el hash. Eso permite averiguar qué correos están registrados. Cerrarlo exige hashear contra un hash señuelo también cuando el usuario no existe, lo que le regala CPU a cualquiera que golpee `/login` — en un solo worker con 0.5 CPU, el remedio es peor. Queda así a sabiendas.
+
 **Role-based access:**
 - Roles: `admin`, `coach`, `cliente`, `pendiente` (enum `RolUsuario` in `models.py`)
 - Backend: route-level `Depends(_require_admin_or_coach)` or `Depends(_require_admin)` pattern in each router

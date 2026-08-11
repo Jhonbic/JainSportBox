@@ -67,6 +67,42 @@ def test_login_email_inexistente(client):
     assert r.status_code == 401
 
 
+def test_login_migra_el_hash_con_costo_viejo(client, crear_usuario, db_session):
+    """Bajar BCRYPT_ROUNDS solo afecta a los hashes nuevos: los que ya existen
+    seguirían pagando el costo viejo para siempre. El login los reemplaza al entrar."""
+    from passlib.context import CryptContext
+
+    from security import BCRYPT_ROUNDS
+
+    viejo = CryptContext(schemes=["bcrypt"], bcrypt__default_rounds=BCRYPT_ROUNDS + 1)
+    actor = crear_usuario("cliente")
+    usuario = db_session.query(models.Usuario).filter_by(id=actor.user.id).one()
+    usuario.password_hash = viejo.hash(PASSWORD)
+    db_session.commit()
+    hash_previo = usuario.password_hash
+
+    assert _login(client, usuario.email, PASSWORD).status_code == 200
+
+    db_session.expire_all()
+    renovado = db_session.query(models.Usuario).filter_by(id=actor.user.id).one().password_hash
+    assert renovado != hash_previo
+    assert renovado.split("$")[2] == f"{BCRYPT_ROUNDS:02d}"
+    # y la contraseña sigue siendo la misma para quien la usa
+    assert _login(client, usuario.email, PASSWORD).status_code == 200
+    assert _login(client, usuario.email, "otra-cosa").status_code == 401
+
+
+def test_login_no_reescribe_un_hash_que_ya_esta_al_dia(client, crear_usuario, db_session):
+    """Sin esto, cada login haría un UPDATE inútil contra Supabase."""
+    actor = crear_usuario("cliente")
+    previo = db_session.query(models.Usuario).filter_by(id=actor.user.id).one().password_hash
+
+    assert _login(client, actor.user.email, PASSWORD).status_code == 200
+
+    db_session.expire_all()
+    assert db_session.query(models.Usuario).filter_by(id=actor.user.id).one().password_hash == previo
+
+
 def test_login_normaliza_email(client):
     r = _login(client, f"  {ADMIN_EMAIL.upper()}  ", ADMIN_PASSWORD)
     assert r.status_code == 200
