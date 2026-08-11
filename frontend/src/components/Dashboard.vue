@@ -236,7 +236,11 @@
       <!-- Content -->
       <main class="flex-1 overflow-x-hidden overflow-y-auto">
         <div class="p-4 sm:p-6 md:p-8">
-          <router-view></router-view>
+          <div v-if="cargandoRuta" class="flex flex-col items-center justify-center py-24 gap-4" role="status" aria-live="polite">
+            <img src="/logo.png" alt="" class="h-20 w-auto select-none animate-pulse" draggable="false">
+            <span class="text-sm font-semibold text-gray-400">Cargando…</span>
+          </div>
+          <router-view v-else></router-view>
         </div>
       </main>
     </div>
@@ -246,6 +250,7 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { cargandoRuta } from '../lib/navegacion'
 import { useAuth, setFechaVencimiento } from '../composables/useAuth'
 import { desactivarKiosco } from '../composables/useKiosco'
 import api from '../api'

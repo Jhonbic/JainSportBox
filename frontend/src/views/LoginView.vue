@@ -265,7 +265,12 @@ const handleLogin = async () => {
     // guard lo dejaría encerrado en /acceso justo después de loguearse.
     desactivarKiosco()
 
-    router.push('/')
+    // Con `await`. Sin él, el `finally` apagaba el spinner apenas se dispara la
+    // navegación, pero la vista de destino es una ruta lazy y todavía tiene que
+    // bajar su chunk: el botón volvía a "Ingresar" y la pantalla de login se quedaba
+    // quieta unos instantes antes de saltar, que es exactamente la sensación de que
+    // el sistema se colgó.
+    await router.push('/')
   } catch (e) {
     loginError.value = e.response?.status === 401
       ? 'Credenciales incorrectas. Verifica tu email y contraseña.'

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { marcarNavegacionEnCurso, marcarNavegacionTerminada } from '../lib/navegacion'
 // Login y Dashboard son el shell inicial → estáticos. El resto se carga on-demand
 // (import dinámico) para que cada vista sea su propio chunk y no engorde el bundle
 // inicial que descarga alguien que solo entra a /home.
@@ -223,5 +224,19 @@ router.beforeEach((to, from, next) => {
 
   next()
 })
+
+// ── Indicador de navegación ──────────────────────────────────────
+// Casi todas las vistas son chunks lazy: entre que se dispara la navegación y que
+// la vista aparece hay una descarga, y durante ese rato el área de contenido queda
+// en blanco sin que nada avise. Esto lo llena con el logo (ver `Dashboard.vue`).
+router.beforeEach((to, from, next) => {
+  marcarNavegacionEnCurso()
+  next()
+})
+
+router.afterEach(marcarNavegacionTerminada)
+// Si el chunk no baja (deploy nuevo que invalidó el hash, o se cayó la red), sin
+// esto el logo se quedaría para siempre.
+router.onError(marcarNavegacionTerminada)
 
 export default router
