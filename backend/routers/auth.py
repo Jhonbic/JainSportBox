@@ -68,8 +68,25 @@ def login(
 
 @router.get("/contacto")
 def contacto_admin(db: Session = Depends(get_db)):
+    """Teléfono al que el socio manda el comprobante de pago (lo usa `PlanesView`).
+
+    Endpoint público a propósito: lo consulta un usuario `pendiente`, que todavía no
+    tiene con qué autenticarse. Devuelve SOLO el teléfono — no agregar acá nombre ni
+    email del admin, que no hacen falta para el link de WhatsApp.
+
+    El `order_by(id)` no es cosmético. `.first()` sin orden deja que el motor elija la
+    fila, y si por lo que sea hay más de un ADMIN (el sistema dice que hay uno solo,
+    pero es una regla de código, no una restricción de la base), el botón de "enviar
+    comprobante" podía apuntar a un admin distinto en cada consulta. Con el orden fijo
+    apunta siempre al mismo: el primero que se creó, que es el que siembra `seed.py`.
+    """
     from models import RolUsuario as _Rol
-    admin = db.query(Usuario).filter(Usuario.rol == _Rol.ADMIN).first()
+    admin = (
+        db.query(Usuario)
+        .filter(Usuario.rol == _Rol.ADMIN)
+        .order_by(Usuario.id)
+        .first()
+    )
     return {"telefono": admin.telefono if admin else None}
 
 
