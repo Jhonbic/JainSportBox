@@ -19,7 +19,10 @@
  */
 
 const int  PIN_RELE = 7;        // pin de señal (IN) del módulo de relé
-const long RELE_MS  = 5000;     // tiempo que la palanquera queda abierta (ms)
+// OJO: este valor vive en la memoria del Arduino, no en el bridge. Cambiarlo acá no
+// hace nada hasta volver a cargar el sketch en la placa con el Arduino IDE (y con el
+// bridge detenido, que mantiene el puerto COM tomado).
+const long RELE_MS  = 10000;    // tiempo que la palanquera queda abierta (ms)
 
 // Módulo SRD-05VDC-SL-C activo-bajo: LOW activa el relé. Si tu módulo fuera
 // activo-alto, intercambiá estos dos valores (RELE_ON = HIGH, RELE_OFF = LOW).

@@ -868,14 +868,16 @@ Al terminar consulta `/status` y avisa si `templates_en_cache` es 0, distinguien
 El bridge abre una palanquera/torniquete cuando un usuario válido marca **entrada**. El control físico es un **Arduino UNO** con un **módulo de relé SRD-05VDC-SL-C** (activo-bajo) conectado por USB-serial.
 
 **División de responsabilidades — el Arduino es el dueño del tiempo de pulso:**
-- El bridge solo manda un byte `'A'` cuando hay entrada aprobada. No bloquea esperando los 5 s.
-- El Arduino, al recibir `'A'`, activa el relé `RELE_MS` (5000 ms) y lo cierra solo (loop no bloqueante con `millis()`). Si el bridge se cae o el PC se reinicia a mitad de pulso, la palanquera vuelve a reposo (cerrada) igual.
+- El bridge solo manda un byte `'A'` cuando hay entrada aprobada. No bloquea esperando el pulso.
+- El Arduino, al recibir `'A'`, activa el relé `RELE_MS` (10000 ms) y lo cierra solo (loop no bloqueante con `millis()`). Si el bridge se cae o el PC se reinicia a mitad de pulso, la palanquera vuelve a reposo (cerrada) igual.
+
+**El tiempo abierto NO se cambia desde el repo ni reinstalando el bridge:** `RELE_MS` vive en la memoria del Arduino. Editar el `.ino` no hace nada hasta volver a cargarlo en la placa con el Arduino IDE, y para eso hay que **detener el bridge primero** — `RelayController` deja el puerto COM abierto todo el tiempo (no lo abre y cierra por acceso), así que el IDE no puede tomarlo.
 
 **Protocolo serial (9600 baud, line ending `\n`):**
 
 | Dirección | Mensaje | Significado |
 |---|---|---|
-| bridge → arduino | `'A'` | Abrir palanquera (pulso de 5 s) |
+| bridge → arduino | `'A'` | Abrir palanquera (pulso de `RELE_MS`) |
 | bridge → arduino | `'P'` | Ping (usado para autodetección de puerto) |
 | arduino → bridge | `JSB-PALANQUERA READY` | Emitido al arrancar el sketch |
 | arduino → bridge | `JSB-PALANQUERA OK` | Respuesta al ping `'P'` |
@@ -890,7 +892,7 @@ El bridge abre una palanquera/torniquete cuando un usuario válido marca **entra
 
 **Cableado (módulo de 1 canal):** `VCC→5V`, `GND→GND`, `IN→D7`. La palanquera va a los bornes `NO/COM` (normalmente abierto) del relé. Si tu módulo fuera activo-alto, intercambiá `RELE_ON`/`RELE_OFF` en el `.ino`.
 
-**Subir el sketch:** abrir `arduino/palanquera_rele/palanquera_rele.ino` en el Arduino IDE, seleccionar placa "Arduino UNO" y el puerto, y cargar. El pin del relé es `PIN_RELE = 7` y el tiempo abierto `RELE_MS = 5000`.
+**Subir el sketch:** abrir `arduino/palanquera_rele/palanquera_rele.ino` en el Arduino IDE, seleccionar placa "Arduino UNO" y el puerto, y cargar. El pin del relé es `PIN_RELE = 7` y el tiempo abierto `RELE_MS = 10000`. **Detener el bridge antes de cargar**, o el puerto COM está tomado y el IDE falla.
 
 ### DLLs del SDK referenciadas
 
