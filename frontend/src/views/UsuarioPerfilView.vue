@@ -129,10 +129,24 @@
           </div>
           <!-- Membresía -->
           <div class="bg-gray-50 rounded-xl p-3 col-span-2 sm:col-span-3">
-            <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">Membresía</p>
+            <div class="flex items-center gap-2 mb-2">
+              <p class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Membresía</p>
+              <!-- El veredicto de una sola mirada: es la pregunta que trae al admin a
+                   esta pantalla ("¿por qué no le abre la puerta?"). Las líneas de abajo
+                   son el detalle. -->
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full" :class="estadoMembresia.clase">
+                {{ estadoMembresia.texto }}
+              </span>
+            </div>
             <div class="flex items-center justify-between gap-3">
               <div>
                 <template v-if="usuario.fecha_vencimiento">
+                  <!-- Arranque futuro: la fecha de vencimiento ya está en el futuro, así
+                       que sin esta línea la card se ve sana mientras la palanquera la
+                       rechaza. -->
+                  <p v-if="estadoMembresia.codigo === 'no_iniciada'" class="text-sm font-bold text-amber-600">
+                    Arranca el {{ formatFecha(usuario.membresia_inicio) }}
+                  </p>
                   <p class="text-sm font-bold" :class="colorTextoDias(diasRestantes(usuario.fecha_vencimiento))">
                     {{ etiquetaDias(diasRestantes(usuario.fecha_vencimiento)) }}
                   </p>
@@ -937,6 +951,35 @@ function etiquetaDias(d) {
   if (d === 1) return 'Vence mañana'
   return `${d} días restantes`
 }
+
+// Espeja el orden de `_validar_membresia` (routers/asistencia.py): arranque, después
+// fecha, después accesos. Existe porque las tres líneas de la card se leían por
+// separado y ninguna daba el veredicto: un socio con el bono en 0 y fecha vigente
+// mostraba "23 días restantes" en verde, y uno con arranque futuro se veía igual de
+// sano — en los dos casos la palanquera lo rechazaba y el admin no tenía por qué
+// sospecharlo. Las clases van completas, nunca interpoladas (Tailwind las purga).
+const estadoMembresia = computed(() => {
+  const u = usuario.value || {}
+  if (!u.fecha_vencimiento) {
+    return { codigo: 'ninguna', texto: 'Sin membresía', clase: 'bg-gray-200 text-gray-600' }
+  }
+  // Se compara con `diasRestantes`, que parsea como medianoche LOCAL. Con
+  // `toISOString()` la comparación sería contra la fecha UTC, y en Bogotá después de
+  // las 19:00 una membresía que arranca mañana se daría por iniciada.
+  if (u.membresia_inicio && diasRestantes(u.membresia_inicio) > 0) {
+    return { codigo: 'no_iniciada', texto: 'No iniciada', clase: 'bg-amber-100 text-amber-700' }
+  }
+  if (diasRestantes(u.fecha_vencimiento) < 0) {
+    return { codigo: 'vencida', texto: 'Vencida', clase: 'bg-red-100 text-red-700' }
+  }
+  if (u.ingresos_restantes !== null && u.ingresos_restantes !== undefined && u.ingresos_restantes <= 0) {
+    return { codigo: 'sin_accesos', texto: 'Sin accesos', clase: 'bg-red-100 text-red-700' }
+  }
+  if (diasRestantes(u.fecha_vencimiento) <= 7) {
+    return { codigo: 'por_vencer', texto: 'Por vencer', clase: 'bg-amber-100 text-amber-700' }
+  }
+  return { codigo: 'vigente', texto: 'Vigente', clase: 'bg-emerald-100 text-emerald-700' }
+})
 
 // ── Calendario ──────────────────────────────────────────────
 const MIN_OFFSET = -11

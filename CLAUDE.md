@@ -290,6 +290,10 @@ Route `/usuarios/:id` (roles: `admin`, `coach`). Three sections:
 
 **Profile card:** Centered column layout — photo on top, name below (prevents mobile truncation). Shows email, document, phone, gender, fingerprint status, membership status. "Editar perfil" button in the header opens an edit modal.
 
+**Card de membresía — el badge da el veredicto, las líneas el detalle.** `estadoMembresia` (`ninguna` / `no_iniciada` / `vencida` / `sin_accesos` / `por_vencer` / `vigente`) **espeja el orden de `_validar_membresia`**: arranque, después fecha, después accesos. Existe porque las tres líneas se leían por separado y ninguna contestaba la pregunta que trae al admin acá — *"¿por qué no le abre la puerta?"*. Un socio con el bono en 0 y fecha vigente mostraba "23 días restantes" en verde, y uno con arranque futuro se veía igual de sano; en los dos casos la palanquera lo rechazaba.
+
+Para eso hizo falta **agregar `membresia_inicio` a `UsuarioResponse`**: la columna existía y bloqueaba el acceso, pero no viajaba en ninguna respuesta, así que un arranque futuro era invisible en toda la UI de admin. La comparación en el front va con `diasRestantes()`, que parsea como medianoche **local** — con `toISOString()` sería contra la fecha UTC y en Bogotá, después de las 19:00, una membresía que arranca mañana se daría por iniciada.
+
 **Edit modal:** Fields: nombre, email, teléfono, documento_identidad, género, fecha_nacimiento (opcional), optional password change (checkbox toggle + visibility toggle). Only sends changed fields to the backend (`PATCH /usuarios/:id`). Updates `usuario.value` reactively on success without page reload.
 
 **Profile card:** Muestra `fecha_nacimiento` como "15 ene 1995 (30 años)" usando el helper `formatCumpleanos(f)` — calcula la edad en base a la fecha de hoy. Solo se muestra si el campo existe.

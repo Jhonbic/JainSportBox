@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 import models
 from conftest import PNG_BYTES, SessionLocal, auth_headers
+from fechas import hoy_bogota
 
 
 def _payload_usuario(**overrides):
@@ -196,6 +197,33 @@ def test_obtener_usuario(client, admin_headers, cliente):
     r = client.get(f"/usuarios/{cliente.user.id}", headers=admin_headers)
     assert r.status_code == 200
     assert r.json()["email"] == cliente.user.email
+
+
+def test_obtener_usuario_expone_el_arranque_futuro(client, admin_headers, cliente):
+    """`membresia_inicio` es la compuerta que niega el acceso antes que la fecha, y sin
+    exponerla el perfil mostraba "N días restantes" en verde mientras la palanquera
+    rechazaba a la persona: el admin no tenía cómo ver por qué."""
+    inicio = hoy_bogota() + timedelta(days=10)
+    client.post(
+        "/pagos/directo/",
+        json={
+            "usuario_id": cliente.user.id,
+            "duracion_dias": 30,
+            "monto": 100,
+            "metodo_pago": "efectivo",
+            "fecha_inicio": inicio.isoformat(),
+        },
+        headers=admin_headers,
+    )
+    body = client.get(f"/usuarios/{cliente.user.id}", headers=admin_headers).json()
+    assert body["membresia_inicio"] == inicio.isoformat()
+
+
+def test_obtener_usuario_sin_arranque_futuro_va_en_null(client, admin_headers, cliente):
+    """Una membresía que ya está corriendo no tiene compuerta: el campo va en null y la
+    card no muestra el aviso."""
+    body = client.get(f"/usuarios/{cliente.user.id}", headers=admin_headers).json()
+    assert body["membresia_inicio"] is None
 
 
 def test_obtener_usuario_id_no_numerico(client, admin_headers):

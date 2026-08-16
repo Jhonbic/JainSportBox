@@ -54,6 +54,12 @@ class UsuarioResponse(BaseModel):
     telefono: Optional[str]
     fecha_vencimiento: Optional[date]
     ingresos_restantes: Optional[int] = None   # None = membresía por tiempo
+    # Solo se llena cuando la membresía se vendió para arrancar más adelante, y es la
+    # compuerta que `_validar_membresia` chequea ANTES que fecha y accesos. Sin este
+    # campo en la respuesta, el perfil mostraba "23 días restantes" en verde mientras
+    # la palanquera rechazaba a la persona con `no_iniciada`, y el admin no tenía cómo
+    # enterarse de por qué.
+    membresia_inicio: Optional[date] = None
     esta_en_gym: bool
     foto_url: Optional[str]
     genero: Optional[str]
