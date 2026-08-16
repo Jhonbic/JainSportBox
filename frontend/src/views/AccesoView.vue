@@ -112,7 +112,7 @@
                 {{ resultado.ingresos_restantes }}
               </p>
               <p class="text-sm font-bold text-emerald-700 mt-1">
-                {{ resultado.ingresos_restantes === 1 ? 'ingreso restante' : 'ingresos restantes' }}
+                {{ resultado.ingresos_restantes === 1 ? 'acceso restante' : 'accesos restantes' }}
               </p>
               <p class="text-xs text-emerald-600 mt-2">
                 Vencen el {{ formatFecha(resultado.fecha_vencimiento) }}
@@ -368,10 +368,11 @@ function _falloDesde(e) {
   const status = e.response?.status
   if (status === 403) {
     // Los dos casos son 403, pero el socio tiene que hacer cosas distintas: uno
-    // renueva la fecha y el otro compra más entradas. El backend manda un detail
-    // estructurado solo para el de ingresos.
+    // renueva la fecha y el otro compra más accesos. El backend manda un detail
+    // estructurado solo para el de accesos (el código sigue siendo `sin_ingresos`,
+    // que es el nombre del campo en la API; en pantalla se dice "accesos").
     if (e.response?.data?.detail?.codigo === 'sin_ingresos') {
-      return { titulo: 'Sin ingresos disponibles', detalle: 'Acércate a recepción para comprar más ingresos.' }
+      return { titulo: 'Sin accesos disponibles', detalle: 'Acércate a recepción para comprar más accesos.' }
     }
     return { titulo: 'Membresía vencida', detalle: 'Acércate a recepción para renovar tu mensualidad.' }
   }

@@ -326,6 +326,44 @@ def test_me_cliente_con_plan(client, cliente, db_session):
     assert body["plan_actual"]["nombre"] == "1 Mes"
 
 
+def test_me_pago_personalizado_tambien_trae_plan_actual(client, admin_headers, cliente):
+    """`plan_id` es NULL en un pago personalizado, así que la consulta a `planes` no
+    devolvía nada y la pantalla de inicio le decía "Sin plan activo" a alguien que
+    acababa de pagar. Los accesos comprados viajan en `numero_ingresos`."""
+    r = client.post(
+        "/pagos/directo/",
+        json={
+            "usuario_id": cliente.user.id,
+            "duracion_dias": 45,
+            "numero_ingresos": 12,
+            "monto": 150000,
+            "metodo_pago": "efectivo",
+        },
+        headers=admin_headers,
+    )
+    assert r.status_code == 201
+
+    body = client.get("/me", headers=cliente.headers).json()
+    assert body["plan_actual"]["nombre"] == "Personalizado (45 días)"
+    assert body["plan_actual"]["duracion_dias"] == 45
+    assert body["plan_actual"]["numero_ingresos"] == 12
+    assert body["plan_actual"]["precio"] == 150000
+    # Los que le quedan salen del usuario, no del plan: son ejes distintos.
+    assert body["ingresos_restantes"] == 12
+
+
+def test_me_plan_por_tiempo_no_reporta_accesos(client, admin_headers, cliente):
+    """None = "no aplica", el centinela que distingue mensualidad de bono agotado."""
+    client.post(
+        "/pagos/directo/",
+        json={"usuario_id": cliente.user.id, "duracion_dias": 30, "monto": 100, "metodo_pago": "efectivo"},
+        headers=admin_headers,
+    )
+    body = client.get("/me", headers=cliente.headers).json()
+    assert body["ingresos_restantes"] is None
+    assert body["plan_actual"]["numero_ingresos"] is None
+
+
 def test_me_token_malformado(client):
     assert client.get("/me", headers=auth_headers("no-es-un-jwt")).status_code == 401
 

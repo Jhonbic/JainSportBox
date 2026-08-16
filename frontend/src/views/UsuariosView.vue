@@ -172,7 +172,7 @@
                 </p>
                 <p v-if="user.ingresos_restantes !== null && user.ingresos_restantes !== undefined"
                   class="text-xs font-semibold ml-4" :class="user.ingresos_restantes > 0 ? 'text-gray-600' : 'text-red-600'">
-                  {{ user.ingresos_restantes }} {{ user.ingresos_restantes === 1 ? 'ingreso' : 'ingresos' }}
+                  {{ user.ingresos_restantes }} {{ user.ingresos_restantes === 1 ? 'acceso' : 'accesos' }}
                 </p>
                 <p class="text-xs text-gray-400 ml-4">Vence {{ formatFecha(user.fecha_vencimiento) }}</p>
               </template>
@@ -226,7 +226,7 @@
                         <p class="text-sm font-semibold" :class="colorTextoDias(diasRestantes(user.fecha_vencimiento))">{{ etiquetaDias(diasRestantes(user.fecha_vencimiento)) }}</p>
                         <p v-if="user.ingresos_restantes !== null && user.ingresos_restantes !== undefined"
                           class="text-xs font-semibold" :class="user.ingresos_restantes > 0 ? 'text-gray-600' : 'text-red-600'">
-                          {{ user.ingresos_restantes }} {{ user.ingresos_restantes === 1 ? 'ingreso' : 'ingresos' }}
+                          {{ user.ingresos_restantes }} {{ user.ingresos_restantes === 1 ? 'acceso' : 'accesos' }}
                         </p>
                         <p class="text-xs text-gray-400">Vence {{ formatFecha(user.fecha_vencimiento) }}</p>
                       </div>

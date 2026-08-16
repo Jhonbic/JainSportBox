@@ -140,7 +140,7 @@
                     class="text-sm font-bold mt-0.5"
                     :class="usuario.ingresos_restantes > 0 ? 'text-gray-900' : 'text-red-600'">
                     {{ usuario.ingresos_restantes }}
-                    {{ usuario.ingresos_restantes === 1 ? 'ingreso restante' : 'ingresos restantes' }}
+                    {{ usuario.ingresos_restantes === 1 ? 'acceso restante' : 'accesos restantes' }}
                   </p>
                   <p class="text-xs text-gray-500 mt-0.5">Vence el {{ formatFecha(usuario.fecha_vencimiento) }}</p>
                 </template>

@@ -218,7 +218,11 @@ def _serialize_me(current_user: Usuario, db: Session) -> dict:
             .first()
         )
         if ultimo_pago:
-            plan = db.query(Plan).filter(Plan.id == ultimo_pago.plan_id).first()
+            plan = (
+                db.query(Plan).filter(Plan.id == ultimo_pago.plan_id).first()
+                if ultimo_pago.plan_id
+                else None
+            )
             if plan:
                 incluye_wods_personalizados = plan.incluye_wods_personalizados
                 plan_actual = {
@@ -229,6 +233,19 @@ def _serialize_me(current_user: Usuario, db: Session) -> dict:
                     "precio": plan.precio,
                     "beneficios": plan.beneficios,
                     "incluye_wods_personalizados": plan.incluye_wods_personalizados,
+                }
+            elif ultimo_pago.duracion_dias:
+                # Pago personalizado: no hay fila en `planes` porque `plan_id` es NULL,
+                # y sin esta rama la pantalla de inicio le decía "Sin plan activo" a un
+                # socio que acababa de pagar. Mismo rótulo que el historial de pagos.
+                plan_actual = {
+                    "id": None,
+                    "nombre": f"Personalizado ({ultimo_pago.duracion_dias} días)",
+                    "duracion_dias": ultimo_pago.duracion_dias,
+                    "numero_ingresos": ultimo_pago.numero_ingresos,
+                    "precio": ultimo_pago.monto,
+                    "beneficios": None,
+                    "incluye_wods_personalizados": False,
                 }
     return {
         "id": current_user.id,

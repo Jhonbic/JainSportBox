@@ -30,32 +30,34 @@
               <p class="text-4xl font-black leading-none">{{ estadoMembresia }}</p>
 
               <div class="mt-4 space-y-1">
-                <p class="text-sm font-semibold opacity-90">{{ etiquetaMembresia }}</p>
-                <p v-if="tieneIngresos" class="text-sm font-bold">
+                <!-- Con un bono, los accesos son el dato que decide si entra hoy, así
+                     que van primero. Mismo peso que los días: el titular ya es el que
+                     grita, y dos líneas seguidas en negrita se anulan entre sí. -->
+                <p v-if="tieneAccesos" class="text-sm font-semibold opacity-90">
                   {{ userData.ingresos_restantes }}
-                  {{ userData.ingresos_restantes === 1 ? 'ingreso disponible' : 'ingresos disponibles' }}
+                  {{ userData.ingresos_restantes === 1 ? 'acceso disponible' : 'accesos disponibles' }}
                 </p>
+                <p class="text-sm font-semibold opacity-90">{{ etiquetaMembresia }}</p>
                 <p v-if="userData.fecha_vencimiento" class="text-xs opacity-70">
-                  {{ tieneIngresos ? 'Vencen el' : 'Vence el' }} {{ formatFecha(userData.fecha_vencimiento) }}
-                </p>
-                <p v-if="userData.plan_actual" class="text-xs font-bold opacity-90 pt-1">
-                  Plan: {{ userData.plan_actual.nombre }}
+                  {{ tieneAccesos ? 'Vencen el' : 'Vence el' }} {{ formatFecha(userData.fecha_vencimiento) }}
                 </p>
               </div>
 
               <router-link to="/planes"
                 class="inline-block mt-5 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-sm font-bold transition-colors">
-                {{ diasRestantes <= 7 ? 'Renovar membresía' : 'Ver planes' }} →
+                {{ nivelMembresia === 'vigente' ? 'Ver planes' : 'Renovar membresía' }} →
               </router-link>
             </template>
           </div>
 
           <div v-if="!cargandoPerfil" class="flex-shrink-0">
             <div class="w-16 h-16 rounded-full flex items-center justify-center bg-white/20">
-              <svg v-if="diasRestantes > 7" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <!-- El ícono sale del mismo `nivelMembresia` que el color: con el bono
+                   agotado mostraba el tilde de "todo bien" sobre una tarjeta roja. -->
+              <svg v-if="nivelMembresia === 'vigente'" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <svg v-else-if="diasRestantes > 0" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg v-else-if="nivelMembresia === 'porVencer'" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -81,6 +83,11 @@
                 <h3 class="text-xl font-black text-gray-800">{{ userData.plan_actual.nombre }}</h3>
                 <p class="text-sm text-gray-500 mt-0.5">
                   {{ userData.plan_actual.duracion_dias }} días ·
+                  <!-- Cuántos accesos INCLUYE el plan; los que le quedan van en la
+                       tarjeta de al lado, que es la que se mira para saber si entra. -->
+                  <template v-if="userData.plan_actual.numero_ingresos">
+                    {{ userData.plan_actual.numero_ingresos }} accesos ·
+                  </template>
                   ${{ userData.plan_actual.precio.toLocaleString('es-CO') }}
                 </p>
               </div>
@@ -237,27 +244,48 @@ const diasRestantes = computed(() => {
   return Math.ceil((vence - hoy) / 86400000)
 })
 
-// null/undefined = membresía por tiempo; un número = bono de ingresos.
-const tieneIngresos = computed(() =>
+// null/undefined = membresía por tiempo; un número = bono de accesos.
+const tieneAccesos = computed(() =>
   userData.value.ingresos_restantes !== null && userData.value.ingresos_restantes !== undefined
 )
+
+const sinAccesos = computed(() => tieneAccesos.value && userData.value.ingresos_restantes <= 0)
+
+// Umbral de "se le están acabando", el análogo de los 7 días de la fecha.
+const ACCESOS_AVISO = 2
+
+// Estado único del que salen color, ícono y texto del botón. Antes cada uno miraba
+// `diasRestantes` por su cuenta y el eje de los accesos no entraba en ninguno: a un
+// socio con el bono agotado pero fecha vigente la tarjeta le salía verde, con el
+// tilde de "todo bien" y un botón que decía "Ver planes", mientras el titular decía
+// "Sin accesos". No podía entrar al box y la pantalla le decía que sí.
+const nivelMembresia = computed(() => {
+  if (diasRestantes.value === -999) return 'ninguna'
+  if (diasRestantes.value < 0 || sinAccesos.value) return 'vencida'
+  // Mismo criterio en los dos ejes: se avisa cuando se está por acabar.
+  if (diasRestantes.value <= 7) return 'porVencer'
+  if (tieneAccesos.value && userData.value.ingresos_restantes <= ACCESOS_AVISO) return 'porVencer'
+  return 'vigente'
+})
 
 // El día de vencimiento todavía cuenta como activo (mismo criterio que el backend).
 // Con un bono hay que mirar los dos ejes: quedarse sin ingresos también inactiva,
 // aunque la fecha siga vigente.
 const estadoMembresia = computed(() => {
   if (diasRestantes.value < 0) return 'Inactivo'
-  if (tieneIngresos.value && userData.value.ingresos_restantes <= 0) return 'Sin ingresos'
+  if (sinAccesos.value) return 'Sin accesos'
   return 'Activo'
 })
 
-const gradienteMembresia = computed(() => {
-  const d = diasRestantes.value
-  if (d === -999) return 'bg-gradient-to-br from-gray-500 to-gray-700'
-  if (d > 7) return 'bg-gradient-to-br from-emerald-600 to-emerald-800'
-  if (d > 0) return 'bg-gradient-to-br from-amber-500 to-amber-600'
-  return 'bg-gradient-to-br from-red-600 to-red-800'
-})
+// Clases completas, nunca interpoladas: el scanner de Tailwind no resuelve
+// `from-${x}-600` y purgaría el gradiente. Ver "Paleta de colores" en CLAUDE.md.
+const GRADIENTES = {
+  ninguna:   'bg-gradient-to-br from-gray-500 to-gray-700',
+  vencida:   'bg-gradient-to-br from-red-600 to-red-800',
+  porVencer: 'bg-gradient-to-br from-amber-500 to-amber-600',
+  vigente:   'bg-gradient-to-br from-emerald-600 to-emerald-800',
+}
+const gradienteMembresia = computed(() => GRADIENTES[nivelMembresia.value])
 
 const etiquetaMembresia = computed(() => {
   const d = diasRestantes.value

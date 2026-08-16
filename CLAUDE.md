@@ -270,6 +270,12 @@ Route `/home` (roles: `cliente`, `coach`). Shows:
 - Coach staff card (coaches only)
 - Attendance calendar with month navigation (prev/next arrows, fetches 12 months once on mount)
 
+**Bonos por accesos — la tarjeta mira los DOS ejes.** `nivelMembresia` (`ninguna` / `vencida` / `porVencer` / `vigente`) es la única fuente del gradiente, el ícono y el texto del botón. Antes cada uno leía `diasRestantes` por su cuenta y los accesos no entraban en ninguno: con el bono agotado pero fecha vigente, la tarjeta salía **verde con el tilde de "todo bien"** y el botón decía "Ver planes", mientras el titular decía "Sin accesos" — el socio no podía entrar al box y la pantalla le decía que sí. `ACCESOS_AVISO = 2` es el análogo de los 7 días para el eje de accesos. Los gradientes van en el mapa `GRADIENTES` como strings completos, nunca interpolados, o Tailwind los purga.
+
+Los accesos restantes van **arriba de los días** (con un bono son el dato que decide si entra hoy), pero con el mismo peso tipográfico: el titular ya es el que grita, y dos líneas seguidas en negrita se anulan. La tarjeta **no repite el nombre del plan** — eso vive en la card "Mi plan", justo al lado.
+
+**Vocabulario: en pantalla se dice "accesos", en la API "ingresos".** El campo es `Usuario.ingresos_restantes`, el del plan `numero_ingresos` y el código de error `sin_ingresos` — nada de eso cambia. Lo que ve el socio dice **acceso/accesos** (`HomeView`, `AccesoView`, `PlanesView`, `UsuariosView`, `UsuarioPerfilView`, `MembresiaSelector`). Mismo precedente que "cliente" vs `usuario`. Ojo con `FinanzasView`: ahí "Ingresos" es plata que entra y **no** se toca.
+
 **Loading state (membresía):** `cargandoPerfil` ref (inicia `true`, pasa a `false` en el `finally` del fetch). Mientras carga, las tarjetas de membresía y plan muestran un spinner. Esto evita el flash de "-999 días / Sin membresía activa": `diasRestantes` devuelve el centinela `-999` cuando `userData.fecha_vencimiento` aún no llegó, y sin el flag se renderizaba por un instante antes de la respuesta de `/me`.
 
 **Attendance calendar pattern:**
@@ -329,7 +335,7 @@ Ruta `/perfil` (roles: `admin`, `coach`, `cliente`). Permite que **cualquier usu
 Es una **página** (no modal ni cards): encabezado con foto + identidad, sección "Datos personales" con los campos editables inline (nombre, email, teléfono, documento, género, fecha de nacimiento), sección "Seguridad" (cambio de contraseña opcional), y barra de acciones (Descartar / Guardar) que se habilita solo si `hayCambios`. La foto se cambia con un botón sobre el avatar (`POST /me/foto`). Tras guardar nombre actualiza `localStorage.userName`.
 
 **Backend (`routers/auth.py`):** la autogestión vive junto al login, no en `usuarios.py` (que exige admin/coach).
-- `GET /me` — además de membresía/plan, devuelve `telefono`, `documento_identidad`, `fecha_nacimiento` y `foto_url`. Serializado por el helper `_serialize_me(current_user, db)`.
+- `GET /me` — además de membresía/plan, devuelve `telefono`, `documento_identidad`, `fecha_nacimiento` y `foto_url`. Serializado por el helper `_serialize_me(current_user, db)`. **`plan_actual` se arma también para los pagos personalizados**, que tienen `plan_id = NULL` y por lo tanto no matchean ninguna fila de `planes`: sin esa rama, `HomeView` le decía "Sin plan activo" a alguien que acababa de pagar. Se sintetiza desde el `Pago` (mismo rótulo que el historial: `Personalizado (N días)`) y lleva sus `numero_ingresos`, que es como los accesos comprados llegan a la pantalla de inicio.
 - `PATCH /me` — edita el perfil propio (mismos campos y validación de email/documento duplicado y normalización que `PATCH /usuarios/{id}`, pero con `get_current_user` en vez de admin/coach). Acepta `UsuarioUpdate`.
 - `POST /me/foto` — sube/reemplaza la foto propia (multipart, campo `foto`). Borra la anterior con `eliminar_archivo`.
 - `POST /me/verificar-password` — reconfirma la contraseña del usuario logueado sin emitir token nuevo; lo usa el modo kiosco de `/acceso` para desbloquear. Rate-limited (10 / 5 min por IP). Responde **403** —no 401— con contraseña incorrecta: el interceptor de `api.js` trata cualquier 401 como sesión expirada, así que con 401 un cliente tecleando cualquier cosa en el modal sacaría al staff de su sesión. **No cambiar ese status.**
