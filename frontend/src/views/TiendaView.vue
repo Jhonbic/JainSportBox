@@ -179,12 +179,15 @@
             <div class="p-4">
               <div class="flex items-start gap-2 mb-1">
                 <p class="font-bold text-gray-800 flex-1 truncate">{{ p.nombre }}</p>
-                <span v-if="p.categoria && canManage" class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap">{{ p.categoria }}</span>
+                <span v-if="p.categoria" class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap">{{ p.categoria }}</span>
               </div>
-              <p v-if="canManage" class="text-xs text-gray-400 line-clamp-2 mb-3 min-h-[32px]">{{ p.descripcion || '' }}</p>
-              <div class="flex items-center justify-between" :class="canManage ? '' : 'mt-2'">
-                <span v-if="canManage" class="text-xl font-black text-red-600">${{ p.precio.toLocaleString('es-CO') }}</span>
-                <span v-else class="text-sm font-semibold"
+              <p class="text-xs text-gray-400 line-clamp-2 mb-3 min-h-[32px]">{{ p.descripcion || '' }}</p>
+
+              <!-- El precio lo ven los dos: al cliente es lo primero que le hace falta
+                   para decidir si lo pide. -->
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xl font-black text-red-600">${{ p.precio.toLocaleString('es-CO') }}</span>
+                <span v-if="!canManage" class="text-xs font-semibold whitespace-nowrap"
                   :class="p.stock > 5 ? 'text-emerald-600' : p.stock > 0 ? 'text-amber-500' : 'text-red-500'">
                   {{ p.stock > 0 ? `${p.stock} disponible${p.stock !== 1 ? 's' : ''}` : 'Agotado' }}
                 </span>
@@ -199,6 +202,26 @@
                   Agregar
                 </button>
               </div>
+
+              <!-- Pedido del cliente: no hay carrito ni checkout, el pedido se cierra
+                   por WhatsApp con el admin. Condicionado al LINK y no al teléfono —
+                   un número incompleto mandaría a una pantalla de error de WhatsApp
+                   (ver "Teléfonos de WhatsApp" en CLAUDE.md). -->
+              <template v-if="!canManage">
+                <a v-if="p.stock > 0 && whatsappProducto(p)" :href="whatsappProducto(p)" target="_blank" rel="noopener"
+                  class="mt-3 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-2.5 rounded-lg transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Pedir por WhatsApp
+                </a>
+                <p v-else-if="p.stock > 0" class="mt-3 text-xs text-center text-gray-400">
+                  Pregunta en recepción para pedirlo.
+                </p>
+                <p v-else class="mt-3 text-xs text-center text-gray-400">
+                  Sin unidades por ahora.
+                </p>
+              </template>
             </div>
           </div>
         </div>
@@ -407,6 +430,7 @@
 import { ref, computed, onMounted } from 'vue'
 import api, { mediaUrl } from '../api'
 import { useAuth } from '../composables/useAuth'
+import { linkWa } from '../lib/whatsapp'
 
 const { canManage } = useAuth()
 
@@ -468,6 +492,22 @@ const categoriasTodas = computed(() => {
 
 const totalCarrito = computed(() => carrito.value.reduce((s, i) => s + i.cantidad, 0))
 const totalVenta = computed(() => carrito.value.reduce((s, i) => s + i.producto.precio * i.cantidad, 0))
+
+// ── Pedido por WhatsApp (cliente) ─────────────────────────────
+// No hay carrito ni checkout para el cliente: el pedido se cierra hablando con el
+// admin, que es como ya funciona el pago de un plan. La venta la registra después
+// el staff desde el POS, así que el stock no se toca desde acá.
+const adminTelefono = ref('')
+
+// El número se normaliza con `linkWa` (lib/whatsapp.js), la misma regla que el
+// backend. Devuelve null si no sirve → la tarjeta esconde el botón en vez de
+// mandar a una pantalla de error de WhatsApp.
+function whatsappProducto(p) {
+  const nombre  = localStorage.getItem('userName') || ''
+  const mensaje = `Hola! Quiero pedir *${p.nombre}* - $${p.precio.toLocaleString('es-CO')} COP.` +
+    `${nombre ? ` Mi nombre es ${nombre}.` : ''}`
+  return linkWa(adminTelefono.value, mensaje)
+}
 
 // ── Fetch ─────────────────────────────────────────────────────
 async function cargarProductos() {
@@ -618,7 +658,15 @@ function mostrarToast(msg) {
   setTimeout(() => { toast.value = '' }, 3000)
 }
 
-onMounted(cargarProductos)
+onMounted(async () => {
+  await cargarProductos()
+  // Solo el cliente necesita el teléfono: el staff no se pide cosas a sí mismo.
+  if (!canManage.value) {
+    try {
+      adminTelefono.value = (await api.get('/contacto')).data.telefono || ''
+    } catch { /* silencioso: sin teléfono, la tarjeta manda a recepción */ }
+  }
+})
 </script>
 
 <style>

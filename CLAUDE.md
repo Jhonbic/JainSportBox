@@ -77,7 +77,7 @@ La suite (`backend/tests/`) cubre todos los routers; el plan completo y los hall
 **Frontend layout:**
 - `frontend/src/main.js` — Vue app init; Axios interceptor adds `Authorization: Bearer {token}` from `localStorage`
 - `frontend/src/api.js` — Axios instance with `baseURL: http://127.0.0.1:8000`
-- `frontend/src/router/index.js` — Route guards using `meta.requiresAuth` and `meta.roles`; clients default to `/home`, admin to `/usuarios`, coach to `/home`. `pendiente` → forzado a `/planes`. Clientes con membresía vencida (`membresiaVencidaFor`) solo acceden a `RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/']`.
+- `frontend/src/router/index.js` — Route guards using `meta.requiresAuth` and `meta.roles`; clients default to `/home`, admin to `/usuarios`, coach to `/home`. `pendiente` → forzado a `/planes`. Clientes con membresía vencida (`membresiaVencidaFor`) solo acceden a `RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/perfil', '/tienda', '/']`. La lista es lo que el socio conserva cuando deja de pagar: su cuenta, los planes para renovar y la tienda; lo que pierde es el **servicio** (WODs, Salud, Marcas).
 - `frontend/src/composables/useAuth.js` — Reactive role helpers: `isAdmin`, `isCoach`, `isCliente`, `canManage`
 - `frontend/src/lib/whatsapp.js` — `telefonoWa()` / `linkWa()`: única normalización de teléfonos del frontend (ver "Teléfonos de WhatsApp").
 - `frontend/src/views/` — One large SFC per page: `LoginView`, `DashboardView` (la página de resumen; no confundir con `components/Dashboard.vue`, que es el layout), `UsuariosView`, `UsuarioPerfilView`, `HomeView`, `TiendaView`, `WodsView`, `WodsPersonalizadosView`, `FinanzasView`, `PlanesView`, `SaludView`, `SaludMedidaView`, `MarcasView`, `MarcasEjercicioView`, `MiPerfilView`.
@@ -317,7 +317,7 @@ El sidebar está dividido en secciones semánticas según el rol:
 **Sección "Contenido"** (todos los roles no pendientes):
 - WODs (siempre, si membresía vigente)
 - WODs Personalizados (staff o cliente con `tieneWodsPersonalizados`, si membresía vigente)
-- Tienda (solo `canManage`)
+- Tienda / **Catálogo** (todos; el rótulo cambia con el rol, ver abajo)
 
 **Sección "Mi Box"** (coach + cliente):
 - Inicio
@@ -523,6 +523,28 @@ Botón "Exportar Excel" en el header de `UsuariosView` (admin/coach) → `GET /u
 ### Panel "En el box ahora"
 
 El filtro "En el box ahora" en la tabla de usuarios usa `enGym` (ref), cargado con `GET /asistencia/en-gym` al montar y refrescado cada 10 segundos via `gymInterval`. No hay panel visual separado ni countdown — el panel de chips con temporizador fue eliminado.
+
+## TiendaView — POS del staff y catálogo del cliente
+
+Ruta `/tienda`, una sola vista para los tres roles (`admin`, `coach`, `cliente`), como `WodsPersonalizadosView`. Lo que cambia es `canManage`:
+
+| | Staff (`canManage`) | Cliente |
+|---|---|---|
+| Título | Tienda | Catálogo |
+| Pestañas Inventario / POS | sí | no (cae directo al grid) |
+| Alta, edición y foto de producto | sí | no |
+| Carrito y registro de venta | sí | no |
+| Precio, descripción, categoría | sí | **sí** |
+| Stock | badge sobre la foto | texto (verde / ámbar / rojo) |
+| Acción | Agregar al carrito | **Pedir por WhatsApp** |
+
+**El cliente no compra desde la app: pide.** No hay carrito, ni checkout, ni pasarela — el botón abre WhatsApp con el producto y el precio ya escritos, y el pedido se cierra hablando con el admin. Es el mismo camino que ya usa el pago de un plan en `PlanesView`. **La venta la registra después el staff desde el POS**, así que el pedido del cliente **no toca el stock**: no hay forma de que un pedido que nunca se concretó descuadre el inventario.
+
+**El botón se condiciona al link, no al teléfono** (`v-if="p.stock > 0 && whatsappProducto(p)"`), con `linkWa()` de `lib/whatsapp.js` — ver "Teléfonos de WhatsApp". Sin teléfono utilizable la tarjeta dice "Pregunta en recepción" en vez de mandar a una pantalla de error de WhatsApp. El número sale de `GET /contacto`, que solo se pide cuando `!canManage`.
+
+**El backend no cambió.** `GET /productos/` ya corría con `get_current_user` y ya forzaba `solo_activos=True` cuando el rol es `CLIENTE` — incluso si el cliente manda `?solo_activos=false` (hay test). Las escrituras siguen todas detrás de `_require_admin_or_coach`. Lo único que faltaba era la ruta y el enlace.
+
+**El cliente vencido también entra.** `/tienda` está en `RUTAS_CLIENTE_VENCIDO` y el enlace del sidebar **no** lleva condición de membresía, a diferencia de WODs. La restricción del vencido existe para empujar a renovar, y eso aplica al servicio que dejó de pagar; la tienda no es ese servicio: quien tiene la mensualidad vencida y quiere una proteína sigue siendo alguien que compra, y bloquearlo solo pierde la venta. Al `pendiente` sí se le esconde, por el `v-if="!isPendiente"` de la sección Contenido y por `meta.roles`.
 
 ## Mi Salud — health metrics
 

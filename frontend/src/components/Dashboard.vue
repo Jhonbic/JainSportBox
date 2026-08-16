@@ -141,13 +141,16 @@
             </svg>
             WODs Personalizados
           </router-link>
-          <router-link v-if="canManage" to="/tienda" @click="sidebarOpen = false"
+          <!-- El cliente la ve en modo catálogo (pide por WhatsApp). Sin condición de
+               membresía, a diferencia de WODs: la tienda también la ve el vencido
+               (ver RUTAS_CLIENTE_VENCIDO en router/index.js). -->
+          <router-link to="/tienda" @click="sidebarOpen = false"
             class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
             active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
             </svg>
-            Tienda
+            {{ canManage ? 'Tienda' : 'Catálogo' }}
           </router-link>
         </template>
 

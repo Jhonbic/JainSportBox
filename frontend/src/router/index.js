@@ -80,7 +80,9 @@ const routes = [
         path: 'tienda',
         name: 'Tienda',
         component: TiendaView,
-        meta: { roles: ['admin', 'coach'] }
+        // El cliente entra en modo catálogo: ve los productos y pide por WhatsApp.
+        // El inventario, el POS y el carrito siguen detrás de `canManage`.
+        meta: { roles: ['admin', 'coach', 'cliente'] }
       },
       {
         path: 'wods',
@@ -177,8 +179,12 @@ const router = createRouter({
 import { membresiaVencidaFor } from '../composables/useAuth'
 import { kioscoBloqueado, desactivarKiosco } from '../composables/useKiosco'
 
-// Rutas permitidas para clientes con membresía vencida
-const RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/perfil', '/']
+// Rutas permitidas para clientes con membresía vencida.
+// `/tienda` entra a propósito: la restricción existe para empujar a renovar, y eso
+// aplica al servicio que el socio dejó de pagar (WODs, Marcas, Salud). La tienda no
+// es ese servicio — quien tiene la mensualidad vencida y quiere una proteína sigue
+// siendo alguien que compra, y bloquearlo solo pierde la venta.
+const RUTAS_CLIENTE_VENCIDO = ['/home', '/planes', '/perfil', '/tienda', '/']
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
