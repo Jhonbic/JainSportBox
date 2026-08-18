@@ -65,8 +65,12 @@ Notas:
     instalar Node.js y usar start-estacion.ps1 del repo (ver DEPLOYMENT.md).
 
 Reiniciar / detener el bridge:
-  - Detener: Administrador de tareas -> HuelleroBridge.exe -> Finalizar tarea
-  - Arrancar: schtasks /run /tn "HuelleroBridge"  (o reiniciar sesion)
+  - REINICIAR: doble clic al acceso "Reiniciar huellero" del escritorio.
+    Lo deja el instalador del watchdog. Pide permiso de administrador, detiene
+    el proceso, espera a que suelte los puertos, arranca de nuevo y verifica
+    que la API responda. Es lo que hay que usar en recepcion.
+  - Detener a mano: Administrador de tareas -> HuelleroBridge.exe -> Finalizar
+  - Arrancar a mano: schtasks /run /tn "HuelleroBridge"  (o reiniciar sesion)
 
 WATCHDOG (paso 4) - por que hace falta
 --------------------------------------
@@ -80,6 +84,9 @@ huellero hasta que alguien se siente a entrar.
 Crea la tarea "HuelleroBridge Watchdog", que cada 3 minutos revisa si el
 bridge esta corriendo y lo relanza si no. Cada relanzamiento queda anotado en
 C:\JainSportBox\HuelleroBridge\watchdog.log con fecha y hora.
+
+Tambien deja en el escritorio el acceso "Reiniciar huellero", para cuando
+haga falta reiniciarlo a mano sin esperar los 3 minutos.
 
 Ese log es la mitad del valor: en unos dias dice si el bridge se cae de
 verdad y con que frecuencia. Si sigue vacio y aun asi hubo problemas, la

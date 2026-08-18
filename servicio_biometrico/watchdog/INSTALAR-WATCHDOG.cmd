@@ -27,15 +27,16 @@ if not exist "%DESTINO%\HuelleroBridge.exe" (
     exit /b 1
 )
 
-echo [1/3] Copiando scripts a %DESTINO% ...
+echo [1/4] Copiando scripts a %DESTINO% ...
 copy /y "watchdog.cmd" "%DESTINO%\" >nul
 copy /y "watchdog.vbs" "%DESTINO%\" >nul
+copy /y "REINICIAR-BRIDGE.cmd" "%DESTINO%\" >nul
 echo   Listo.
 
 :: /rl highest porque el bridge necesita permisos de administrador para hablarle al
 :: driver USB del lector: si el watchdog lo relanza sin elevacion, arranca pero no
 :: reconoce ninguna huella, que es un fallo mas dificil de ver que si no arrancara.
-echo [2/3] Creando la tarea programada (cada 3 minutos)...
+echo [2/4] Creando la tarea programada (cada 3 minutos)...
 :: Una sola linea y sin comillas internas a proposito: la ruta de destino es fija y
 :: no tiene espacios, asi que no hace falta escapar nada dentro de /tr — que es
 :: justo donde `schtasks` se rompe de formas dificiles de leer.
@@ -47,7 +48,19 @@ if errorlevel 1 (
 )
 echo   Tarea "HuelleroBridge Watchdog" creada.
 
-echo [3/3] Primera corrida de prueba...
+:: El acceso directo va al escritorio PUBLICO para que aparezca en el de cualquiera
+:: que use la PC de recepcion, no solo en el del usuario que corrio el instalador.
+echo [3/4] Acceso directo "Reiniciar huellero" en el escritorio...
+:: En una sola linea a proposito: el `^` de continuacion conviviendo con comillas
+:: anidadas es donde .cmd se rompe de formas que no dan un error legible.
+powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('CommonDesktopDirectory') + '\Reiniciar huellero.lnk'); $s.TargetPath = '%DESTINO%\REINICIAR-BRIDGE.cmd'; $s.WorkingDirectory = '%DESTINO%'; $s.IconLocation = 'shell32.dll,238'; $s.Description = 'Detiene y vuelve a arrancar el huellero'; $s.Save()" >nul 2>&1
+if errorlevel 1 (
+    echo   No se pudo crear el acceso directo. El .cmd igual queda en %DESTINO%.
+) else (
+    echo   Listo.
+)
+
+echo [4/4] Primera corrida de prueba del watchdog...
 schtasks /run /tn "HuelleroBridge Watchdog" >nul
 echo   Listo.
 
@@ -59,6 +72,9 @@ echo.
 echo  Cada 3 minutos revisa si HuelleroBridge.exe esta corriendo y lo
 echo  relanza si no. Cada relanzamiento queda registrado en:
 echo    %DESTINO%\watchdog.log
+echo.
+echo  Ademas quedo en el escritorio el acceso "Reiniciar huellero":
+echo  doble clic y reinicia el proceso (pide permiso de administrador).
 echo.
 echo  Ese log es el que dice si el bridge se esta cayendo de verdad.
 echo  Si pasan los dias y sigue vacio, el problema no eran caidas.
