@@ -70,6 +70,18 @@ foreach ($f in $necesarios) {
 Copy-Item (Join-Path $aqui 'INSTALAR.cmd') $Salida -Force
 Copy-Item (Join-Path $aqui 'LEEME.txt')    $Salida -Force
 
+# El watchdog viaja en el mismo paquete a proposito: es un segundo instalador, pero
+# el costo real de esto no es ejecutar dos .cmd sino IR hasta el gimnasio. Que se
+# arme aparte garantizaria que alguna vez se instale el bridge sin watchdog.
+$watchdog = Join-Path $repo 'servicio_biometrico\watchdog'
+Copy-Item $watchdog (Join-Path $Salida 'Watchdog') -Recurse -Force
+
+# El sketch del Arduino tambien: RELE_MS vive en la placa, no en el exe, asi que
+# reinstalar el bridge NO cambia el tiempo que la palanquera queda abierta. Si el
+# .ino no va en el paquete, ese paso se olvida y el viaje se hace de nuevo.
+$sketch = Join-Path $repo 'servicio_biometrico\arduino'
+Copy-Item $sketch (Join-Path $Salida 'Arduino') -Recurse -Force
+
 if ($SinRte) {
     Write-Host "  RTE omitido (-SinRte)."
 } elseif (Test-Path $RteOrigen) {

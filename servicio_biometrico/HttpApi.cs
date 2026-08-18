@@ -47,33 +47,50 @@ namespace HuelleroBridge
             }
         }
 
+        // TODO el cuerpo va dentro del try, y el try tiene que atrapar todo: esto corre
+        // en un hilo del ThreadPool, y en .NET Framework una excepción que se escapa de
+        // un hilo del pool TERMINA EL PROCESO. Antes los headers y el Write del catch
+        // estaban fuera de cualquier protección, y los dos tocan la conexión: si el
+        // navegador la corta a mitad de request —recargar /acceso alcanza— tiraban
+        // HttpListenerException y se llevaban puesto el bridge entero.
         private void Handle(HttpListenerContext ctx)
         {
-            ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-            ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-            ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
-            ctx.Response.ContentType = "application/json";
-
-            var method = ctx.Request.HttpMethod;
-            var path   = ctx.Request.Url.AbsolutePath.TrimEnd('/');
-
-            if (method == "OPTIONS") { ctx.Response.StatusCode = 204; ctx.Response.Close(); return; }
-
             try
             {
-                if      (method == "GET"    && path == "/status")          HandleStatus(ctx);
-                else if (method == "POST"   && path.StartsWith("/enroll/")) HandleEnrollStart(ctx, path);
-                else if (method == "DELETE" && path == "/enroll")           HandleEnrollCancel(ctx);
-                else if (method == "POST"   && path == "/verify/start")     HandleVerifyStart(ctx);
-                else if (method == "DELETE" && path == "/verify")           HandleVerifyCancel(ctx);
-                else if (method == "POST"   && path == "/access/reload")    HandleAccessReload(ctx);
-                else if (method == "POST"   && path == "/palanquera/abrir") HandleAbrirPalanquera(ctx);
-                else { ctx.Response.StatusCode = 404; Write(ctx, "{\"error\":\"not found\"}"); }
+                ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+                ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+                ctx.Response.ContentType = "application/json";
+
+                var method = ctx.Request.HttpMethod;
+                var path   = ctx.Request.Url.AbsolutePath.TrimEnd('/');
+
+                if (method == "OPTIONS") { ctx.Response.StatusCode = 204; ctx.Response.Close(); return; }
+
+                try
+                {
+                    if      (method == "GET"    && path == "/status")          HandleStatus(ctx);
+                    else if (method == "POST"   && path.StartsWith("/enroll/")) HandleEnrollStart(ctx, path);
+                    else if (method == "DELETE" && path == "/enroll")           HandleEnrollCancel(ctx);
+                    else if (method == "POST"   && path == "/verify/start")     HandleVerifyStart(ctx);
+                    else if (method == "DELETE" && path == "/verify")           HandleVerifyCancel(ctx);
+                    else if (method == "POST"   && path == "/access/reload")    HandleAccessReload(ctx);
+                    else if (method == "POST"   && path == "/palanquera/abrir") HandleAbrirPalanquera(ctx);
+                    else { ctx.Response.StatusCode = 404; Write(ctx, "{\"error\":\"not found\"}"); }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[HTTP] Error atendiendo {ctx.Request.Url.AbsolutePath}: {ex.Message}");
+                    ctx.Response.StatusCode = 500;
+                    Write(ctx, $"{{\"error\":\"{Esc(ex.Message)}\"}}");
+                }
             }
             catch (Exception ex)
             {
-                ctx.Response.StatusCode = 500;
-                Write(ctx, $"{{\"error\":\"{Esc(ex.Message)}\"}}");
+                // Llegar acá es casi siempre "el cliente se fue". No hay a quién
+                // responderle: solo queda no morirse.
+                Console.WriteLine($"[HTTP] Conexión perdida o respuesta fallida: {ex.Message}");
+                try { ctx.Response.Abort(); } catch { }
             }
         }
 

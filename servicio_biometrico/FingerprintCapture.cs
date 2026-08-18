@@ -392,6 +392,23 @@ namespace HuelleroBridge
         {
             _state.LectorConectado = true;
             Console.WriteLine($"[HUELLERO] Lector conectado: {ReaderSerialNumber}");
+
+            // Reanudar la captura no es opcional: tras un tirón del cable (o un USB
+            // selective suspend) el SDK deja de entregar OnComplete y no vuelve solo.
+            // Antes acá solo se prendía el flag, así que el proceso quedaba vivo, el
+            // /status decía "lector conectado" y sin embargo no reconocía a nadie —
+            // el modo de falla más caro de diagnosticar, porque desde afuera se ve
+            // igual que un bridge caído pero el watchdog no lo relanza.
+            try
+            {
+                _capturer.StartCapture();
+                Console.WriteLine("[HUELLERO] Captura reanudada tras la reconexión.");
+            }
+            catch (Exception ex)
+            {
+                // Si ya estaba capturando, el SDK tira y no pasa nada: es el caso bueno.
+                Console.WriteLine($"[HUELLERO] No hizo falta reanudar (o falló): {ex.Message}");
+            }
         }
 
         public void OnReaderDisconnect(object Capture, string ReaderSerialNumber)

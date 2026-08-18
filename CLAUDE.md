@@ -857,6 +857,8 @@ dotnet build servicio_biometrico\HuelleroBridge.csproj
 .\servicio_biometrico\instalador\empaquetar.ps1 -Zip      # → dist\HuelleroBridge-Instalador(.zip)
 ```
 
+**El paquete lleva también `Watchdog/` y `Arduino/`**, y no es comodidad: el costo real de esto no es correr dos `.cmd` sino **ir hasta el gimnasio**. El sketch va porque `RELE_MS` vive en la placa y reinstalar el bridge no cambia el tiempo que la palanquera queda abierta — si el `.ino` no viaja en el paquete, ese paso se olvida y hay que volver.
+
 Imprime a qué backend apunta el exe, **leído del binario**, que es exactamente el dato que estuvo mal. El RTE de DigitalPersona (19 MB, redistribuible de un tercero) **no está en git**: se copia de `-RteOrigen`, que por defecto apunta al paquete viejo en `~\Downloads`. Si esa carpeta se borra, hay que pasar `-RteOrigen` a mano — conviene guardar el RTE en un lugar estable.
 
 **`INSTALAR.cmd` — dos cosas que no son obvias:**
@@ -866,6 +868,35 @@ Imprime a qué backend apunta el exe, **leído del binario**, que es exactamente
 Al terminar consulta `/status` y avisa si `templates_en_cache` es 0, distinguiendo las dos causas (secreto que no coincide vs. nadie enrolado todavía).
 
 **`empaquetar.ps1` va como UTF-8 con BOM.** Sin BOM, PowerShell 5.1 lo lee como CP1252 y un guion largo rompe el parseo: uno de sus bytes cae en la comilla tipográfica de cierre y termina el string antes de tiempo. Tampoco usar `<`/`>` dentro de strings, ni una variable `$zip` conviviendo con el switch `-Zip` (PowerShell no distingue mayúsculas y son la misma).
+
+### Watchdog (el bridge se cae y nadie lo levanta)
+
+`servicio_biometrico/watchdog/` — `INSTALAR-WATCHDOG.cmd` crea una tarea que **cada 3 minutos** revisa si `HuelleroBridge.exe` está corriendo y lo relanza si no. Se instala aparte del bridge y no requiere recompilar nada.
+
+**Existe porque la tarea del bridge es `/sc onlogon` y no tiene reintentos:** si el proceso muere, nada lo levanta hasta el próximo inicio de sesión. Con Windows Update reiniciando de madrugada, eso significa un box sin huellero hasta que alguien se siente a entrar.
+
+**`watchdog.log` es la mitad del valor.** Cada relanzamiento deja una línea con fecha y hora, y eso es el dato que hoy no existe: dice si el bridge se está cayendo de verdad y con qué frecuencia, o si el problema era otro. Si pasan los días y el log sigue vacío, no eran caídas.
+
+**Tres cosas que no son opcionales:**
+1. **`/rl highest`** — el bridge necesita permisos de administrador para el driver USB. Relanzado sin elevación arranca igual pero no reconoce ninguna huella, que es un fallo *más* difícil de diagnosticar que si no arrancara.
+2. **El lanzador `watchdog.vbs`** (`Run ..., 0, False` = oculto). Sin él, una consola parpadea cada 3 minutos sobre la pantalla de recepción, que suele estar en kiosco con un cliente mirándola.
+3. **El `find` decide, no el `errorlevel` de `tasklist`** — `tasklist /fi` devuelve 0 aunque no encuentre nada (imprime `INFO: No tasks are running...`).
+
+**Limitación conocida:** la tarea corre en la sesión del usuario, así que **no cubre el reinicio sin inicio de sesión**. Para eso hay que activar el inicio de sesión automático en la PC del gym. No se resolvió corriendo la tarea como SYSTEM a propósito: eso lanzaría el bridge en la sesión 0, sin escritorio interactivo, y el SDK de DigitalPersona depende del message pump de una ventana (ver `Priority.High` más arriba) — cambiar eso a ciegas es cambiar un fallo conocido por uno peor.
+
+### Robustez del bridge — por qué se caía sin dejar rastro
+
+Cuatro arreglos que van juntos con el watchdog; el watchdog levanta el proceso, esto explica **por qué** se cayó.
+
+**1. Handlers globales de excepción (`Program.cs`).** No había ninguno —ni `AppDomain.UnhandledException`, ni `Application.ThreadException`, ni try/catch alrededor de `Application.Run`—, así que el log se cortaba a mitad y no había forma de distinguir un crash de un cierre manual o de un reinicio del PC. Ahora toda excepción queda con stacktrace en `bridge.log`.
+
+**El handler de UI cierra el proceso a propósito.** El default de WinForms es abrir un diálogo modal, que en una PC sin nadie mirando deja el bridge **vivo pero colgado** — el peor desenlace, porque el watchdog no lo relanza. Y seguir corriendo tampoco sirve: si algo reventó en un callback del SDK no se puede saber si la captura quedó sana, y un bridge con el lector mudo es más difícil de detectar que uno caído. Sale, el watchdog lo levanta en ≤3 min a un estado conocido, y el stacktrace queda. Un bucle de reinicios se vería en `watchdog.log`, que también es información.
+
+**2. `HttpApi.Handle` entero dentro del try.** Esto corre en un hilo del ThreadPool y en .NET Framework **una excepción que se escapa de un hilo del pool termina el proceso**. Los `ctx.Response.Headers.Add(...)` estaban fuera de toda protección y el `Write()` del catch también podía lanzar; los dos tocan la conexión, así que un navegador que la corta a mitad de request —recargar `/acceso` alcanza— tiraba `HttpListenerException` y se llevaba puesto el bridge. Es el camino de crash más plausible de los que se encontraron.
+
+**3. Mutex de instancia única** (`Global\JainSportBox.HuelleroBridge`). La comprobación va **antes** de redirigir el log, y el orden importa: `bridge.log` se abre con `FileShare.Read`, así que la instancia que sobra no puede escribir en él y su mensaje se perdería. Antes del redirect todavía hay consola real, que es lo que ve quien hizo doble clic al exe. De paso, una instancia rechazada no ensucia el log con un `Bridge iniciado` que después haría creer que hubo un reinicio.
+
+**4. `OnReaderConnect` reanuda la captura.** Antes solo prendía el flag: tras un tirón del USB el SDK dejaba de entregar `OnComplete` y no volvía solo, así que `/status` decía "lector conectado" y sin embargo no reconocía a nadie. Ese es el modo de falla más caro — desde afuera se ve igual que un bridge caído, pero el watchdog no lo relanza porque el proceso está vivo.
 
 ### Palanquera (relé + Arduino)
 

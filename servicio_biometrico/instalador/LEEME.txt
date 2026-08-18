@@ -6,6 +6,12 @@ Instalacion en una PC nueva (Windows 10/11):
   1. NO conectes el lector de huella todavia.
   2. Doble clic a INSTALAR.cmd y acepta el permiso de administrador.
   3. Segui los pasos en pantalla. Cuando lo pida, conecta el lector.
+  4. Doble clic a Watchdog\INSTALAR-WATCHDOG.cmd (ver mas abajo).
+  5. Si esta PC controla la palanquera, cargar Arduino\palanquera_rele
+     en la placa (ver mas abajo). Este paso NO lo hace ningun instalador.
+
+Los pasos 4 y 5 son los que se olvidan, y son justamente los que obligan a
+volver al gimnasio. Hacelos en la misma visita.
 
 Antes de empezar, tene a mano el BRIDGE_SECRET del backend. En Render esta en
 Environment > BRIDGE_SECRET. El instalador lo pide y NO tiene default valido:
@@ -61,6 +67,45 @@ Notas:
 Reiniciar / detener el bridge:
   - Detener: Administrador de tareas -> HuelleroBridge.exe -> Finalizar tarea
   - Arrancar: schtasks /run /tn "HuelleroBridge"  (o reiniciar sesion)
+
+WATCHDOG (paso 4) - por que hace falta
+--------------------------------------
+La tarea "HuelleroBridge" es de tipo "al iniciar sesion" y NO tiene reintentos:
+si el proceso muere, nada lo levanta hasta el proximo inicio de sesion. Con
+Windows reiniciando de madrugada por actualizaciones, eso es un box sin
+huellero hasta que alguien se siente a entrar.
+
+  Doble clic a Watchdog\INSTALAR-WATCHDOG.cmd (pide admin).
+
+Crea la tarea "HuelleroBridge Watchdog", que cada 3 minutos revisa si el
+bridge esta corriendo y lo relanza si no. Cada relanzamiento queda anotado en
+C:\JainSportBox\HuelleroBridge\watchdog.log con fecha y hora.
+
+Ese log es la mitad del valor: en unos dias dice si el bridge se cae de
+verdad y con que frecuencia. Si sigue vacio y aun asi hubo problemas, la
+causa era otra y hay que buscar en bridge.log.
+
+LIMITACION: el watchdog corre en la sesion del usuario, asi que NO cubre el
+caso de que el PC se reinicie y nadie inicie sesion. Para eso hay que activar
+el inicio de sesion automatico de Windows en esta PC.
+
+PALANQUERA (paso 5) - el tiempo que queda abierta
+--------------------------------------------------
+El tiempo abierto (RELE_MS) vive en la memoria del Arduino, NO en el bridge.
+Reinstalar el bridge no lo cambia. Para cambiarlo hay que cargar el sketch:
+
+  1. Detener el bridge (Administrador de tareas). Es obligatorio: el bridge
+     mantiene el puerto COM tomado y el Arduino IDE no puede usarlo.
+  2. Abrir Arduino\palanquera_rele\palanquera_rele.ino en el Arduino IDE.
+  3. Herramientas -> Placa -> Arduino Uno, y elegir el puerto.
+  4. Subir. Esperar el "Subido" / "avrdude done".
+  5. Probar con el Monitor Serie a 9600 baud: al abrirlo imprime
+     "JSB-PALANQUERA READY". Enviando 'A' la palanquera abre y tiene que
+     cerrar sola a los 10 segundos.
+  6. CERRAR el Monitor Serie (tambien toma el puerto) y arrancar el bridge.
+
+Si no aparece ningun puerto en el menu, falta el driver CH340 (lo usan los
+Arduino UNO clones). Buscarlo e instalarlo.
 
 Regenerar este paquete (para el desarrollador):
   Desde la raiz del repo, tras compilar el bridge:
