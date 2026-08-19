@@ -65,6 +65,13 @@
           <!-- En móvil el botón va debajo y a lo ancho: en fila, el ancho intrínseco del
                input (con text-2xl) empujaba el botón fuera de la pantalla. -->
           <div class="flex flex-col sm:flex-row gap-3">
+            <!-- `readonly` y NO `disabled` mientras procesa, y no es cosmético: un
+                 elemento deshabilitado PIERDE el foco, y recuperarlo después no
+                 alcanza porque Vue quita el atributo un tick más tarde que el
+                 `focus()`. Con `disabled` la recepción tenía que volver al campo con
+                 el mouse en cada persona de la fila. `readonly` bloquea la escritura
+                 igual y conserva el cursor. El doble envío ya lo frena el guard de
+                 `registrarAcceso()`, no el atributo. -->
             <input
               ref="inputDoc"
               v-model="documento"
@@ -73,7 +80,7 @@
               autocomplete="off"
               placeholder="1020456789"
               class="w-full sm:flex-1 min-w-0 px-5 py-4 rounded-2xl border-2 border-gray-200 text-2xl font-black tracking-wider text-gray-800 focus:outline-none focus:border-red-500 transition-colors placeholder:font-normal placeholder:tracking-normal placeholder:text-lg placeholder:text-gray-300"
-              :disabled="procesando"
+              :readonly="procesando"
             />
             <button type="submit" :disabled="procesando || !documento.trim()"
               class="w-full sm:w-auto shrink-0 px-6 py-4 sm:py-0 rounded-2xl bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-black text-sm uppercase tracking-wide transition-colors flex items-center justify-center gap-2">
@@ -240,7 +247,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import api, { mediaUrl } from '../api'
 import InputPassword from '../components/InputPassword.vue'
 import { kioscoActivo, activarKiosco, desactivarKiosco } from '../composables/useKiosco'
@@ -249,8 +256,9 @@ const BRIDGE_URL = 'http://localhost:8001'
 
 // Cuánto queda en pantalla el resultado antes de limpiarse solo. En recepción la
 // pantalla la ve el siguiente de la fila, así que no puede quedarse con el nombre y
-// los días del cliente anterior.
-const SEGUNDOS_RESULTADO = 8
+// los días del cliente anterior. Es el techo: el cartel también se va apenas alguien
+// empieza a teclear la cédula siguiente (ver el watch de `documento`).
+const SEGUNDOS_RESULTADO = 5
 
 const inputDoc    = ref(null)
 const documento   = ref('')
@@ -275,8 +283,55 @@ const verificando = ref(false)
 
 let timerResultado = null
 
-onMounted(() => inputDoc.value?.focus())
-onBeforeUnmount(() => clearTimeout(timerResultado))
+/**
+ * Red de seguridad del kiosco: teclear un dígito desde cualquier parte de la pantalla
+ * devuelve el cursor al campo de la cédula.
+ *
+ * El PC queda solo en `/acceso` mientras el coach entrena, y alcanza con que alguien
+ * haya clickeado el fondo para que lo que escriba el siguiente no vaya a ningún lado.
+ * Sin nadie en el mostrador, eso se lee como "el sistema no anda".
+ *
+ * Se agrega el dígito a mano y se corta el evento en vez de confiar en que el carácter
+ * caiga solo en el input recién enfocado: eso depende del navegador, y si cae igual
+ * quedaría duplicado.
+ */
+function onKeydownGlobal(e) {
+  // Los modales tienen su propio input (la contraseña para salir del kiosco). Robarles
+  // el foco los dejaría inutilizables, y justamente se escriben con números.
+  if (modalActivar.value || modalSalir.value || procesando.value) return
+  if (document.activeElement === inputDoc.value) return
+  // Solo dígitos sueltos: Tab, F5 y los atajos del navegador tienen que pasar de largo.
+  if (e.ctrlKey || e.altKey || e.metaKey) return
+  if (e.key.length !== 1 || e.key < '0' || e.key > '9') return
+
+  e.preventDefault()
+  documento.value += e.key
+  inputDoc.value?.focus()
+  // El cursor al final, explícitamente. Al enfocar, el input todavía tiene el valor
+  // viejo en el DOM (Vue lo escribe un tick después), y si el navegador deja el cursor
+  // en la posición 0 los dígitos siguientes se intercalan al revés: quien clickeó
+  // afuera a mitad de su cédula terminaría escribiendo "4321".
+  nextTick(() => {
+    const el = inputDoc.value
+    if (el) el.setSelectionRange(el.value.length, el.value.length)
+  })
+}
+
+// El cartel del anterior se va apenas el siguiente empieza a escribir: mientras tanto
+// quedaban a la vista su nombre y sus días, y el de atrás podía leerlos como propios.
+// El `documento.value = ''` de `registrarAcceso` no lo dispara, por el guard de vacío.
+watch(documento, (val) => {
+  if (val && (resultado.value || fallo.value)) limpiarResultado()
+})
+
+onMounted(() => {
+  inputDoc.value?.focus()
+  window.addEventListener('keydown', onKeydownGlobal)
+})
+onBeforeUnmount(() => {
+  clearTimeout(timerResultado)
+  window.removeEventListener('keydown', onKeydownGlobal)
+})
 
 const formatFecha = (f) =>
   new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -401,8 +456,11 @@ async function registrarAcceso() {
   } finally {
     procesando.value = false
     programarLimpieza()
-    // Listo para el siguiente cliente
+    // Listo para el siguiente cliente. El `nextTick` cubre el caso de quien envía con
+    // el mouse: ahí el foco quedó en el botón, que se deshabilita solo al vaciarse
+    // `documento`, así que hay que esperar a que el DOM se actualice antes de pedirlo.
     documento.value = ''
+    await nextTick()
     inputDoc.value?.focus()
   }
 }
