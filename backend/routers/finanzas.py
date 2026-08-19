@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 from collections import defaultdict
@@ -8,8 +9,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from fechas import TZ_BOGOTA, hoy_bogota
-from models import MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario, Venta
+from fechas import TZ_BOGOTA, fin_dia_utc, hoy_bogota, inicio_dia_utc
+from models import Producto, MovimientoFinanciero, Pago, Plan, RolUsuario, TipoMovimiento, Usuario, Venta
 from schemas.finanza import BalanceResponse, MovimientoCreate
 from security import get_current_user
 
@@ -23,10 +24,20 @@ def _require_admin(current_user: Usuario = Depends(get_current_user)):
 
 
 def _apply_date_filter(query, model_fecha_col, desde: Optional[date], hasta: Optional[date]):
+    """Acota a los días del NEGOCIO (Bogotá), no a los días UTC.
+
+    `desde`/`hasta` llegan como fechas de Bogotá, pero las columnas se guardan naive en
+    UTC. Acá se armaba la ventana con `datetime.combine(desde, min.time())`, que es
+    medianoche **UTC** — las 19:00 de Bogotá del día anterior. Con el box entrenando de
+    19:00 a 21:00, "Hoy" arrastraba la noche de ayer y perdía la de hoy.
+
+    Los helpers viven en `fechas.py` y los comparten `dashboard` y `asistencia`; tenerlos
+    duplicados fue exactamente la causa de este mismo bug allá. No los redefinas.
+    """
     if desde:
-        query = query.filter(model_fecha_col >= datetime.combine(desde, datetime.min.time()))
+        query = query.filter(model_fecha_col >= inicio_dia_utc(desde))
     if hasta:
-        query = query.filter(model_fecha_col <= datetime.combine(hasta, datetime.max.time()))
+        query = query.filter(model_fecha_col <= fin_dia_utc(hasta))
     return query
 
 
@@ -92,25 +103,58 @@ def balance(
     )
 
 
+def _sin_acentos(s: Optional[str]) -> str:
+    """Minúsculas y sin tildes, para que el buscador no dependa de cómo se tipeó.
+
+    Sin esto, buscar "nomina" no encuentra "Nómina" y el buscador parece roto: quien
+    busca no tiene por qué saber con qué acento se cargó el concepto.
+    """
+    if not s:
+        return ""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s.lower())
+        if unicodedata.category(c) != "Mn"
+    )
+
+
 def _recolectar_movimientos(
     db: Session,
     fecha_desde: Optional[date],
     fecha_hasta: Optional[date],
     tipo: Optional[str] = None,
+    q: Optional[str] = None,
+    categoria: Optional[str] = None,
+    plan_id: Optional[int] = None,
+    metodo_pago: Optional[str] = None,
 ) -> List[dict]:
     """Unifica pagos + ventas + movimientos manuales del período, ordenados por fecha desc.
 
     Lo consumen el listado y la exportación a Excel: si la fusión de las tres
-    fuentes se duplicara, el Excel y la pantalla podrían mostrar cosas distintas.
+    fuentes se duplicara, el Excel y la pantalla podrían mostrar cosas distintas. Por
+    eso los filtros viven **acá adentro** y no en el llamador — así el archivo exportado
+    dice exactamente lo que el admin tiene en pantalla.
+
+    `plan_id` solo tiene sentido sobre pagos de membresía: al usarlo se excluyen las
+    ventas de tienda y los movimientos manuales, que no pertenecen a ningún plan.
     """
     items = []
 
+    # Un filtro por plan o por una categoría que no sea de pagos deja fuera todo lo demás:
+    # se evalúa antes de consultar para no traer filas que se van a descartar igual.
+    quiere_pagos  = tipo in (None, "ingreso") and categoria in (None, "mensualidad")
+    quiere_ventas = tipo in (None, "ingreso") and categoria in (None, "venta_tienda") and plan_id is None
+    quiere_manual = plan_id is None
+
     # ── Pagos de membresías ──
-    if tipo in (None, "ingreso"):
+    if quiere_pagos:
         # joinedload puebla plan y usuario en la misma query (evita lazy load por fila).
-        q = db.query(Pago).options(joinedload(Pago.plan), joinedload(Pago.usuario))
-        q = _apply_date_filter(q, Pago.fecha_pago, fecha_desde, fecha_hasta)
-        for p in q.order_by(Pago.fecha_pago.desc()).all():
+        q_pagos = db.query(Pago).options(joinedload(Pago.plan), joinedload(Pago.usuario))
+        q_pagos = _apply_date_filter(q_pagos, Pago.fecha_pago, fecha_desde, fecha_hasta)
+        if plan_id is not None:
+            q_pagos = q_pagos.filter(Pago.plan_id == plan_id)
+        if metodo_pago:
+            q_pagos = q_pagos.filter(Pago.metodo_pago == metodo_pago)
+        for p in q_pagos.order_by(Pago.fecha_pago.desc()).all():
             plan_nombre = p.plan.nombre if p.plan else "Personalizado"
             usuario_nombre = p.usuario.nombre if p.usuario else None
             items.append({
@@ -126,10 +170,13 @@ def _recolectar_movimientos(
                 "es_eliminable": False,
             })
 
-        # ── Ventas de tienda ──
-        q2 = db.query(Venta).options(joinedload(Venta.producto), joinedload(Venta.usuario))
-        q2 = _apply_date_filter(q2, Venta.fecha_venta, fecha_desde, fecha_hasta)
-        for v in q2.order_by(Venta.fecha_venta.desc()).all():
+    # ── Ventas de tienda ──
+    if quiere_ventas:
+        q_ventas = db.query(Venta).options(joinedload(Venta.producto), joinedload(Venta.usuario))
+        q_ventas = _apply_date_filter(q_ventas, Venta.fecha_venta, fecha_desde, fecha_hasta)
+        if metodo_pago:
+            q_ventas = q_ventas.filter(Venta.metodo_pago == metodo_pago)
+        for v in q_ventas.order_by(Venta.fecha_venta.desc()).all():
             items.append({
                 "id": f"venta_{v.id}",
                 "tipo": "ingreso",
@@ -144,11 +191,19 @@ def _recolectar_movimientos(
             })
 
     # ── Movimientos manuales ──
-    q3 = db.query(MovimientoFinanciero).options(joinedload(MovimientoFinanciero.usuario))
-    q3 = _apply_date_filter(q3, MovimientoFinanciero.fecha, fecha_desde, fecha_hasta)
-    if tipo in ("ingreso", "egreso"):
-        q3 = q3.filter(MovimientoFinanciero.tipo == TipoMovimiento(tipo))
-    for m in q3.order_by(MovimientoFinanciero.fecha.desc()).all():
+    if not quiere_manual:
+        q_mov_rows = []
+    else:
+        q_mov = db.query(MovimientoFinanciero).options(joinedload(MovimientoFinanciero.usuario))
+        q_mov = _apply_date_filter(q_mov, MovimientoFinanciero.fecha, fecha_desde, fecha_hasta)
+        if tipo in ("ingreso", "egreso"):
+            q_mov = q_mov.filter(MovimientoFinanciero.tipo == TipoMovimiento(tipo))
+        if categoria:
+            q_mov = q_mov.filter(MovimientoFinanciero.categoria == categoria)
+        if metodo_pago:
+            q_mov = q_mov.filter(MovimientoFinanciero.metodo_pago == metodo_pago)
+        q_mov_rows = q_mov.order_by(MovimientoFinanciero.fecha.desc()).all()
+    for m in q_mov_rows:
         items.append({
             "id": f"mov_{m.id}",
             "tipo": m.tipo.value,
@@ -162,6 +217,16 @@ def _recolectar_movimientos(
             "es_eliminable": True,
         })
 
+    # El buscador va al final y en memoria: pega contra el concepto y el nombre del
+    # cliente, que en pagos y ventas son texto armado acá (no columnas), así que en SQL
+    # habría que reconstruirlo por fuente y las tres consultas dejarían de coincidir.
+    if q and q.strip():
+        aguja = _sin_acentos(q)
+        items = [
+            it for it in items
+            if aguja in _sin_acentos(it["concepto"]) or aguja in _sin_acentos(it["usuario_nombre"])
+        ]
+
     items.sort(key=lambda x: x["fecha"], reverse=True)
     return items
 
@@ -171,11 +236,126 @@ def listar_movimientos(
     fecha_desde: Optional[date] = Query(None),
     fecha_hasta: Optional[date] = Query(None),
     tipo: Optional[str] = Query(None),
-    limit: int = Query(100, ge=1, le=500),
+    q: Optional[str] = Query(None, max_length=100, description="Busca en concepto y cliente"),
+    categoria: Optional[str] = Query(None),
+    plan_id: Optional[int] = Query(None),
+    metodo_pago: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(15, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(_require_admin),
 ):
-    return _recolectar_movimientos(db, fecha_desde, fecha_hasta, tipo)[:limit]
+    """Devuelve `{items, total}` — el total es del período filtrado, no de la página.
+
+    La paginación es de servidor porque el buscador tiene que encontrar cualquier
+    movimiento del período: recortando a 200 en el cliente, buscar algo que SÍ está y no
+    aparezca es peor que no tener buscador.
+    """
+    todos = _recolectar_movimientos(
+        db, fecha_desde, fecha_hasta, tipo,
+        q=q, categoria=categoria, plan_id=plan_id, metodo_pago=metodo_pago,
+    )
+    return {
+        "items": todos[skip:skip + limit],
+        "total": len(todos),
+        "total_monto": round(sum(m["monto"] for m in todos), 2),
+    }
+
+
+@router.get("/estadisticas")
+def estadisticas(
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(_require_admin),
+):
+    """Qué se vendió en el período: desglose por plan y por producto.
+
+    El balance dice cuánta plata entró; esto dice de dónde. Las dos agregaciones van en
+    SQL con `group_by` + `outerjoin` para traer los nombres sin una consulta por fila.
+    """
+    # ── Planes ──
+    # outerjoin porque un pago personalizado tiene `plan_id = NULL` y no matchea ninguna
+    # fila de `planes`: con un join normal desaparecería del desglose, y es ingreso real.
+    q_planes = (
+        db.query(
+            Pago.plan_id,
+            Plan.nombre,
+            func.count(Pago.id),
+            func.coalesce(func.sum(Pago.monto), 0.0),
+        )
+        .outerjoin(Plan, Plan.id == Pago.plan_id)
+    )
+    q_planes = _apply_date_filter(q_planes, Pago.fecha_pago, fecha_desde, fecha_hasta)
+    filas_planes = q_planes.group_by(Pago.plan_id, Plan.nombre).all()
+
+    filas = [
+        {"plan_id": plan_id, "nombre": nombre or "Personalizado", "cantidad": cantidad, "total": total}
+        for plan_id, nombre, cantidad, total in filas_planes
+    ]
+
+    # Los ingresos manuales categorizados como "mensualidad" no tienen plan detrás, pero
+    # la tarjeta "Membresías" del balance SÍ los suma. Sin esta fila, la tabla y la
+    # tarjeta muestran números distintos uno al lado del otro y el admin no tiene cómo
+    # saber cuál creer — que en una pantalla de plata es lo peor que puede pasar.
+    q_manual = db.query(
+        func.count(MovimientoFinanciero.id),
+        func.coalesce(func.sum(MovimientoFinanciero.monto), 0.0),
+    ).filter(
+        MovimientoFinanciero.tipo == TipoMovimiento.INGRESO,
+        MovimientoFinanciero.categoria == "mensualidad",
+    )
+    q_manual = _apply_date_filter(q_manual, MovimientoFinanciero.fecha, fecha_desde, fecha_hasta)
+    cant_manual, total_manual = q_manual.one()
+    if cant_manual:
+        filas.append({
+            "plan_id": None, "nombre": "Ingreso manual (sin plan)",
+            "cantidad": cant_manual, "total": total_manual,
+        })
+
+    total_planes = sum(f["total"] for f in filas) or 0.0
+    planes = [
+        {
+            **f,
+            "total": round(f["total"], 2),
+            "porcentaje": round(f["total"] / total_planes * 100, 1) if total_planes else 0.0,
+        }
+        for f in filas
+    ]
+    planes.sort(key=lambda p: p["total"], reverse=True)
+
+    # ── Productos ──
+    q_prod = (
+        db.query(
+            Venta.producto_id,
+            Producto.nombre,
+            func.coalesce(func.sum(Venta.cantidad), 0),
+            func.coalesce(func.sum(Venta.total), 0.0),
+        )
+        .outerjoin(Producto, Producto.id == Venta.producto_id)
+    )
+    q_prod = _apply_date_filter(q_prod, Venta.fecha_venta, fecha_desde, fecha_hasta)
+    filas_prod = q_prod.group_by(Venta.producto_id, Producto.nombre).all()
+
+    total_prod = sum(f[3] for f in filas_prod) or 0.0
+    productos = [
+        {
+            "producto_id": producto_id,
+            "nombre": nombre or "Producto eliminado",
+            "unidades": unidades,
+            "total": round(total, 2),
+            "porcentaje": round(total / total_prod * 100, 1) if total_prod else 0.0,
+        }
+        for producto_id, nombre, unidades, total in filas_prod
+    ]
+    productos.sort(key=lambda p: p["total"], reverse=True)
+
+    return {
+        "planes": planes,
+        "productos": productos,
+        "total_planes": round(total_planes, 2),
+        "total_productos": round(total_prod, 2),
+    }
 
 
 _LABELS_CATEGORIA = {
@@ -197,6 +377,10 @@ _LABELS_FUENTE = {
 def exportar_excel(
     fecha_desde: Optional[date] = Query(None),
     fecha_hasta: Optional[date] = Query(None),
+    q: Optional[str] = Query(None, max_length=100),
+    categoria: Optional[str] = Query(None),
+    plan_id: Optional[int] = Query(None),
+    metodo_pago: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     _: Usuario = Depends(_require_admin),
 ):
@@ -204,7 +388,12 @@ def exportar_excel(
 
     Reusa `_recolectar_movimientos` y `balance()`, así que el archivo dice
     exactamente lo mismo que la pantalla. A diferencia del listado, acá no hay
-    tope de filas: un export recortado a 200 sería un export equivocado.
+    tope de filas: un export recortado sería un export equivocado.
+
+    **Recibe los mismos filtros que el listado.** Filtrar por "Nómina" y que el archivo
+    salga con el período completo es justo el tipo de sorpresa que hace desconfiar del
+    export. El Resumen, en cambio, sigue siendo del período sin filtrar: son los totales
+    del negocio, y recortarlos por un filtro de pantalla los volvería engañosos.
 
     La separación por tipo se hace **en memoria, sobre una sola recolección**. Pedirle
     al helper `tipo="ingreso"` y después `tipo="egreso"` sería más corto de escribir,
@@ -221,7 +410,10 @@ def exportar_excel(
 
     # Una sola recolección, particionada en una pasada.
     ingresos, egresos = [], []
-    for m in _recolectar_movimientos(db, fecha_desde, fecha_hasta):
+    for m in _recolectar_movimientos(
+        db, fecha_desde, fecha_hasta,
+        q=q, categoria=categoria, plan_id=plan_id, metodo_pago=metodo_pago,
+    ):
         (ingresos if m["tipo"] == "ingreso" else egresos).append(m)
 
     encabezado_fill = PatternFill(start_color="DC2626", end_color="DC2626", fill_type="solid")

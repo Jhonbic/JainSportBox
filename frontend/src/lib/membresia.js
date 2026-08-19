@@ -6,22 +6,18 @@
 // `/pagos/` y `/pagos/directo/` estaba escrito cuatro veces, y fue justamente esa
 // duplicación la que dejó al modal de activar sin la opción personalizada.
 
+// `aISO`/`hoyISO` vivían acá, pero Finanzas también necesita la fecha local: se
+// mudaron a `lib/fechas.js`. Se re-exporta `hoyISO` para no romper a quien ya lo
+// importaba desde este módulo.
+import { aISO, hoyISO } from './fechas'
+
+export { hoyISO }
+
 /** Los métodos de pago que acepta el backend (regex `efectivo|transferencia`). */
 export const METODOS = [
   { value: 'efectivo', label: 'Efectivo' },
   { value: 'transferencia', label: 'Transferencia' },
 ]
-
-/** Una fecha en formato YYYY-MM-DD, que es lo que espera un <input type="date">. */
-function aISO(d) {
-  const mes = String(d.getMonth() + 1).padStart(2, '0')
-  const dia = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${mes}-${dia}`
-}
-
-export function hoyISO() {
-  return aISO(new Date())
-}
 
 // Espeja MAX_DIAS_RETROACTIVOS de backend/fechas.py. El `min` del date picker no es
 // la validación —esa la hace el backend— sino lo que evita que el año equivocado sea

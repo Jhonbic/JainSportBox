@@ -22,18 +22,28 @@ def _vender(client, headers, producto_id, cantidad=1):
     )
 
 
-def _mov(client, admin_headers, tipo, monto, categoria="ingreso_varios"):
+def _mov(client, admin_headers, tipo, monto, categoria="ingreso_varios", concepto=None):
     return client.post(
         "/finanzas/movimientos",
         json={
             "tipo": tipo,
-            "concepto": f"{tipo} test",
+            "concepto": concepto or f"{tipo} test",
             "categoria": categoria,
             "monto": monto,
             "fecha": datetime.utcnow().isoformat(),
         },
         headers=admin_headers,
     )
+
+
+def _pagar(client, admin_headers, usuario_id, plan_id, monto=35000, metodo="efectivo"):
+    r = client.post(
+        "/pagos/",
+        json={"usuario_id": usuario_id, "plan_id": plan_id, "monto": monto, "metodo_pago": metodo},
+        headers=admin_headers,
+    )
+    assert r.status_code == 201
+    return r.json()
 
 
 # ── Productos ──────────────────────────────────────────────────
@@ -180,7 +190,7 @@ def test_movimientos_unifica_tres_fuentes(client, admin_headers, cliente, db_ses
 
     r = client.get("/finanzas/movimientos", headers=admin_headers)
     assert r.status_code == 200
-    items = r.json()
+    items = r.json()["items"]
     prefijos = {i["id"].split("_")[0] for i in items}
     assert prefijos == {"pago", "venta", "mov"}
     # solo los manuales son eliminables
@@ -196,8 +206,172 @@ def test_movimientos_filtro_egreso(client, admin_headers, cliente, db_session):
         headers=admin_headers,
     )
     _mov(client, admin_headers, "egreso", 1000, categoria="servicios")
-    items = client.get("/finanzas/movimientos?tipo=egreso", headers=admin_headers).json()
-    assert len(items) == 1 and items[0]["tipo"] == "egreso"
+    body = client.get("/finanzas/movimientos?tipo=egreso", headers=admin_headers).json()
+    assert body["total"] == 1
+    assert len(body["items"]) == 1 and body["items"][0]["tipo"] == "egreso"
+
+
+# ── Buscador y filtros del historial ───────────────────────────
+
+
+def test_buscador_encuentra_por_concepto_y_por_cliente(client, admin_headers, cliente, db_session):
+    plan = db_session.query(models.Plan).first()
+    _pagar(client, admin_headers, cliente.user.id, plan.id)
+    _mov(client, admin_headers, "egreso", 1000, categoria="renta", concepto="Alquiler del local")
+
+    def buscar(q):
+        return client.get(f"/finanzas/movimientos?q={q}", headers=admin_headers).json()
+
+    por_concepto = buscar("alquiler")
+    assert por_concepto["total"] == 1
+    assert "Alquiler" in por_concepto["items"][0]["concepto"]
+
+    # El nombre del cliente no es una columna del movimiento: se arma en el helper, y
+    # por eso el buscador tiene que pegar contra el texto ya construido.
+    por_cliente = buscar(cliente.user.nombre[:8])
+    assert por_cliente["total"] >= 1
+    assert all(cliente.user.nombre[:8] in m["concepto"] for m in por_cliente["items"])
+
+
+def test_buscador_ignora_los_acentos(client, admin_headers):
+    """Quien busca no tiene por qué saber con qué acento se cargó el concepto."""
+    _mov(client, admin_headers, "egreso", 5000, categoria="nomina", concepto="Nómina de agosto")
+
+    body = client.get("/finanzas/movimientos?q=nomina", headers=admin_headers).json()
+    assert body["total"] == 1 and body["items"][0]["concepto"] == "Nómina de agosto"
+
+
+def test_filtro_por_categoria(client, admin_headers, cliente, db_session):
+    plan = db_session.query(models.Plan).first()
+    _pagar(client, admin_headers, cliente.user.id, plan.id)
+    _mov(client, admin_headers, "egreso", 1000, categoria="renta")
+    _mov(client, admin_headers, "egreso", 2000, categoria="servicios")
+
+    body = client.get("/finanzas/movimientos?categoria=renta", headers=admin_headers).json()
+    assert body["total"] == 1 and body["items"][0]["categoria"] == "renta"
+
+    # "mensualidad" tiene que traer los pagos, que no son movimientos manuales.
+    solo_membresias = client.get("/finanzas/movimientos?categoria=mensualidad", headers=admin_headers).json()
+    assert solo_membresias["total"] == 1
+    assert solo_membresias["items"][0]["fuente"] == "pago_membresia"
+
+
+def test_filtro_por_plan_deja_fuera_ventas_y_manuales(client, admin_headers, cliente, db_session):
+    """Un plan solo puede tener pagos de membresía detrás: una venta de tienda o un
+    egreso de renta no pertenecen a ningún plan y colarlos haría mentir al total."""
+    plan_a = db_session.query(models.Plan).filter_by(nombre="1 Semana").first()
+    plan_b = db_session.query(models.Plan).filter(models.Plan.id != plan_a.id).first()
+    _pagar(client, admin_headers, cliente.user.id, plan_a.id, monto=10000)
+    _pagar(client, admin_headers, cliente.user.id, plan_b.id, monto=90000)
+    _vender(client, admin_headers, _crear_producto(client, admin_headers)["id"])
+    _mov(client, admin_headers, "egreso", 1000, categoria="renta")
+
+    body = client.get(f"/finanzas/movimientos?plan_id={plan_a.id}", headers=admin_headers).json()
+    assert body["total"] == 1
+    assert body["items"][0]["monto"] == 10000
+    assert body["items"][0]["fuente"] == "pago_membresia"
+
+
+def test_paginacion_no_cambia_el_total(client, admin_headers):
+    for i in range(5):
+        _mov(client, admin_headers, "egreso", 100 + i, categoria="otros")
+
+    p1 = client.get("/finanzas/movimientos?skip=0&limit=2", headers=admin_headers).json()
+    p2 = client.get("/finanzas/movimientos?skip=2&limit=2", headers=admin_headers).json()
+
+    assert p1["total"] == p2["total"] == 5      # el total es del período, no de la página
+    assert len(p1["items"]) == len(p2["items"]) == 2
+    assert {m["id"] for m in p1["items"]}.isdisjoint({m["id"] for m in p2["items"]})
+
+
+# ── Estadísticas: qué se vendió ────────────────────────────────
+
+
+def test_estadisticas_agrupa_por_plan(client, admin_headers, cliente, crear_usuario, db_session):
+    plan_a = db_session.query(models.Plan).filter_by(nombre="1 Semana").first()
+    plan_b = db_session.query(models.Plan).filter(models.Plan.id != plan_a.id).first()
+    otro = crear_usuario("cliente")
+
+    _pagar(client, admin_headers, cliente.user.id, plan_a.id, monto=10000)
+    _pagar(client, admin_headers, otro.user.id, plan_a.id, monto=10000)
+    _pagar(client, admin_headers, cliente.user.id, plan_b.id, monto=5000)
+
+    datos = client.get("/finanzas/estadisticas", headers=admin_headers).json()
+    por_nombre = {p["nombre"]: p for p in datos["planes"]}
+
+    assert por_nombre[plan_a.nombre]["cantidad"] == 2
+    assert por_nombre[plan_a.nombre]["total"] == 20000
+    assert por_nombre[plan_b.nombre]["cantidad"] == 1
+    assert datos["total_planes"] == 25000
+    # Ordenado por lo que más facturó, que es como se lee la tabla.
+    assert datos["planes"][0]["nombre"] == plan_a.nombre
+    assert por_nombre[plan_a.nombre]["porcentaje"] == 80.0
+
+
+def test_estadisticas_cuenta_los_personalizados_aparte(client, admin_headers, cliente):
+    """`plan_id` es NULL en un pago personalizado: con un join normal desaparecería del
+    desglose, y es ingreso real que ya está contado en la tarjeta de Membresías."""
+    client.post(
+        "/pagos/directo/",
+        json={"usuario_id": cliente.user.id, "duracion_dias": 20, "monto": 40000, "metodo_pago": "efectivo"},
+        headers=admin_headers,
+    )
+    datos = client.get("/finanzas/estadisticas", headers=admin_headers).json()
+    personalizado = next(p for p in datos["planes"] if p["nombre"] == "Personalizado")
+    assert personalizado["plan_id"] is None
+    assert personalizado["cantidad"] == 1 and personalizado["total"] == 40000
+
+
+def test_estadisticas_agrupa_por_producto(client, admin_headers):
+    prod = _crear_producto(client, admin_headers, precio=20000, stock=10, nombre="Proteína")
+    _vender(client, admin_headers, prod["id"], cantidad=2)
+    _vender(client, admin_headers, prod["id"], cantidad=1)
+
+    datos = client.get("/finanzas/estadisticas", headers=admin_headers).json()
+    fila = next(p for p in datos["productos"] if p["nombre"] == "Proteína")
+    assert fila["unidades"] == 3
+    assert fila["total"] == 60000
+
+
+def test_estadisticas_solo_admin(client, coach, cliente):
+    assert client.get("/finanzas/estadisticas", headers=coach.headers).status_code == 403
+    assert client.get("/finanzas/estadisticas", headers=cliente.headers).status_code == 403
+
+
+# ── Zona horaria: la ventana es el día de Bogotá, no el de UTC ──
+
+
+def test_ventana_es_el_dia_de_bogota_no_el_de_utc(client, admin_headers, cliente, db_session):
+    """Las columnas se guardan naive en UTC y el filtro recibe días de Bogotá.
+
+    Un caso a mediodía no prueba nada: el bug vive entre las 19:00 y la medianoche, que
+    en UTC ya son del día siguiente. Se atacan las dos puntas — lo de hoy a las 21:00
+    tiene que entrar, y lo de anoche a las 20:00 tiene que quedar afuera.
+    """
+    from datetime import time
+
+    from fechas import a_utc, hoy_bogota
+
+    hoy = hoy_bogota()
+    ayer = hoy - timedelta(days=1)
+    plan = db_session.query(models.Plan).first()
+
+    db_session.add_all([
+        models.Pago(usuario_id=cliente.user.id, plan_id=plan.id, monto=111, metodo_pago="efectivo",
+                    fecha_pago=a_utc(datetime.combine(hoy, time(21, 0)))),
+        models.Pago(usuario_id=cliente.user.id, plan_id=plan.id, monto=222, metodo_pago="efectivo",
+                    fecha_pago=a_utc(datetime.combine(ayer, time(20, 0)))),
+    ])
+    db_session.commit()
+
+    body = client.get(
+        f"/finanzas/movimientos?fecha_desde={hoy.isoformat()}&fecha_hasta={hoy.isoformat()}",
+        headers=admin_headers,
+    ).json()
+    montos = {m["monto"] for m in body["items"]}
+
+    assert 111 in montos, "la noche de hoy se perdía: 21:00 Bogotá ya es mañana en UTC"
+    assert 222 not in montos, "la noche de ayer se colaba en el día de hoy"
 
 
 def test_eliminar_movimiento_manual(client, admin_headers, db_session):

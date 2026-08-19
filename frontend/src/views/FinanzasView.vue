@@ -149,61 +149,169 @@
       </div>
     </div>
 
+    <!-- ── Qué se vendió ──
+         Las tarjetas de arriba dicen cuánta plata entró; esto dice de dónde. Carga
+         aparte con su propio skeleton: si este endpoint falla, el historial y el
+         balance siguen en pie. -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div v-for="bloque in bloquesVendido" :key="bloque.key"
+        class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+          <h3 class="font-bold text-gray-800">{{ bloque.titulo }}</h3>
+          <span class="text-sm font-black text-gray-700">{{ formatMoneda(bloque.total) }}</span>
+        </div>
+
+        <div v-if="cargandoEstadisticas" class="p-6 space-y-3">
+          <div v-for="i in 3" :key="i" class="h-8 bg-gray-100 rounded animate-pulse"></div>
+        </div>
+
+        <div v-else-if="bloque.filas.length === 0" class="p-8 text-center text-sm text-gray-400">
+          {{ bloque.vacio }}
+        </div>
+
+        <div v-else>
+          <!-- Tabla en desktop, cards en móvil: mismo patrón que Clientes y Ejercicios. -->
+          <table class="hidden sm:table min-w-full divide-y divide-gray-100">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-5 py-2.5 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">{{ bloque.colNombre }}</th>
+                <th class="px-5 py-2.5 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">{{ bloque.colCantidad }}</th>
+                <th class="px-5 py-2.5 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Total</th>
+                <th class="px-5 py-2.5 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">%</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              <tr v-for="f in bloque.filas" :key="f.key" class="hover:bg-gray-50 transition-colors">
+                <td class="px-5 py-3 text-sm font-semibold text-gray-800">{{ f.nombre }}</td>
+                <td class="px-5 py-3 text-right text-sm text-gray-500">{{ f.cantidad }}</td>
+                <td class="px-5 py-3 text-right text-sm font-bold text-emerald-600">{{ formatMoneda(f.total) }}</td>
+                <td class="px-5 py-3 text-right">
+                  <!-- La barra hace comparable de un vistazo lo que el número solo no
+                       muestra: cuál plan sostiene el mes. -->
+                  <div class="flex items-center justify-end gap-2">
+                    <div class="w-14 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div class="h-full bg-emerald-500 rounded-full" :style="{ width: f.porcentaje + '%' }"></div>
+                    </div>
+                    <span class="text-xs font-semibold text-gray-500 w-10 text-right">{{ f.porcentaje }}%</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="sm:hidden divide-y divide-gray-50">
+            <div v-for="f in bloque.filas" :key="f.key" class="px-5 py-3">
+              <div class="flex items-baseline justify-between gap-3">
+                <p class="text-sm font-semibold text-gray-800 truncate">{{ f.nombre }}</p>
+                <p class="text-sm font-bold text-emerald-600 whitespace-nowrap">{{ formatMoneda(f.total) }}</p>
+              </div>
+              <p class="text-xs text-gray-400 mt-0.5">
+                {{ f.cantidad }} {{ bloque.colCantidad.toLowerCase() }} · {{ f.porcentaje }}%
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Historial ── -->
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
         <h3 class="font-bold text-gray-800">Historial de movimientos</h3>
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Buscador. Pega contra el concepto y el nombre del cliente, en el backend
+               y sobre TODO el período: buscar algo que sí está y no verlo aparecer es
+               peor que no tener buscador. -->
+          <div class="relative">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-2.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input v-model="busqueda" type="search" placeholder="Buscar concepto o cliente..."
+              class="w-56 pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-sm">
+          </div>
           <!-- Filtro tipo -->
           <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-            <button @click="filtroTipo = null; cargarMovimientos()"
+            <button @click="filtroTipo = null; aplicarFiltros()"
               class="text-xs px-3 py-1 rounded-md font-semibold transition-colors"
               :class="filtroTipo === null ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'">
               Todos
             </button>
-            <button @click="filtroTipo = 'ingreso'; cargarMovimientos()"
+            <button @click="filtroTipo = 'ingreso'; aplicarFiltros()"
               class="text-xs px-3 py-1 rounded-md font-semibold transition-colors"
               :class="filtroTipo === 'ingreso' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'">
               Ingresos
             </button>
-            <button @click="filtroTipo = 'egreso'; cargarMovimientos()"
+            <button @click="filtroTipo = 'egreso'; aplicarFiltros()"
               class="text-xs px-3 py-1 rounded-md font-semibold transition-colors"
               :class="filtroTipo === 'egreso' ? 'bg-white shadow text-red-500' : 'text-gray-500 hover:text-gray-700'">
               Egresos
             </button>
           </div>
+          <!-- Filtro categoría -->
+          <select v-model="filtroCategoria" @change="aplicarFiltros()"
+            class="text-xs font-semibold px-3 py-2 rounded-lg border border-gray-200 text-gray-600 focus:ring-2 focus:ring-red-500 outline-none">
+            <option :value="null">Toda categoría</option>
+            <option v-for="c in categoriasFiltro" :key="c.value" :value="c.value">{{ c.label }}</option>
+          </select>
+          <!-- Filtro plan: solo aplica a pagos de membresía -->
+          <select v-if="puedeFiltrarPlan && planes.length" v-model="filtroPlan" @change="aplicarFiltros()"
+            class="text-xs font-semibold px-3 py-2 rounded-lg border border-gray-200 text-gray-600 focus:ring-2 focus:ring-red-500 outline-none">
+            <option :value="null">Todo plan</option>
+            <option v-for="p in planes" :key="p.id" :value="p.id">{{ p.nombre }}</option>
+          </select>
           <!-- Filtro método de pago -->
           <div class="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-            <button @click="filtroMetodo = null"
+            <button @click="filtroMetodo = null; aplicarFiltros()"
               class="text-xs px-3 py-1 rounded-md font-semibold transition-colors"
               :class="filtroMetodo === null ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'">
               Todos
             </button>
-            <button @click="filtroMetodo = 'efectivo'"
+            <button @click="filtroMetodo = 'efectivo'; aplicarFiltros()"
               class="text-xs px-3 py-1 rounded-md font-semibold transition-colors flex items-center gap-1"
               :class="filtroMetodo === 'efectivo' ? 'bg-white shadow text-amber-600' : 'text-gray-500 hover:text-gray-700'">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
               Efectivo
             </button>
-            <button @click="filtroMetodo = 'transferencia'"
+            <button @click="filtroMetodo = 'transferencia'; aplicarFiltros()"
               class="text-xs px-3 py-1 rounded-md font-semibold transition-colors flex items-center gap-1"
               :class="filtroMetodo === 'transferencia' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"/></svg>
               Transferencia
             </button>
           </div>
+          <button v-if="hayFiltros" @click="limpiarFiltros"
+            class="text-xs font-semibold px-3 py-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors">
+            Limpiar
+          </button>
         </div>
+      </div>
+
+      <!-- Con filtros puestos, el total de arriba es del período completo y no de lo
+           filtrado: sin esta línea habría que sumar a mano para saber cuánto pesa. -->
+      <div v-if="hayFiltros && !cargandoMovimientos && totalMovimientos > 0"
+        class="px-6 py-2.5 bg-gray-50 border-b border-gray-100 text-xs text-gray-500">
+        <span class="font-bold text-gray-700">{{ totalMovimientos }}</span>
+        {{ totalMovimientos === 1 ? 'movimiento coincide' : 'movimientos coinciden' }}
+        · suman <span class="font-bold text-gray-700">{{ formatMoneda(totalMontoFiltrado) }}</span>
       </div>
 
       <div v-if="cargandoMovimientos" class="p-12 text-center">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
       </div>
 
-      <div v-else-if="movimientosFiltrados.length === 0" class="p-12 text-center text-gray-400">
+      <div v-else-if="totalMovimientos === 0" class="p-12 text-center text-gray-400">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-200 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
         </svg>
-        Sin movimientos en este período.
+        <!-- Distinguir "no hay nada" de "no hay nada que coincida" evita que el admin
+             crea que el período está vacío cuando en realidad dejó un filtro puesto. -->
+        <template v-if="hayFiltros">
+          Ningún movimiento coincide con el filtro.
+          <button @click="limpiarFiltros" class="block mx-auto mt-3 text-red-600 font-semibold hover:underline text-sm">
+            Limpiar filtros
+          </button>
+        </template>
+        <template v-else>Sin movimientos en este período.</template>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -267,11 +375,11 @@
       </div>
 
       <!-- ── Paginación ── -->
-      <div v-if="!cargandoMovimientos && movimientosFiltrados.length > POR_PAGINA"
+      <div v-if="!cargandoMovimientos && totalMovimientos > POR_PAGINA"
         class="px-5 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p class="text-xs text-gray-500 order-2 sm:order-1">
           Mostrando <span class="font-bold text-gray-700">{{ filaDesde }}–{{ filaHasta }}</span>
-          de <span class="font-bold text-gray-700">{{ movimientosFiltrados.length }}</span>
+          de <span class="font-bold text-gray-700">{{ totalMovimientos }}</span>
         </p>
         <div class="flex items-center gap-1 order-1 sm:order-2">
           <button @click="irAPagina(pagina - 1)" :disabled="pagina === 1"
@@ -416,17 +524,54 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import api from '../api'
 import { BADGE_NEUTRO } from '../data/paleta'
+import { aISO } from '../lib/fechas'
 
 // ── Estado ───────────────────────────────────────────────────
 const balance = ref({ ingresos_total: 0, total_membresias: 0, total_tienda: 0, egresos_total: 0, balance_neto: 0, ingresos_por_categoria: {}, egresos_por_categoria: {} })
 const movimientos = ref([])
+const totalMovimientos = ref(0)
+const totalMontoFiltrado = ref(0)
 const cargandoBalance = ref(true)
 const cargandoMovimientos = ref(true)
 const filtroTipo = ref(null)
 const filtroMetodo = ref(null)
+const filtroCategoria = ref(null)
+const filtroPlan = ref(null)
+const busqueda = ref('')
+const planes = ref([])
 const mostrarModal = ref(false)
 const guardando = ref(false)
 const errorGuardar = ref('')
+
+// ── Estadísticas: qué se vendió ──────────────────────────────
+const estadisticas = ref({ planes: [], productos: [], total_planes: 0, total_productos: 0 })
+const cargandoEstadisticas = ref(true)
+
+// Las dos tablas son la misma estructura con otros rótulos, así que se describen como
+// datos y se renderizan con un v-for. Duplicar el markup era garantizar que una de las
+// dos se quedara atrás al primer retoque.
+const bloquesVendido = computed(() => [
+  {
+    key: 'planes',
+    titulo: 'Planes vendidos',
+    colNombre: 'Plan',
+    colCantidad: 'Vendidos',
+    total: estadisticas.value.total_planes,
+    vacio: 'Sin membresías cobradas en este período.',
+    // La key cae al nombre y no a un literal: hay DOS filas con `plan_id: null`
+    // (Personalizado y el ingreso manual), y un literal fijo las haría colisionar.
+    filas: estadisticas.value.planes.map(p => ({ ...p, key: p.plan_id ?? p.nombre, cantidad: p.cantidad })),
+  },
+  {
+    key: 'productos',
+    titulo: 'Productos vendidos',
+    colNombre: 'Producto',
+    colCantidad: 'Unidades',
+    total: estadisticas.value.total_productos,
+    vacio: 'Sin ventas de tienda en este período.',
+    filas: estadisticas.value.productos.map(p => ({ ...p, key: p.producto_id ?? 'eliminado', cantidad: p.unidades })),
+  },
+])
 
 // ── Período ──────────────────────────────────────────────────
 const periodoActivo = ref('mes')
@@ -448,7 +593,10 @@ const labelPeriodo = computed(() => {
 
 function calcularFechas() {
   const hoy = new Date()
-  const fmt = (d) => d.toISOString().slice(0, 10)
+  // `aISO` y no `toISOString()`: este último da la fecha UTC, así que después de las
+  // 19:00 en Bogotá "Hoy" le pedía al backend el rango de mañana — justo en el horario
+  // en que el box está lleno. Ver lib/fechas.js.
+  const fmt = aISO
   switch (periodoActivo.value) {
     case 'hoy':
       return { desde: fmt(hoy), hasta: fmt(hoy) }
@@ -498,16 +646,32 @@ async function cargarBalance() {
   }
 }
 
-async function cargarMovimientos() {
-  cargandoMovimientos.value = true
+/** Los filtros que viajan al backend. Los comparten el listado y el export a Excel,
+ *  para que el archivo diga exactamente lo que hay en pantalla. */
+function paramsFiltros() {
   const { desde, hasta } = calcularFechas()
-  const params = { limit: 200 }
+  const params = {}
   if (desde) params.fecha_desde = desde
   if (hasta) params.fecha_hasta = hasta
   if (filtroTipo.value) params.tipo = filtroTipo.value
+  if (filtroCategoria.value) params.categoria = filtroCategoria.value
+  if (filtroMetodo.value) params.metodo_pago = filtroMetodo.value
+  if (filtroPlan.value) params.plan_id = filtroPlan.value
+  if (busqueda.value.trim()) params.q = busqueda.value.trim()
+  return params
+}
+
+async function cargarMovimientos() {
+  cargandoMovimientos.value = true
+  // Paginación de servidor: el buscador tiene que encontrar cualquier movimiento del
+  // período. Con el tope de 200 en cliente, buscar algo que SÍ está y no verlo aparecer
+  // es peor que no tener buscador.
+  const params = { ...paramsFiltros(), skip: (pagina.value - 1) * POR_PAGINA, limit: POR_PAGINA }
   try {
     const { data } = await api.get('/finanzas/movimientos', { params })
-    movimientos.value = data
+    movimientos.value = data.items
+    totalMovimientos.value = data.total
+    totalMontoFiltrado.value = data.total_monto
   } catch (e) {
     console.error(e)
   } finally {
@@ -515,31 +679,63 @@ async function cargarMovimientos() {
   }
 }
 
-const movimientosFiltrados = computed(() => {
-  return movimientos.value.filter(m => {
-    if (filtroMetodo.value && m.metodo_pago !== filtroMetodo.value) return false
-    return true
-  })
-})
+async function cargarEstadisticas() {
+  cargandoEstadisticas.value = true
+  const { desde, hasta } = calcularFechas()
+  const params = {}
+  if (desde) params.fecha_desde = desde
+  if (hasta) params.fecha_hasta = hasta
+  try {
+    const { data } = await api.get('/finanzas/estadisticas', { params })
+    estadisticas.value = data
+  } catch (e) {
+    console.error(e)
+  } finally {
+    cargandoEstadisticas.value = false
+  }
+}
 
-// ── Paginación (en cliente: cargarMovimientos ya trae hasta 200 del período) ──
+// ── Paginación (de servidor) ──────────────────────────────────
 const POR_PAGINA = 15
 const pagina = ref(1)
 
 // Ojo con los nombres: rangoDesde/rangoHasta ya son las fechas del período "Rango".
-const totalPaginas = computed(() => Math.max(1, Math.ceil(movimientosFiltrados.value.length / POR_PAGINA)))
-const filaDesde = computed(() => (pagina.value - 1) * POR_PAGINA + 1)
-const filaHasta = computed(() => Math.min(pagina.value * POR_PAGINA, movimientosFiltrados.value.length))
-const movimientosPagina = computed(() => movimientosFiltrados.value.slice(filaDesde.value - 1, filaHasta.value))
+const totalPaginas = computed(() => Math.max(1, Math.ceil(totalMovimientos.value / POR_PAGINA)))
+const filaDesde = computed(() => totalMovimientos.value === 0 ? 0 : (pagina.value - 1) * POR_PAGINA + 1)
+const filaHasta = computed(() => Math.min(pagina.value * POR_PAGINA, totalMovimientos.value))
+const movimientosPagina = computed(() => movimientos.value)
 
 function irAPagina(p) {
-  pagina.value = Math.min(Math.max(1, p), totalPaginas.value)
+  const destino = Math.min(Math.max(1, p), totalPaginas.value)
+  if (destino === pagina.value) return
+  pagina.value = destino
+  cargarMovimientos()
 }
 
-// Cambiar de período o de filtro puede dejar la página actual fuera de rango.
-watch([periodoActivo, filtroTipo, filtroMetodo], () => { pagina.value = 1 })
+/** Cualquier filtro nuevo invalida la página actual: la 3 de un listado de 40 no
+ *  existe en uno de 5. Vuelve a la 1 y recarga una sola vez. */
+function aplicarFiltros() {
+  if (pagina.value !== 1) pagina.value = 1
+  cargarMovimientos()
+}
+
+// El buscador espera a que dejen de teclear: sin esto, cada tecla es una petición y
+// las respuestas pueden llegar desordenadas.
+let debounceBusqueda = null
+watch(busqueda, () => {
+  clearTimeout(debounceBusqueda)
+  debounceBusqueda = setTimeout(aplicarFiltros, 300)
+})
+
+// El filtro por plan solo aplica a pagos de membresía: si se pasa a Egresos o a otra
+// categoría, dejarlo puesto vaciaría la tabla sin que se vea por qué.
+watch([filtroTipo, filtroCategoria], () => {
+  const aplicaPlan = filtroTipo.value !== 'egreso' && filtroCategoria.value !== 'venta_tienda'
+  if (!aplicaPlan) filtroPlan.value = null
+})
+
 // Si la lista se achica por otra vía (borrar un movimiento), se reencuadra.
-watch(totalPaginas, (n) => { if (pagina.value > n) pagina.value = n })
+watch(totalPaginas, (n) => { if (pagina.value > n) irAPagina(n) })
 
 /** Números a mostrar, con elipsis: 1 … 4 [5] 6 … 12 */
 const paginasVisibles = computed(() => {
@@ -556,26 +752,31 @@ const paginasVisibles = computed(() => {
 })
 
 function cargarTodo() {
+  // Cambiar de período invalida la página: la 3 de un mes cargado no existe en uno flojo.
+  pagina.value = 1
   cargarBalance()
+  cargarEstadisticas()
   cargarMovimientos()
 }
 
 // ── Exportar a Excel ──────────────────────────────────────────
-// Manda el mismo período que la pantalla; el backend arma resumen + movimientos.
+// Manda el mismo período Y LOS MISMOS FILTROS que la pantalla: filtrar por "Nómina" y
+// que el archivo salga con todo el mes es la clase de sorpresa que hace desconfiar del
+// export. El Resumen del archivo sigue siendo del período completo — son los totales
+// del negocio, y recortarlos por un filtro de pantalla los volvería engañosos.
 const exportando = ref(false)
 
 async function exportarExcel() {
   exportando.value = true
-  const { desde, hasta } = calcularFechas()
-  const params = {}
-  if (desde) params.fecha_desde = desde
-  if (hasta) params.fecha_hasta = hasta
+  // `tipo` no viaja: el archivo ya trae hojas separadas de Ingresos y Egresos, así que
+  // filtrarlo dejaría una hoja vacía sin motivo visible.
+  const { tipo, ...params } = paramsFiltros()
   try {
     const { data } = await api.get('/finanzas/exportar-excel', { params, responseType: 'blob' })
     const url = URL.createObjectURL(data)
     const a = document.createElement('a')
     a.href = url
-    a.download = `finanzas_jainsportbox_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.download = `finanzas_jainsportbox_${aISO(new Date())}.xlsx`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -706,7 +907,44 @@ const formatFecha = (f) => {
   return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })
 }
 
-onMounted(cargarTodo)
+// Las categorías del FILTRO no son las mismas que las del alta: acá hay que ofrecer
+// también `venta_tienda`, que existe en los datos (las ventas entran solas desde el POS)
+// pero no se puede crear a mano, y por eso CATEGORIAS_POR_TIPO no la incluye.
+const CATEGORIAS_FILTRO = {
+  ingreso: [{ value: 'venta_tienda', label: 'Tienda' }, ...CATEGORIAS_POR_TIPO.ingreso],
+  egreso: CATEGORIAS_POR_TIPO.egreso,
+}
+
+const categoriasFiltro = computed(() =>
+  filtroTipo.value ? CATEGORIAS_FILTRO[filtroTipo.value] : [...CATEGORIAS_FILTRO.ingreso, ...CATEGORIAS_FILTRO.egreso]
+)
+
+// El plan solo acota pagos de membresía: en Egresos o en Tienda no significa nada.
+const puedeFiltrarPlan = computed(() =>
+  filtroTipo.value !== 'egreso' && filtroCategoria.value !== 'venta_tienda'
+)
+
+const hayFiltros = computed(() =>
+  Boolean(filtroTipo.value || filtroCategoria.value || filtroMetodo.value || filtroPlan.value || busqueda.value.trim())
+)
+
+function limpiarFiltros() {
+  filtroTipo.value = null
+  filtroCategoria.value = null
+  filtroMetodo.value = null
+  filtroPlan.value = null
+  busqueda.value = ''      // dispara el watch con debounce; el aplicarFiltros de abajo cubre el resto
+  aplicarFiltros()
+}
+
+onMounted(async () => {
+  cargarTodo()
+  // Para el selector de plan del filtro. Falla en silencio: sin planes el selector no
+  // se muestra, pero el resto de la pantalla tiene que seguir viva.
+  try {
+    planes.value = (await api.get('/planes/')).data
+  } catch { /* silencioso */ }
+})
 </script>
 
 <style>
