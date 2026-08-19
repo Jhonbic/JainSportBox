@@ -169,6 +169,10 @@
                 <p class="text-sm font-semibold flex items-center gap-2" :class="colorTextoDias(diasRestantes(user.fecha_vencimiento))">
                   <span class="w-2 h-2 rounded-full flex-shrink-0" :class="colorPuntoDias(diasRestantes(user.fecha_vencimiento))"></span>
                   {{ etiquetaDias(diasRestantes(user.fecha_vencimiento)) }}
+                  <span v-if="motivoInactivo(user) === 'sin_accesos'"
+                    class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                    Sin accesos
+                  </span>
                 </p>
                 <p v-if="user.ingresos_restantes !== null && user.ingresos_restantes !== undefined"
                   class="text-xs font-semibold ml-4" :class="user.ingresos_restantes > 0 ? 'text-gray-600' : 'text-red-600'">
@@ -183,6 +187,20 @@
                 :class="user.esta_en_gym ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200'">
                 <span class="w-1.5 h-1.5 rounded-full" :class="user.esta_en_gym ? 'bg-emerald-500' : 'bg-gray-400'"></span>
                 {{ user.esta_en_gym ? 'Activo' : 'Fuera' }}
+              </span>
+              <a v-if="mostrarRecordatorio(user) && whatsappInactivo(user)"
+                :href="whatsappInactivo(user)" target="_blank" rel="noopener"
+                :title="`Recordarle por WhatsApp (${LABEL_MOTIVO[motivoInactivo(user)]})`"
+                class="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+              </a>
+              <span v-else-if="mostrarRecordatorio(user)" title="Sin teléfono para escribirle"
+                class="p-2 text-gray-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18M9.53 9.53A9 9 0 0021 12.79V19a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 011.12 3.18 2 2 0 013.1 1h6.21"/>
+                </svg>
               </span>
               <button @click="verUsuario(user)" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -223,7 +241,15 @@
                     <div class="flex items-center gap-2">
                       <span class="w-2 h-2 rounded-full flex-shrink-0" :class="colorPuntoDias(diasRestantes(user.fecha_vencimiento))"></span>
                       <div>
-                        <p class="text-sm font-semibold" :class="colorTextoDias(diasRestantes(user.fecha_vencimiento))">{{ etiquetaDias(diasRestantes(user.fecha_vencimiento)) }}</p>
+                        <p class="text-sm font-semibold flex items-center gap-1.5" :class="colorTextoDias(diasRestantes(user.fecha_vencimiento))">
+                          {{ etiquetaDias(diasRestantes(user.fecha_vencimiento)) }}
+                          <!-- Con la fecha vigente pero el bono agotado, la línea de días
+                               dice "23 días restantes" y sola haría creer que puede entrar. -->
+                          <span v-if="motivoInactivo(user) === 'sin_accesos'"
+                            class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                            Sin accesos
+                          </span>
+                        </p>
                         <p v-if="user.ingresos_restantes !== null && user.ingresos_restantes !== undefined"
                           class="text-xs font-semibold" :class="user.ingresos_restantes > 0 ? 'text-gray-600' : 'text-red-600'">
                           {{ user.ingresos_restantes }} {{ user.ingresos_restantes === 1 ? 'acceso' : 'accesos' }}
@@ -243,6 +269,25 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center gap-2">
+                    <!-- Recordatorio a quien no puede entrar. Emerald como el resto de
+                         los botones de WhatsApp de la app (es el color de marca de un
+                         tercero, la excepción documentada en "Paleta de colores"). -->
+                    <a v-if="mostrarRecordatorio(user) && whatsappInactivo(user)"
+                      :href="whatsappInactivo(user)" target="_blank" rel="noopener"
+                      :title="`Recordarle por WhatsApp (${LABEL_MOTIVO[motivoInactivo(user)]})`"
+                      class="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                    </a>
+                    <!-- Sin teléfono utilizable el botón no existe, así que se explica
+                         por qué en vez de dejar un hueco sin motivo. -->
+                    <span v-else-if="mostrarRecordatorio(user)" title="Sin teléfono para escribirle"
+                      class="p-1.5 text-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18M9.53 9.53A9 9 0 0021 12.79V19a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 011.12 3.18 2 2 0 013.1 1h6.21"/>
+                      </svg>
+                    </span>
                     <button @click="verUsuario(user)" title="Ver detalle" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                     </button>
@@ -1181,6 +1226,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api, { mediaUrl } from '../api'
 import { fotoSrc } from '../lib/avatar'
+import { linkWa } from '../lib/whatsapp'
 import { BADGE_NEUTRO } from '../data/paleta'
 import { useAuth } from '../composables/useAuth'
 import { nuevoFormulario, payloadActivacion, payloadPago } from '../lib/membresia'
@@ -1351,10 +1397,72 @@ const _iniciarPollEnrol = () => {
 // ── Filtros ──────────────────────────────────────────────────
 const hoy = () => { const d = new Date(); d.setHours(0,0,0,0); return d }
 
-const tieneMembresia = (u) => {
+const fechaVigente = (u) => {
   if (!u.fecha_vencimiento) return false
   return new Date(u.fecha_vencimiento + 'T00:00:00') >= hoy()
 }
+
+const sinAccesos = (u) =>
+  u.ingresos_restantes !== null && u.ingresos_restantes !== undefined && u.ingresos_restantes <= 0
+
+/**
+ * Si el socio puede entrar hoy al box. Son DOS ejes y hay que mirar los dos, igual que
+ * `_validar_membresia` en el backend: un bono agotado no deja entrar aunque la fecha
+ * siga vigente.
+ *
+ * Antes esto solo miraba la fecha, así que el que se quedó sin accesos aparecía en
+ * Activos mientras la palanquera lo rechazaba — y era justo el que más cerca estaba de
+ * volver a comprar, pero no había cómo mandarle el recordatorio desde acá.
+ */
+const tieneMembresia = (u) => fechaVigente(u) && !sinAccesos(u)
+
+/** Por qué no puede entrar, o `null` si puede. Da el chip y el texto del recordatorio. */
+const motivoInactivo = (u) => {
+  if (!u.fecha_vencimiento) return 'nunca'
+  if (!fechaVigente(u)) return 'vencida'
+  if (sinAccesos(u)) return 'sin_accesos'
+  return null
+}
+
+// ── Recordatorio por WhatsApp a los inactivos ────────────────
+// El texto cambia con el motivo: a quien se le venció la fecha hay que decirle que
+// renueve, y a quien gastó el bono, que compre más accesos. Mandarle "renová tu
+// mensualidad" a alguien que tiene fecha de sobra y cero accesos lo confunde, y encima
+// le da la impresión de que en el box no saben en qué situación está.
+function mensajeInactivo(u) {
+  const nombre = u.nombre?.split(' ')[0] || ''
+  const hola = `Hola${nombre ? ' ' + nombre : ''}!`
+  switch (motivoInactivo(u)) {
+    // Tuteo, como el resto de los mensajes de la app. El de cumpleaños mezclaba voseo
+    // con tuteo en la misma frase y hubo que corregirlo.
+    case 'sin_accesos':
+      return `${hola} Te avisamos que se te acabaron los accesos de tu plan en *Jain Sport Box*. ` +
+             `Pasa por recepción para recargarlo y seguimos entrenando.`
+    case 'vencida':
+      return `${hola} Te recordamos que tu membresía en *Jain Sport Box* ya venció. ` +
+             `Renuévala cuando quieras y te esperamos en el box.`
+    default:
+      return `${hola} Vimos que todavía no tienes una membresía activa en *Jain Sport Box*. ` +
+             `Pasa por recepción y te ayudamos a elegir el plan que mejor te sirva.`
+  }
+}
+
+// Condicionado al LINK y no al teléfono: un número incompleto generaría un botón que
+// lleva a un error de WhatsApp, y quien lo aprieta no sabe si falló el link o si el
+// socio no contesta. Ver "Teléfonos de WhatsApp" en CLAUDE.md.
+const whatsappInactivo = (u) => linkWa(u.telefono, mensajeInactivo(u))
+
+/**
+ * El recordatorio vive **solo en el tab Inactivos**, no en cualquier fila inactiva.
+ *
+ * En "Todos" o en "En el box" la fila de un vencido también califica, pero ahí el admin
+ * está haciendo otra cosa —buscar a alguien, ver quién está entrenando— y un botón de
+ * "se te acabó" mezclado entre socios al día es ruido: la acción de cobrar tiene su
+ * pestaña. Condicionar por tab y no por fila es lo que mantiene esa separación.
+ */
+const mostrarRecordatorio = (u) => filtroActivo.value === 'inactivos' && motivoInactivo(u) !== null
+
+const LABEL_MOTIVO = { vencida: 'Vencida', sin_accesos: 'Sin accesos', nunca: 'Sin membresía' }
 
 // ── Orden ────────────────────────────────────────────────────
 // Los sin fecha van siempre al final, ordene como ordene: "sin membresía" no es
