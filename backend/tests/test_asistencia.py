@@ -218,11 +218,15 @@ def test_historial_usuario_inexistente_404(client, admin_headers):
 
 
 def test_en_gym(client, admin_headers, bridge_headers, cliente):
+    # Contra la constante y no contra un número fijo: el valor se ajusta según cuánto
+    # dura un entrenamiento, y un literal acá obliga a tocar el test cada vez.
+    from routers.asistencia import MINUTOS_SESION
+
     _marcar(client, bridge_headers, cliente.user.id)
     r = client.get("/asistencia/en-gym", headers=admin_headers)
     assert r.status_code == 200
     fila = next(x for x in r.json() if x["usuario_id"] == cliente.user.id)
-    assert fila["minutos_sesion"] == 65
+    assert fila["minutos_sesion"] == MINUTOS_SESION
     assert 0 <= fila["minutos_transcurridos"] < 5
     assert fila["minutos_restantes"] > 60
     assert fila["entrada_desde"]

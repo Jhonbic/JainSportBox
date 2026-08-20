@@ -47,7 +47,14 @@ def _autorizar_bridge_o_admin(request: Request, db: Session) -> None:
         raise HTTPException(status_code=403, detail="Sin permisos.")
 
 
-MINUTOS_SESION = 65  # tiempo máximo de una sesión; usado por el job de reset en main.py
+# Duración máxima de una sesión. Como no hay marcación de salida, es el único criterio
+# por el que alguien deja de figurar "en el box": si no volvió a marcar en este tiempo,
+# se asume que ya se fue.
+#
+# Lo usan TRES cosas y se mueven juntas al tocar el número (es a propósito, ver
+# `_entrada_vigente`): el job de reset en `main.py`, los `minutos_restantes` de
+# `GET /en-gym`, y la ventana de deduplicación de marcaciones.
+MINUTOS_SESION = 80
 
 
 def _validar_membresia(usuario: Usuario) -> None:

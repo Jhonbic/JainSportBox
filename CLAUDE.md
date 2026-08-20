@@ -129,7 +129,7 @@ Detalles que no son opcionales: `ImageOps.exif_transpose()` (sin eso las fotos v
 
 **En los tests, `PNG_BYTES` tiene que ser un PNG real** (lo genera Pillow en `conftest.py`): el header falso + ceros que había antes ahora se rechaza con 400, que es el comportamiento correcto.
 - **401 global:** `api.js` tiene un interceptor de respuesta que ante 401 limpia la sesión y redirige a `/login`.
-- **Scheduler con multi-worker:** el Dockerfile corre `--workers 2`; APScheduler se protege con un advisory lock de Postgres (`pg_try_advisory_lock`) en `main.py` para que el job de alertas corra en un solo worker.
+- **Scheduler y advisory lock:** el Dockerfile corre `--workers 1`; APScheduler igual se protege con un advisory lock de Postgres (`pg_try_advisory_lock`) en `main.py`, por si algún día se sube el número de workers. **El liderazgo se reintenta cada 2 minutos, no se decide una sola vez** — ver "Scheduler: por qué el liderazgo se reintenta".
 
 **Financial movements:** `FinanzasView` tiene **todo lo financiero**: el selector de período (Hoy / Esta semana / Este mes / Este año / Todo / Rango), las **5 tarjetas de balance** (Membresías, Tienda, Total ingresos, Egresos, Balance neto) atadas a ese selector, y el historial de movimientos con alta manual. El Resumen (`/dashboard`) **no** duplica nada de esto.
 
@@ -185,6 +185,21 @@ El historial pagina de a 15 **contra el servidor**. **Ojo con los nombres:** `ra
 **`null` en vez de una cadena corta, y el llamador esconde el botón.** Un link a medio armar manda a WhatsApp a una pantalla de error y quien lo aprieta no sabe si falló el link o si el gym no contesta. Por eso los `v-if` preguntan por el link, no por el teléfono.
 
 **`GET /contacto`** (público, lo consulta un `pendiente` que aún no puede autenticarse) devuelve el teléfono del admin para ese botón. Usa `order_by(Usuario.id)` antes del `.first()`: sin orden, el motor elige la fila, y si hubiera más de un ADMIN el botón podía apuntar a uno distinto en cada consulta. Devuelve **solo** el teléfono — no agregar nombre ni email.
+
+## Scheduler: por qué el liderazgo se reintenta
+
+APScheduler corre en `main.py` con cuatro jobs (alertas 9:00, WhatsApp 9:10, alertas al arrancar, y **`_job_reset_gym` cada 3 min**). Solo debe correrlos un proceso, y eso lo decide un `pg_try_advisory_lock(911001)` sobre una conexión que se mantiene abierta.
+
+**El liderazgo se reintenta cada 2 minutos (`_vigilar_liderazgo`), no se decide una sola vez al importar.** Esto no es defensa teórica: **rompió en producción**. Render hace deploys sin downtime —levanta el proceso nuevo, espera el health check y recién ahí mata el viejo—, así que durante esa ventana el saliente todavía tiene el lock. El entrante lo pedía, se lo negaban, y como la decisión se tomaba una sola vez al importar `main`, **se quedaba sin ningún job para siempre**.
+
+El síntoma es traicionero: la API responde perfecto y lo único que se nota, horas después, es que `esta_en_gym` deja de resetearse y los socios quedan pegados en "en el box" el resto del día. Las alertas de las 9:00 tampoco corren, pero eso se nota aún menos.
+
+Tres piezas lo sostienen:
+1. **`_vigilar_liderazgo` cada 2 min** — el que perdió la carrera entra apenas el saliente suelta el lock, sin esperar otro reinicio. Es lo que lo hace auto-reparable.
+2. **`_shutdown` libera el lock explícitamente** (`pg_advisory_unlock` + cerrar la conexión) en vez de confiar en que muera con el proceso: entre Supabase y su pooler la sesión puede sobrevivir un rato, y ese rato es justo la ventana mala.
+3. **`GET /` reporta `scheduler: activo | sin jobs`** — la falla era invisible desde afuera y no había ninguna línea de log que la delatara. Ahora se verifica con un `curl` a la raíz.
+
+`_registrar_jobs()` es idempotente y cada job lleva `id` fijo, así que el reintento no puede duplicarlos.
 
 ## Paleta de colores
 
@@ -383,7 +398,7 @@ El router `backend/routers/alertas.py` sigue igual y es lo que alimenta ese pane
 
 **Panel (`DashboardView.vue`):** el botón verde "Recordar" pasó a ser **fallback** — `mostrarBotonManual()` lo muestra solo si el automático no está configurado o si esa fila falló; con el automático andando y sin errores, mostrarlo invitaría a mandar dos veces. Chips: ámbar `Envío automático falló` (con el error en el `title`), gris `Sin teléfono`, y en la pestaña Enviados `Automático`/`Manual`. Las alertas anteriores a esto tienen `canal = null` y no muestran chip, que es lo correcto: no se sabe.
 
-**`POST /alertas/enviar-whatsapp` no va como botón en el Resumen.** Es la salida cuando el cron no corrió (`_debo_correr_scheduler()` se evalúa una sola vez al importar `main`, así que en un rolling deploy el proceso nuevo puede quedarse sin scheduler si el viejo sostiene el advisory lock). Exponerlo en la pantalla que el admin abre diez veces al día invita al doble envío.
+**`POST /alertas/enviar-whatsapp` no va como botón en el Resumen.** Es la salida cuando el cron no corrió. Exponerlo en la pantalla que el admin abre diez veces al día invita al doble envío.
 
 **En los tests, `conftest.py` vacía `WA_PHONE_NUMBER_ID`/`WA_ACCESS_TOKEN`** — mismo motivo que con las `S3_*`, pero peor: con credenciales reales en `backend/.env`, un test le mandaría un WhatsApp de verdad a un socio. Los tests de envío usan `httpx.MockTransport`, **no** monkeypatch de `enviar_recordatorio` (mockear la función bajo prueba no probaría nada).
 
@@ -411,7 +426,9 @@ Motivo: cada toque del lector era una fila. Un socio probando el sensor dejó 19
 - `dias_restantes` en `POST /por-documento` sale de `fecha_vencimiento`, que en el staff es `NULL`: va con guard, si no un coach marcando por cédula daba un 500. La respuesta trae `es_staff` para que `AccesoView` muestre "Equipo del box" en vez de "null días restantes / Invalid Date".
 - **Los KPIs de asistencia de `/dashboard/resumen` cuentan solo `rol == CLIENTE`.** Hasta que existió esta exención el staff no podía marcar, así que esos números eran de clientes de facto; sin el filtro, un coach entrando a diario infla "asistencia de hoy" y le cambia el significado. Participación ya filtraba por rol. **El panel de sesiones por bloque sí los muestra**, a propósito: ahí la pregunta es quién estuvo en el box.
 
-**Constante `MINUTOS_SESION`** (en `asistencia.py`): duración máxima de sesión usada tanto por `GET /en-gym` como por el job `_job_reset_gym` en `main.py`. Cambiar en un solo lugar.
+**Constante `MINUTOS_SESION` = 80** (en `asistencia.py`). Como no hay marcación de salida, es el **único** criterio por el que alguien deja de figurar "en el box": si no volvió a marcar en ese lapso, se asume que ya se fue. Vive en un solo lugar y lo usan **tres** consumidores, que se mueven juntos a propósito: el job `_job_reset_gym` de `main.py`, los `minutos_restantes` de `GET /en-gym`, y la ventana de deduplicación de `_entrada_vigente`.
+
+**Al cambiarlo, pensar en el dedup y no solo en el listado.** Subirlo es la dirección segura: la ventana en la que re-marcar no crea otra fila (ni descuenta otro acceso del bono) se agranda. **Bajarlo sí tiene costo**: con 30 minutos, por ejemplo, quien marca dos veces con 35 de diferencia genera una entrada nueva y con un plan por accesos se le descuenta otra del bono. El test de `GET /en-gym` compara contra la constante y no contra un literal, justamente para que ajustarla no obligue a tocar tests.
 
 **Auto-reset `esta_en_gym`:** el job `_job_reset_gym` (APScheduler, cada 3 min) usa un JOIN para obtener en una sola query los usuarios con `esta_en_gym=True` cuya última entrada supere `MINUTOS_SESION`, y los resetea a `False` sin crear registro de salida. Cubre el caso de usuarios que salen sin pasar por el torniquete. Implementado con subconsulta de `MAX(fecha_hora)` agrupada por `usuario_id` para evitar N+1.
 
@@ -1088,7 +1105,7 @@ El detalle completo va en `DEPLOYMENT.md`. Setup: **backend en Render Starter**,
 - Variables: las 7 de arriba (`SECRET_KEY`, `ADMIN_*`, `BRIDGE_SECRET`) + `DATABASE_URL` + `CORS_ORIGINS=https://jainsportbox.netlify.app` + las 6 de `S3_*`.
 
 **Datos (Supabase, plan free — permite uso comercial):**
-- **Usar el session pooler (puerto 5432), NO el transaction pooler (6543).** `_debo_correr_scheduler()` en `main.py` toma un `pg_try_advisory_lock` a nivel de sesión sobre una conexión persistente; el modo transaction lo liberaría al terminar cada consulta y además rompe los prepared statements de psycopg3.
+- **Usar el session pooler (puerto 5432), NO el transaction pooler (6543).** `_tomar_lock()` en `main.py` toma un `pg_try_advisory_lock` a nivel de sesión sobre una conexión persistente; el modo transaction lo liberaría al terminar cada consulta y además rompe los prepared statements de psycopg3.
 - Pool dimensionado para el free tier: `DB_POOL_SIZE=3`, `DB_MAX_OVERFLOW=2` (env vars), `pool_recycle=300`.
 - Storage vía protocolo S3: `backend/storage.py` funciona sin cambios de código. El bucket debe ser **público** y `S3_REGION` la región real del proyecto (`"auto"` era de R2).
 - El proyecto free se pausa a los 7 días sin actividad; `_job_reset_gym` (cada 3 min) lo mantiene despierto mientras el backend corra.

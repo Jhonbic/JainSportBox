@@ -415,57 +415,124 @@ def _job_reset_gym():
 # Con varios workers de uvicorn, APScheduler arrancaría en cada proceso y el job
 # de alertas correría N veces. Un advisory lock de Postgres garantiza que solo un
 # worker lo ejecute. En SQLite (dev, 1 worker) siempre corre.
+#
+# EL LIDERAZGO SE REINTENTA, no se decide una sola vez al arrancar. Render hace
+# deploys sin downtime: levanta el proceso nuevo, espera el health check y RECIÉN
+# AHÍ mata el viejo. En esa ventana el viejo todavía tiene el lock, así que el nuevo
+# lo pedía, se lo negaban, y se quedaba SIN NINGÚN JOB para siempre — nadie volvía a
+# preguntar. Síntoma: `esta_en_gym` deja de resetearse y los socios quedan "en el box"
+# el resto del día. Pasó en producción.
+_scheduler = None
 _scheduler_lock_conn = None
+_jobs_registrados = False
+
+_LOCK_ID = 911001
+_MINUTOS_REINTENTO_LIDERAZGO = 2
 
 
-def _debo_correr_scheduler() -> bool:
+def _tomar_lock() -> bool:
+    """Intenta quedarse a cargo de los jobs. Idempotente: si ya lo tiene, dice que sí."""
     global _scheduler_lock_conn
+    if _scheduler_lock_conn is not None:
+        return True
     if engine.url.get_backend_name() == "sqlite":
         return True
     try:
         # Conexión dedicada que se mantiene abierta: el lock es a nivel de sesión.
-        _scheduler_lock_conn = engine.raw_connection()
-        cur = _scheduler_lock_conn.cursor()
-        cur.execute("SELECT pg_try_advisory_lock(911001)")
+        conn = engine.raw_connection()
+        cur = conn.cursor()
+        cur.execute(f"SELECT pg_try_advisory_lock({_LOCK_ID})")
         adquirido = bool(cur.fetchone()[0])
         cur.close()
-        if not adquirido:
-            _scheduler_lock_conn.close()
-            _scheduler_lock_conn = None
+        if adquirido:
+            _scheduler_lock_conn = conn
+        else:
+            conn.close()
         return adquirido
-    except Exception:
+    except Exception as e:
         # Ante cualquier fallo del lock, no arriesgar corridas duplicadas.
+        print(f"[Scheduler] No se pudo evaluar el lock: {e}")
         return False
 
 
-# TESTING=1 (suite pytest): sin scheduler — los jobs se prueban llamándolos directo.
-if os.getenv("TESTING") == "1":
-    _scheduler = None
-elif _debo_correr_scheduler():
-    _scheduler = BackgroundScheduler(timezone="America/Bogota")
+def _registrar_jobs() -> None:
+    global _jobs_registrados
+    if _jobs_registrados:
+        return
     # Ejecuta todos los días a las 9:00 AM
-    _scheduler.add_job(_job_alertas, CronTrigger(hour=9, minute=0))
+    _scheduler.add_job(_job_alertas, CronTrigger(hour=9, minute=0), id="alertas")
     # También al arrancar para no perder el día actual
-    _scheduler.add_job(_job_alertas, "date")
+    _scheduler.add_job(_job_alertas, "date", id="alertas_arranque")
     # El envío va 10 min después, para que las alertas del día ya existan.
     # Sin trigger "date": ver el docstring de _job_envio_whatsapp.
-    _scheduler.add_job(_job_envio_whatsapp, CronTrigger(hour=9, minute=10))
+    _scheduler.add_job(_job_envio_whatsapp, CronTrigger(hour=9, minute=10), id="whatsapp")
     # Reset de esta_en_gym cada 3 minutos
-    _scheduler.add_job(_job_reset_gym, "interval", minutes=3)
+    _scheduler.add_job(_job_reset_gym, "interval", minutes=3, id="reset_gym")
+    _jobs_registrados = True
+    print("[Scheduler] Este proceso quedó a cargo de los jobs (lock adquirido).")
+
+
+def _vigilar_liderazgo() -> None:
+    """Reintenta el lock hasta conseguirlo. Es lo que hace al scheduler auto-reparable
+    tras un deploy: el proceso que perdió la carrera contra el saliente entra igual
+    apenas ese suelta el lock, sin esperar a otro reinicio."""
+    if _jobs_registrados:
+        return
+    if _tomar_lock():
+        _registrar_jobs()
+
+
+# TESTING=1 (suite pytest): sin scheduler — los jobs se prueban llamándolos directo.
+if os.getenv("TESTING") != "1":
+    _scheduler = BackgroundScheduler(timezone="America/Bogota")
     _scheduler.start()
-else:
-    _scheduler = None
+    if _tomar_lock():
+        _registrar_jobs()
+    else:
+        print(
+            f"[Scheduler] Otro proceso tiene el lock. Reintentando cada "
+            f"{_MINUTOS_REINTENTO_LIDERAZGO} min."
+        )
+    # Se registra siempre: si este proceso ya es el líder, sale en la primera línea.
+    _scheduler.add_job(
+        _vigilar_liderazgo, "interval", minutes=_MINUTOS_REINTENTO_LIDERAZGO, id="vigilar_lider"
+    )
 
 
 @app.on_event("shutdown")
 def _shutdown():
+    global _scheduler_lock_conn
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
+    # Soltar el lock explícitamente y no confiar en que muera con el proceso: entre
+    # Supabase y su pooler la sesión puede sobrevivir un rato, y ese rato es justo la
+    # ventana en la que el proceso entrante se queda sin jobs.
+    if _scheduler_lock_conn is not None:
+        try:
+            cur = _scheduler_lock_conn.cursor()
+            cur.execute(f"SELECT pg_advisory_unlock({_LOCK_ID})")
+            cur.close()
+        except Exception:
+            pass
+        try:
+            _scheduler_lock_conn.close()
+        except Exception:
+            pass
+        _scheduler_lock_conn = None
+        print("[Scheduler] Lock liberado.")
 
 
 @app.get("/", tags=["Health"])
 def health_check():
-    return {"status": "ok", "message": "Gym System Online"}
+    # `scheduler` va acá porque su falla es SILENCIOSA: cuando este proceso se queda
+    # sin los jobs, la API responde igual de bien y lo único que se nota, horas después,
+    # es que los socios quedan pegados en "en el box". Con esto se verifica desde afuera
+    # sin entrar a los logs de Render.
+    return {
+        "status": "ok",
+        "message": "Gym System Online",
+        "scheduler": "activo" if _jobs_registrados else "sin jobs (otro proceso tiene el lock)",
+    }
 
 
 app.include_router(auth.router)
