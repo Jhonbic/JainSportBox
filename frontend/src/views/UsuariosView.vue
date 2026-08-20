@@ -1227,6 +1227,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api, { mediaUrl } from '../api'
 import { fotoSrc } from '../lib/avatar'
 import { linkWa } from '../lib/whatsapp'
+import { formatearFecha } from '../lib/fechas'
 import { BADGE_NEUTRO } from '../data/paleta'
 import { useAuth } from '../composables/useAuth'
 import { nuevoFormulario, payloadActivacion, payloadPago } from '../lib/membresia'
@@ -1658,8 +1659,9 @@ const errorRenovar = ref('')
 const formatFecha = (f) =>
   new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })
 
-const formatFechaCorta = (f) =>
-  new Date(f).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })
+// `created_at` es un datetime naive en UTC: con `new Date(f)` pelado JS lo tomaba como
+// hora local y la fecha de registro salía corrida +5 h. Ver lib/fechas.js.
+const formatFechaCorta = (f) => formatearFecha(f)
 
 /** Días transcurridos desde una fecha ISO (created_at viene en UTC con hora). */
 const diasDesde = (f) => {

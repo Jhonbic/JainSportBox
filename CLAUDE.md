@@ -201,6 +201,21 @@ Tres piezas lo sostienen:
 
 `_registrar_jobs()` es idempotente y cada job lleva `id` fijo, así que el reintento no puede duplicarlos.
 
+## Fechas en el frontend
+
+**Toda fecha que se muestra pasa por `formatearFecha()` de `frontend/src/lib/fechas.js`.** No usar `new Date(f).toLocaleDateString(...)` directo: el backend manda **dos formas distintas** y tratarlas igual corre la fecha un día entero.
+
+| Forma | Ejemplos | Trampa |
+|---|---|---|
+| `"YYYY-MM-DD"` (columna `Date`) | `fecha_vencimiento`, `fecha_inicio`, `fecha` de marcas y salud | `new Date("2026-08-20")` es medianoche **UTC** → en Bogotá muestra el **19**. Se ancla a mediodía local. |
+| `"YYYY-MM-DDTHH:MM:SS"` **sin zona** (columna `DateTime`, guardada naive en UTC) | `fecha_pago`, `created_at`, `fecha_venta`, `fecha_enviada`, `terminos_fecha` | Sin la `Z`, JS lo parsea como hora **local** → +5 h. Un pago de las 20:50 del 19 aparecía como del **20**. Se le agrega `Z` y se renderiza con `timeZone: 'America/Bogota'`. |
+
+Llegó a haber **cuatro** implementaciones de esta regla y solo la de `FinanzasView` estaba bien; las de `UsuarioPerfilView`, `UsuariosView` y `DashboardView` corrían la fecha (esta última se comía hasta el día de la semana: mostraba "jue, 20 de ago" en vez de "mié, 19 de ago"). El síntoma es traicionero porque **solo aparece después de las 19:00** de Bogotá, que es justo el horario de más movimiento del box.
+
+`aISO`/`hoyISO` viven en el mismo archivo y son la otra punta: construyen `"YYYY-MM-DD"` en hora **local** para mandar al backend, en vez de `toISOString()`, que da la fecha UTC.
+
+**Pendiente:** varias vistas todavía hacen `new Date(f + 'T12:00:00')` a mano para fechas de calendario (`AccesoView`, `HomeView`, `MarcasView`, `MarcasEjercicioView`, `SaludView`, `SaludMedidaView`). Ese truco es **correcto** —por eso no se tocaron—, pero son seis copias más de la misma regla: al tocar alguna de esas vistas, migrarla a `formatearFecha`.
+
 ## Paleta de colores
 
 La fuente única de los colores categóricos es `frontend/src/data/paleta.js`. No hay tokens custom en `tailwind.config.js` (se evaluó y se descartó: convivirían con 600 usos de `red-*` ya escritos, creando dos formas válidas de decir lo mismo). La paleta es una convención documentada, no una capa de indirección.
@@ -808,7 +823,7 @@ Con `inicio=None` el cálculo es idéntico al de siempre, y hay tests que fijan 
 
 El `min` del `<input type="date">` es `minimoInicioISO()` (un año atrás), que espeja `MAX_DIAS_RETROACTIVOS`. **No es la validación** —esa vive en el backend— sino lo que evita que el año equivocado quede a un click en el calendario.
 
-`UsuarioPerfilView` muestra "Arranca el …" bajo el nombre del plan en el historial de pagos cuando `Pago.fecha_inicio` está cargada: sin eso, un arranque distinto al día del cobro no deja rastro visible y la columna Fecha parece contradecir al vencimiento. Ojo con `formatFechaCorta`: `fecha_inicio` es una columna `Date` y llega como `"YYYY-MM-DD"` pelado, que `new Date()` parsea como medianoche **UTC** y en Bogotá muestra el día anterior — por eso el helper le agrega `T00:00:00` a las fechas sin hora.
+`UsuarioPerfilView` muestra "Arranca el …" bajo el nombre del plan en el historial de pagos cuando `Pago.fecha_inicio` está cargada: sin eso, un arranque distinto al día del cobro no deja rastro visible y la columna Fecha parece contradecir al vencimiento. El formateo va por `formatearFecha` de `lib/fechas.js` (ver "Fechas en el frontend").
 
 **Limitación conocida — el Resumen no descuenta los bonos agotados.** `/dashboard/resumen` cuenta activos por `fecha_vencimiento >= hoy`, así que un socio con 0 ingresos y fecha vigente sigue contando como activo. No se corrigió a propósito: `socios-mensuales` reconstruye el pasado desde `pagos` (donde no hay registro de cuántos ingresos se gastaron) y hay un test que exige que su último punto coincida con la tarjeta de activos. Arreglar solo la tarjeta rompería esa coincidencia; arreglar los dos requiere historial de consumo, que hoy no existe.
 

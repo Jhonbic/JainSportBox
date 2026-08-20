@@ -659,6 +659,7 @@ import { useRoute } from 'vue-router'
 import InputPassword from '../components/InputPassword.vue'
 import api from '../api'
 import { fotoSrc } from '../lib/avatar'
+import { formatearFecha } from '../lib/fechas'
 import { BADGE_NEUTRO } from '../data/paleta'
 import { METODOS as metodos, nuevoFormulario, payloadPago } from '../lib/membresia'
 import FotoAmpliada from '../components/FotoAmpliada.vue'
@@ -908,14 +909,11 @@ function formatFecha(f) {
   return new Date(f + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function formatFechaCorta(f) {
-  if (!f) return ''
-  // Un "YYYY-MM-DD" pelado lo parsea JS como medianoche UTC, que en Bogotá es la
-  // tarde del día ANTERIOR: `fecha_inicio` (columna Date) saldría corrida un día.
-  // `fecha_pago` trae hora y no entra por acá.
-  const iso = /^\d{4}-\d{2}-\d{2}$/.test(f) ? `${f}T00:00:00` : f
-  return new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+// Acá vivía media regla: contemplaba el "YYYY-MM-DD" de `fecha_inicio` pero dejaba
+// pasar los datetimes sin `Z` (`fecha_pago`, `created_at`, `terminos_fecha`), que JS
+// parsea como hora local y corren la fecha +5 h — un pago de las 20:50 se mostraba al
+// día siguiente. La regla completa vive en lib/fechas.js.
+const formatFechaCorta = (f) => formatearFecha(f)
 
 function formatCumpleanos(f) {
   if (!f) return '—'

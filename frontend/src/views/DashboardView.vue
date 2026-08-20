@@ -313,6 +313,7 @@ import { useRouter } from 'vue-router'
 import api from '../api'
 import { getChart } from '../lib/chart'
 import { linkWa, telefonoWa } from '../lib/whatsapp'
+import { formatearFecha } from '../lib/fechas'
 import SesionesPanel from '../components/SesionesPanel.vue'
 
 const router = useRouter()
@@ -452,8 +453,10 @@ const enviadas = computed(() =>
     .sort((a, b) => new Date(b.fecha_enviada || 0) - new Date(a.fecha_enviada || 0))
 )
 
+// `fecha_enviada` es un datetime naive en UTC: sin la `Z`, JS lo parsea como hora local
+// y el envío de las 20:00 aparecía como del día siguiente. Ver lib/fechas.js.
 const formatEnviado = (f) =>
-  f ? new Date(f).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'
+  f ? formatearFecha(f, { weekday: 'short', day: 'numeric', month: 'short', year: undefined }) : '—'
 
 const textoVence = (dias) =>
   dias <= 0 ? 'Vence hoy' : dias === 1 ? 'Vence mañana' : `Vence en ${dias} días`

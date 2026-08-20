@@ -524,7 +524,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import api from '../api'
 import { BADGE_NEUTRO } from '../data/paleta'
-import { aISO } from '../lib/fechas'
+import { aISO, formatearFecha } from '../lib/fechas'
 
 // ── Estado ───────────────────────────────────────────────────
 const balance = ref({ ingresos_total: 0, total_membresias: 0, total_tienda: 0, egresos_total: 0, balance_neto: 0, ingresos_por_categoria: {}, egresos_por_categoria: {} })
@@ -900,12 +900,10 @@ const colorCategoria = () => BADGE_NEUTRO
 const formatMoneda = (v) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v || 0)
 
-const formatFecha = (f) => {
-  // El backend guarda datetimes en UTC sin sufijo de zona: parsearlos como UTC
-  // y mostrarlos en hora de Bogotá (si no, la hora sale corrida +5h).
-  const iso = /Z|[+-]\d{2}:?\d{2}$/.test(f) ? f : f + 'Z'
-  return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })
-}
+// Esta era la única de las cuatro copias que estaba bien; se centralizó en lib/fechas.js
+// para que las otras tres dejaran de estar mal cada una a su manera.
+const formatFecha = (f) =>
+  formatearFecha(f, { day: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 // Las categorías del FILTRO no son las mismas que las del alta: acá hay que ofrecer
 // también `venta_tienda`, que existe en los datos (las ventas entran solas desde el POS)
