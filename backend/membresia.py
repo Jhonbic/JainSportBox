@@ -15,6 +15,11 @@ Hay **dos ejes de vigencia** y se validan juntos (ver `_validar_membresia` en
 Un plan por ingresos (`Plan.numero_ingresos`) caduca por las dos cosas: se acaban
 las entradas **o** se pasa la fecha, lo que ocurra primero.
 
+Los dos ejes se comportan distinto al comprar una membresía nueva, y es a
+propósito: la fecha se **extiende** (renovar antes de tiempo no quita días
+pagos), los ingresos se **reemplazan** (lo que sobró del bono anterior se pierde
+con él). Ver `_aplicar_ingresos`.
+
 Hay además una compuerta al principio: `Usuario.membresia_inicio`. Solo se llena
 cuando el admin vende una membresía que arranca en el futuro, y hasta ese día el
 acceso se niega. Sin ella la fecha de inicio sería decorativa —`fecha_vencimiento`
@@ -79,21 +84,27 @@ def extender_vencimiento(
 
 
 def _aplicar_ingresos(usuario: Usuario, ingresos: Optional[int]) -> None:
-    """Regla única de ingresos: con un número se suman, sin él la membresía pasa
-    a ser por tiempo.
+    """Regla única de ingresos: cada membresía REEMPLAZA el saldo, nunca lo suma.
 
-    Los ingresos se SUMAN a los que le quedaban, por el mismo criterio con el que
-    la fecha se extiende en vez de pisarse: quien renueva antes de gastar su bono
-    no pierde lo que ya pagó.
+    Los ingresos pertenecen al plan que los vendió y mueren con él: lo que sobra
+    se pierde, se haya vencido la fecha o se reemplace la membresía antes de
+    tiempo. Es también lo que pasa con una membresía encolada (la que arranca
+    después del vencimiento vigente): el plan que termina se lleva sus accesos sin
+    gastar.
 
-    El reset a `None` no es cosmético: sin él, un socio que venía de un bono
-    agotado (0 ingresos) seguiría bloqueado pese a acabar de pagar una membresía
-    por tiempo.
+    Acá se sumaba, espejando a `extender_vencimiento`. Pero la fecha sí tiene
+    corte —si ya venció, la base pasa a ser hoy y no arrastra nada— y los accesos
+    no lo tenían: un bono de 10 con 4 sin usar y la fecha ya vencida dejaba 14 al
+    comprar otro bono de 10, y así compra tras compra.
+
+    No se distingue "renovó vigente" de "renovó vencido" a propósito: una sola
+    regla, sin estado extra que rastrear, y la misma que aplica al encolado.
+
+    El `or None` no es cosmético: `None` significa "membresía por tiempo", y sin
+    ese reset un socio que venía de un bono agotado (0 ingresos) seguiría
+    bloqueado pese a acabar de pagar una mensualidad.
     """
-    if ingresos:
-        usuario.ingresos_restantes = (usuario.ingresos_restantes or 0) + ingresos
-    else:
-        usuario.ingresos_restantes = None
+    usuario.ingresos_restantes = ingresos or None
 
 
 def aplicar_plan(
@@ -130,10 +141,15 @@ def revertir_plan(usuario: Usuario, dias: int, ingresos: Optional[int]) -> None:
     La fecha puede quedar en el pasado — es correcto: la membresía venció por la
     reversión. Los ingresos no bajan de 0.
 
-    Limitación conocida: si el pago anulado era de un plano por tiempo, `aplicar_plan`
-    puso `ingresos_restantes = None` y los ingresos que hubiera antes no se
-    guardaron en ningún lado, así que no se pueden restaurar. Anular ese pago deja
-    la membresía como "por tiempo" vencida, que es el desenlace razonable.
+    Con el reemplazo de `_aplicar_ingresos`, el saldo nunca supera lo que cargó el
+    último pago, así que restar y poner en 0 dan lo mismo para el caso normal. Se
+    resta igual porque para el caso raro —anular un pago viejo, con otro más nuevo
+    encima— degrada mejor que borrar el saldo entero.
+
+    Limitación conocida: el saldo que había ANTES del pago anulado no se guardó en
+    ningún lado (lo pisó el reemplazo), así que no se puede restaurar. Anular deja
+    la membresía en 0 accesos, o como "por tiempo" vencida si el pago no traía
+    ingresos — el desenlace razonable en los dos casos.
     """
     if usuario.fecha_vencimiento and dias:
         usuario.fecha_vencimiento = usuario.fecha_vencimiento - timedelta(days=dias)

@@ -174,9 +174,9 @@
                     Sin accesos
                   </span>
                 </p>
-                <p v-if="user.ingresos_restantes !== null && user.ingresos_restantes !== undefined"
-                  class="text-xs font-semibold ml-4" :class="user.ingresos_restantes > 0 ? 'text-gray-600' : 'text-red-600'">
-                  {{ user.ingresos_restantes }} {{ user.ingresos_restantes === 1 ? 'acceso' : 'accesos' }}
+                <p v-if="textoAccesos(user)"
+                  class="text-xs font-semibold ml-4" :class="accesosDe(user) > 0 ? 'text-gray-600' : 'text-red-600'">
+                  {{ textoAccesos(user) }}
                 </p>
                 <p class="text-xs text-gray-400 ml-4">Vence {{ formatFecha(user.fecha_vencimiento) }}</p>
               </template>
@@ -250,9 +250,9 @@
                             Sin accesos
                           </span>
                         </p>
-                        <p v-if="user.ingresos_restantes !== null && user.ingresos_restantes !== undefined"
-                          class="text-xs font-semibold" :class="user.ingresos_restantes > 0 ? 'text-gray-600' : 'text-red-600'">
-                          {{ user.ingresos_restantes }} {{ user.ingresos_restantes === 1 ? 'acceso' : 'accesos' }}
+                        <p v-if="textoAccesos(user)"
+                          class="text-xs font-semibold" :class="accesosDe(user) > 0 ? 'text-gray-600' : 'text-red-600'">
+                          {{ textoAccesos(user) }}
                         </p>
                         <p class="text-xs text-gray-400">Vence {{ formatFecha(user.fecha_vencimiento) }}</p>
                       </div>
@@ -804,7 +804,8 @@
           </div>
 
           <MembresiaSelector v-model="renovarForm" :planes="planes" acento="emerald"
-            titulo="Selecciona un plan" :vencimiento-actual="renovarUsuario?.fecha_vencimiento || null" />
+            titulo="Selecciona un plan" :vencimiento-actual="renovarUsuario?.fecha_vencimiento || null"
+            :accesos-actuales="accesosDe(renovarUsuario)" />
 
           <div v-if="errorRenovar" class="mt-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">{{ errorRenovar }}</div>
 
@@ -1230,7 +1231,7 @@ import { linkWa } from '../lib/whatsapp'
 import { formatearFecha } from '../lib/fechas'
 import { BADGE_NEUTRO } from '../data/paleta'
 import { useAuth } from '../composables/useAuth'
-import { nuevoFormulario, payloadActivacion, payloadPago } from '../lib/membresia'
+import { nuevoFormulario, payloadActivacion, payloadPago, saldoAccesos } from '../lib/membresia'
 import PendienteDetalle from '../components/PendienteDetalle.vue'
 import MembresiaSelector from '../components/MembresiaSelector.vue'
 import InputPassword from '../components/InputPassword.vue'
@@ -1405,6 +1406,21 @@ const fechaVigente = (u) => {
 
 const sinAccesos = (u) =>
   u.ingresos_restantes !== null && u.ingresos_restantes !== undefined && u.ingresos_restantes <= 0
+
+// Los accesos mueren con el plan que los vendió (ver `saldoAccesos` en lib/membresia).
+// `accesosDe` es el saldo que todavía vale —null si caducó con la fecha—, y lo consume
+// tanto el color de la línea como el aviso de reemplazo del modal de renovar.
+const accesosDe = (u) => {
+  const s = saldoAccesos(u)
+  return typeof s === 'number' ? s : null
+}
+
+const textoAccesos = (u) => {
+  const s = saldoAccesos(u)
+  if (s === null) return null
+  if (s === 'vencidos') return 'Accesos vencidos'
+  return `${s} ${s === 1 ? 'acceso' : 'accesos'}`
+}
 
 /**
  * Si el socio puede entrar hoy al box. Son DOS ejes y hay que mirar los dos, igual que

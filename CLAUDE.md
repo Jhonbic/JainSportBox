@@ -786,11 +786,20 @@ Un plan puede cobrarse **por tiempo** (mensualidad de toda la vida) o **por ingr
 
 | Situación | Qué pasa con `ingresos_restantes` |
 |---|---|
-| Paga un plan por ingresos | **Se suman** a los que le quedaban (mismo criterio que la fecha, que se extiende en vez de pisarse) |
+| Paga un plan por ingresos | **Reemplazan** al saldo anterior, que se pierde |
 | Paga un plan por tiempo | Vuelve a `NULL`. **Sin este reset**, un socio con un bono agotado (`0`) quedaría bloqueado pese a acabar de pagar la mensualidad |
-| Pago directo (personalizado) | Misma regla que un plan: con `numero_ingresos` se suman, sin él vuelve a `NULL`. **Antes no los tocaba**, y por eso venderle días por tiempo a alguien con el bono en 0 lo dejaba igual de bloqueado |
+| Pago directo (personalizado) | Misma regla que un plan: con `numero_ingresos` reemplazan, sin él vuelve a `NULL`. **Antes no los tocaba**, y por eso venderle días por tiempo a alguien con el bono en 0 lo dejaba igual de bloqueado |
 | Marca entrada | `descontar_ingreso()` resta 1, y solo si no es `NULL`. Va en `_registrar()` porque los tres caminos de entrada (huella, por id, por documento) pasan por ahí. **Solo cuando la marcación abre una entrada nueva:** re-marcar dentro de la misma sesión no vuelve a descontar (ver "Modelo de acceso solo-entrada") |
-| Se anula el pago | Se restan los ingresos que cargó. **Limitación:** si el pago anulado era por tiempo, los ingresos previos se perdieron al ponerse en `NULL` y no se pueden restaurar |
+| Se anula el pago | Se restan los ingresos que cargó. Con el reemplazo el saldo nunca supera lo que cargó el último pago, así que restar y poner en 0 dan lo mismo en el caso normal; se resta igual porque al anular un pago viejo (con otro más nuevo encima) degrada mejor. **Limitación:** el saldo anterior al pago anulado lo pisó el reemplazo y no se puede restaurar |
+
+**Los dos ejes se comportan distinto al comprar, y es a propósito: la fecha se extiende, los accesos se reemplazan.** Los accesos pertenecen al plan que los vendió y mueren con él — se haya vencido por fecha o se reemplace la membresía antes de tiempo. Vale también para la membresía **encolada** (la que arranca cuando termina la vigente): el plan que se acaba se lleva sus accesos sin gastar.
+
+`_aplicar_ingresos` sumaba, espejando a `extender_vencimiento`. Pero la fecha sí tiene corte al vencer —la base pasa a ser hoy y no arrastra nada— y los accesos no lo tenían: un bono de 10 con 4 sin usar y la fecha vencida dejaba **14** al comprar otro bono de 10, y así compra tras compra. No se distingue "renovó vigente" de "renovó vencido" a propósito: una sola regla, sin estado extra que rastrear.
+
+Consecuencias que hay que sostener:
+- **El formulario avisa antes de cobrar.** `MembresiaSelector` recibe `accesosActuales` y muestra en ámbar qué saldo se va a reemplazar. Renovar antes de tiempo destruye accesos pagos, y una pérdida silenciosa en la pantalla del cobro es justo lo que no puede pasar (mismo criterio que el aviso `yaVencida`). Solo lo pasan los dos modales que renuevan sobre una membresía existente.
+- **La UI no muestra un saldo caducado.** `saldoAccesos()` en `frontend/src/lib/membresia.js` devuelve `null` (por tiempo), `'vencidos'` o el número, y con la fecha vencida las tres pantallas dicen **"Accesos vencidos"** en vez de "8 accesos restantes" al lado del badge "Vencida". Lo usan `HomeView`, `UsuarioPerfilView` y `UsuariosView`.
+- **`backend/scripts/limpiar_accesos_vencidos.py`** pone en `0` los accesos de los clientes ya vencidos, para las bases que traían saldos acumulados de antes de esta regla. Idempotente, con `--dry-run`, y usa el `DATABASE_URL` del entorno — **confirmar contra qué base se corre**. Va en `0` y no en `NULL` porque `NULL` significa "membresía por tiempo" y convertiría un bono agotado en una mensualidad.
 
 **El acceso denegado por falta de ingresos manda `detail` estructurado** (`{"codigo": "sin_ingresos", ...}`) mientras que el vencido manda un string. Los dos son 403, pero en el mostrador son problemas distintos —"renová la fecha" vs "comprá más entradas"— y `AccesoView` los pinta distinto. Es la excepción a la regla de que la distinción vive en el status code.
 

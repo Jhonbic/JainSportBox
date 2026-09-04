@@ -81,6 +81,12 @@
           <span class="font-semibold text-gray-700">{{ fmt(preview.vence) }}</span>.
         </template>
       </p>
+
+      <!-- Los accesos NO se suman: cada membresía reemplaza el saldo (ver
+           `_aplicar_ingresos` en backend/membresia.py). Renovar antes de tiempo le
+           borra al socio accesos que pagó, así que se avisa antes de cobrar — mismo
+           criterio que `yaVencida`: una pérdida silenciosa, visible a tiempo. -->
+      <p v-if="avisoAccesos" class="mt-1.5 text-xs text-amber-600">{{ avisoAccesos }}</p>
     </div>
 
     <!-- Monto -->
@@ -142,6 +148,10 @@ const props = defineProps({
   titulo: { type: String, default: 'Selecciona el plan a asignar' },
   permitirNinguno: { type: Boolean, default: false },
   vencimientoActual: { type: String, default: null },
+  // Accesos que le quedan al socio hoy. Solo lo pasan los dos modales que renuevan
+  // sobre una membresía existente; activar un pendiente y crear un cliente no tienen
+  // saldo previo que perder.
+  accesosActuales: { type: Number, default: null },
 })
 defineEmits(['update:modelValue'])
 
@@ -157,6 +167,24 @@ const dias = computed(() => diasDe(form.value, props.planes))
 const preview = computed(() =>
   hayPlan.value ? previsualizar(form.value, props.planes, props.vencimientoActual) : null
 )
+
+/** Los accesos que trae la selección actual, o null si es una membresía por fecha. */
+const accesosNuevos = computed(() => {
+  if (!hayPlan.value) return null
+  if (form.value.plan === 'personalizado') return form.value.accesos || null
+  return planActual.value?.numero_ingresos || null
+})
+
+// Se avisa solo si hay algo que perder. Con la fecha ya vencida el saldo tampoco
+// valía nada (mismo criterio que `saldoAccesos`), así que ahí no hay nada que decir.
+const avisoAccesos = computed(() => {
+  const quedan = props.accesosActuales
+  if (!hayPlan.value || !quedan || quedan <= 0) return null
+  const s = quedan === 1 ? 'Le queda 1 acceso' : `Le quedan ${quedan} accesos`
+  return accesosNuevos.value
+    ? `${s}, que se reemplazan por los ${accesosNuevos.value} de este plan.`
+    : `${s}, que se pierden: esta membresía vale solo por fecha.`
+})
 
 const fmt = (f) => {
   const d = f instanceof Date ? f : new Date(f + 'T00:00:00')

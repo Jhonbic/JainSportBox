@@ -4,6 +4,7 @@ ejes de vigencia (fecha Y entradas) validados juntos."""
 from datetime import date, timedelta
 
 import models
+from fechas import hoy_bogota
 
 
 def _plan(db_session, *, nombre, dias=30, ingresos=None):
@@ -37,14 +38,80 @@ def test_pagar_plan_por_ingresos_carga_las_entradas(client, admin_headers, clien
     assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 10
 
 
-def test_los_ingresos_se_suman_no_se_pisan(client, admin_headers, cliente, db_session):
-    """Mismo criterio que la fecha, que se extiende en vez de reemplazarse: quien
-    renueva antes de gastar su bono no pierde lo que ya pagó."""
+def test_los_ingresos_no_se_acumulan(client, admin_headers, cliente, db_session):
+    """Los accesos pertenecen al plan que los vendió: cada compra REEMPLAZA el saldo.
+
+    Al revés que la fecha, que se extiende. Acá se sumaba espejando a
+    `extender_vencimiento`, pero la fecha tiene corte al vencer y los accesos no lo
+    tenían, así que el saldo crecía compra tras compra.
+    """
     plan = _plan(db_session, nombre="Bono 8", ingresos=8)
     cuerpo = {"usuario_id": cliente.user.id, "plan_id": plan.id, "monto": 100, "metodo_pago": "efectivo"}
     client.post("/pagos/", json=cuerpo, headers=admin_headers)
     client.post("/pagos/", json=cuerpo, headers=admin_headers)
-    assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 16
+    assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 8
+
+
+def test_bono_vencido_no_arrastra_los_accesos_sobrantes(client, admin_headers, cliente, db_session):
+    """El bug reportado: un bono de 10 con 9 sin usar y la fecha ya vencida dejaba 19
+    al comprar otro bono de 10."""
+    plan = _plan(db_session, nombre="Bono 10", ingresos=10)
+    cuerpo = {"usuario_id": cliente.user.id, "plan_id": plan.id, "monto": 100, "metodo_pago": "efectivo"}
+    client.post("/pagos/", json=cuerpo, headers=admin_headers)
+
+    client.post(f"/asistencia/por-documento/{cliente.user.documento_identidad}", headers=admin_headers)
+    assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 9
+
+    # Se le vence la membresía con 9 accesos sin gastar.
+    usuario = db_session.query(models.Usuario).filter_by(id=cliente.user.id).one()
+    usuario.fecha_vencimiento = date.today() - timedelta(days=1)
+    db_session.commit()
+
+    client.post("/pagos/", json=cuerpo, headers=admin_headers)
+    assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 10
+
+
+def test_membresia_encolada_no_acumula_accesos(client, admin_headers, cliente, db_session):
+    """El plan que termina se lleva sus accesos sin gastar, aunque la membresía nueva
+    arranque recién cuando el anterior se acaba."""
+    bono_grande = _plan(db_session, nombre="Bono 10e", dias=30, ingresos=10)
+    bono_chico = _plan(db_session, nombre="Bono 4e", dias=30, ingresos=4)
+    client.post(
+        "/pagos/",
+        json={"usuario_id": cliente.user.id, "plan_id": bono_grande.id, "monto": 100, "metodo_pago": "efectivo"},
+        headers=admin_headers,
+    )
+    vencimiento_previo = _refrescar(db_session, cliente.user.id).fecha_vencimiento
+
+    # Arranque "hoy" sobre una membresía vigente: el backend lo encola detrás.
+    r = client.post(
+        "/pagos/",
+        json={
+            "usuario_id": cliente.user.id,
+            "plan_id": bono_chico.id,
+            "monto": 40,
+            "metodo_pago": "efectivo",
+            "fecha_inicio": hoy_bogota().isoformat(),
+        },
+        headers=admin_headers,
+    )
+    assert r.status_code == 201
+
+    usuario = _refrescar(db_session, cliente.user.id)
+    assert usuario.fecha_vencimiento == vencimiento_previo + timedelta(days=30)  # encolada
+    assert usuario.ingresos_restantes == 4  # y no 14
+
+
+def test_plan_por_tiempo_sobre_bono_vigente_limpia_el_saldo(client, admin_headers, cliente, db_session):
+    """La otra cara del reemplazo: pasar de un bono con accesos de sobra a una
+    mensualidad deja la membresía por tiempo, sin saldo colgado."""
+    bono = _plan(db_session, nombre="Bono 9", ingresos=9)
+    mensual = _plan(db_session, nombre="Mensual b", dias=30)
+    client.post("/pagos/", json={"usuario_id": cliente.user.id, "plan_id": bono.id, "monto": 1, "metodo_pago": "efectivo"}, headers=admin_headers)
+    assert _refrescar(db_session, cliente.user.id).ingresos_restantes == 9
+
+    client.post("/pagos/", json={"usuario_id": cliente.user.id, "plan_id": mensual.id, "monto": 1, "metodo_pago": "efectivo"}, headers=admin_headers)
+    assert _refrescar(db_session, cliente.user.id).ingresos_restantes is None
 
 
 def test_plan_por_tiempo_limpia_los_ingresos(client, admin_headers, cliente, db_session):

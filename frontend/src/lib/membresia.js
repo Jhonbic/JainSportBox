@@ -30,6 +30,30 @@ export function minimoInicioISO() {
   return aISO(d)
 }
 
+/**
+ * Lo que vale HOY el saldo de accesos de un socio. Espeja la regla del backend
+ * (`_aplicar_ingresos` en `backend/membresia.py`): los accesos pertenecen al plan
+ * que los vendió y mueren con él, así que con la fecha vencida el saldo caducó.
+ *
+ *   null        → membresía por tiempo (o sin datos): no va la línea de accesos
+ *   'vencidos'  → tenía un bono y la fecha ya pasó
+ *   número      → los que le quedan
+ *
+ * Sin esto, el perfil de un socio vencido mostraba "8 accesos restantes" al lado
+ * del badge "Vencida" — la misma contradicción que ya se corrigió en HomeView con
+ * el bono agotado, pero al revés.
+ *
+ * La comparación es entre strings ISO y contra `hoyISO()`, que es la fecha LOCAL:
+ * con `toISOString()` sería la fecha UTC y en Bogotá después de las 19:00 daría por
+ * vencida una membresía que vence hoy. Ver "Fechas en el frontend" en CLAUDE.md.
+ */
+export function saldoAccesos(usuario, hoy = hoyISO()) {
+  const n = usuario?.ingresos_restantes
+  if (n === null || n === undefined) return null
+  if (usuario.fecha_vencimiento && usuario.fecha_vencimiento < hoy) return 'vencidos'
+  return n
+}
+
 /** Estado inicial del formulario. `plan` es un id, 'personalizado' o 'ninguno'. */
 export function nuevoFormulario(plan = null) {
   return {

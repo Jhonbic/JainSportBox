@@ -150,11 +150,15 @@
                   <p class="text-sm font-bold" :class="colorTextoDias(diasRestantes(usuario.fecha_vencimiento))">
                     {{ etiquetaDias(diasRestantes(usuario.fecha_vencimiento)) }}
                   </p>
-                  <p v-if="usuario.ingresos_restantes !== null && usuario.ingresos_restantes !== undefined"
-                    class="text-sm font-bold mt-0.5"
-                    :class="usuario.ingresos_restantes > 0 ? 'text-gray-900' : 'text-red-600'">
-                    {{ usuario.ingresos_restantes }}
-                    {{ usuario.ingresos_restantes === 1 ? 'acceso restante' : 'accesos restantes' }}
+                  <!-- Los accesos mueren con el plan que los vendió, así que con la
+                       fecha vencida el saldo caducó: mostrar el número sería decir
+                       "8 accesos restantes" al lado del badge "Vencida". -->
+                  <p v-if="accesos !== null" class="text-sm font-bold mt-0.5"
+                    :class="accesosVigentes > 0 ? 'text-gray-900' : 'text-red-600'">
+                    <template v-if="accesos === 'vencidos'">Accesos vencidos</template>
+                    <template v-else>
+                      {{ accesos }} {{ accesos === 1 ? 'acceso restante' : 'accesos restantes' }}
+                    </template>
                   </p>
                   <p class="text-xs text-gray-500 mt-0.5">Vence el {{ formatFecha(usuario.fecha_vencimiento) }}</p>
                 </template>
@@ -534,7 +538,8 @@
 
         <div class="px-6 py-5 overflow-y-auto flex-1 space-y-5">
           <MembresiaSelector v-model="renovarForm" :planes="planes" acento="red"
-            :vencimiento-actual="usuario?.fecha_vencimiento || null" />
+            :vencimiento-actual="usuario?.fecha_vencimiento || null"
+            :accesos-actuales="accesosVigentes" />
 
           <div v-if="errorRenovar" class="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">{{ errorRenovar }}</div>
 
@@ -661,7 +666,7 @@ import api from '../api'
 import { fotoSrc } from '../lib/avatar'
 import { formatearFecha } from '../lib/fechas'
 import { BADGE_NEUTRO } from '../data/paleta'
-import { METODOS as metodos, nuevoFormulario, payloadPago } from '../lib/membresia'
+import { METODOS as metodos, nuevoFormulario, payloadPago, saldoAccesos } from '../lib/membresia'
 import FotoAmpliada from '../components/FotoAmpliada.vue'
 import MembresiaSelector from '../components/MembresiaSelector.vue'
 
@@ -978,6 +983,13 @@ const estadoMembresia = computed(() => {
   }
   return { codigo: 'vigente', texto: 'Vigente', clase: 'bg-emerald-100 text-emerald-700' }
 })
+
+// null = membresía por tiempo; 'vencidos' = el bono caducó con la fecha; número = saldo.
+const accesos = computed(() => saldoAccesos(usuario.value))
+
+// Lo que el modal de renovar necesita para avisar qué se va a perder: solo un saldo
+// que todavía vale. Con la fecha vencida ya no hay nada que reemplazar.
+const accesosVigentes = computed(() => (typeof accesos.value === 'number' ? accesos.value : null))
 
 // ── Calendario ──────────────────────────────────────────────
 const MIN_OFFSET = -11

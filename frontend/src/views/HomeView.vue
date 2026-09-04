@@ -33,13 +33,15 @@
                 <!-- Con un bono, los accesos son el dato que decide si entra hoy, así
                      que van primero. Mismo peso que los días: el titular ya es el que
                      grita, y dos líneas seguidas en negrita se anulan entre sí. -->
-                <p v-if="tieneAccesos" class="text-sm font-semibold opacity-90">
-                  {{ userData.ingresos_restantes }}
-                  {{ userData.ingresos_restantes === 1 ? 'acceso disponible' : 'accesos disponibles' }}
+                <p v-if="accesos !== null" class="text-sm font-semibold opacity-90">
+                  <template v-if="accesos === 'vencidos'">Accesos vencidos</template>
+                  <template v-else>
+                    {{ accesos }} {{ accesos === 1 ? 'acceso disponible' : 'accesos disponibles' }}
+                  </template>
                 </p>
                 <p class="text-sm font-semibold opacity-90">{{ etiquetaMembresia }}</p>
                 <p v-if="userData.fecha_vencimiento" class="text-xs opacity-70">
-                  {{ tieneAccesos ? 'Vencen el' : 'Vence el' }} {{ formatFecha(userData.fecha_vencimiento) }}
+                  {{ accesosVigentes !== null ? 'Vencen el' : 'Vence el' }} {{ formatFecha(userData.fecha_vencimiento) }}
                 </p>
               </div>
 
@@ -222,6 +224,7 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '../api'
 import { useAuth } from '../composables/useAuth'
+import { saldoAccesos } from '../lib/membresia'
 
 const { nombre, isCliente, isCoach } = useAuth()
 
@@ -250,6 +253,12 @@ const tieneAccesos = computed(() =>
 )
 
 const sinAccesos = computed(() => tieneAccesos.value && userData.value.ingresos_restantes <= 0)
+
+// Lo que el saldo vale HOY: los accesos mueren con el plan que los vendió, así que con
+// la fecha vencida caducaron. Sin esto la tarjeta roja de "Inactivo" seguía ofreciendo
+// "8 accesos disponibles", que es justo lo que la palanquera no le va a dar.
+const accesos = computed(() => saldoAccesos(userData.value))
+const accesosVigentes = computed(() => (typeof accesos.value === 'number' ? accesos.value : null))
 
 // Umbral de "se le están acabando", el análogo de los 7 días de la fecha.
 const ACCESOS_AVISO = 2
