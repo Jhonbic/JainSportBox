@@ -118,6 +118,16 @@
             </svg>
             Finanzas
           </router-link>
+          <!-- Config de copy, no de datos: va al final de Gestión, después de lo que se
+               mira todos los días. -->
+          <router-link v-if="isAdmin" to="/mensajes" @click="sidebarOpen = false"
+            class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors"
+            active-class="bg-red-600 hover:bg-red-700 font-semibold shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 4v-4z" />
+            </svg>
+            Mensajes
+          </router-link>
         </template>
 
         <!-- ── CONTENIDO (todos menos pendiente) ── -->
@@ -251,6 +261,12 @@
         </div>
       </main>
     </div>
+
+    <!-- El aviso vive en el layout y no en HomeView: el cliente aterriza en /home pero
+         el pendiente en /planes, y los dos tienen que verlo. Se monta una vez por carga
+         de la app, así que navegar entre pantallas no lo vuelve a disparar.
+         El componente se cuida solo: si no hay nada que mostrar, no dibuja nada. -->
+    <AvisoModal v-if="isCliente || isPendiente" />
   </div>
 </template>
 
@@ -260,6 +276,7 @@ import { useRouter } from 'vue-router'
 import { cargandoRuta } from '../lib/navegacion'
 import { useAuth, setFechaVencimiento } from '../composables/useAuth'
 import { desactivarKiosco } from '../composables/useKiosco'
+import AvisoModal from './AvisoModal.vue'
 import api from '../api'
 
 const router = useRouter()

@@ -105,6 +105,12 @@
                 :class="tabCumple === 'enviadas' ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'">
                 Enviados
               </button>
+          <router-link v-if="isAdmin" to="/mensajes" title="Editar el texto de este mensaje"
+                class="ml-auto text-gray-300 hover:text-red-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </router-link>
             </div>
 
             <!-- Vacío: mismo alto que la lista llena, para que la card no salte al cambiar de pestaña -->
@@ -164,6 +170,12 @@
                 :class="tabAlertas === 'enviadas' ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600'">
                 Enviados
               </button>
+          <router-link v-if="isAdmin" to="/mensajes" title="Editar el texto de este mensaje"
+                class="ml-auto text-gray-300 hover:text-red-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </router-link>
             </div>
 
             <div v-if="cargandoAlertas" class="px-4 py-6 text-center text-sm text-gray-400">Cargando…</div>
@@ -314,9 +326,17 @@ import api from '../api'
 import { getChart } from '../lib/chart'
 import { linkWa, telefonoWa } from '../lib/whatsapp'
 import { formatearFecha } from '../lib/fechas'
+import { primerNombre } from '../lib/mensajes'
+import { useMensajes, cargarMensajes } from '../composables/useMensajes'
+import { useAuth } from '../composables/useAuth'
 import SesionesPanel from '../components/SesionesPanel.vue'
 
 const router = useRouter()
+const { isAdmin } = useAuth()
+// El texto de los dos mensajes es editable desde /mensajes. `mensaje()` devuelve el
+// personalizado si existe y el de fábrica si no, así que el botón funciona igual
+// aunque el endpoint no responda.
+const { mensaje } = useMensajes()
 
 // ── Pestañas ─────────────────────────────────────────────────
 const TABS = [
@@ -366,14 +386,10 @@ const deltaActivos = computed(() => {
 // La normalización vive en lib/whatsapp.js, que espeja la del backend. Acá había una
 // copia local (`_telefono`) y en PlanesView una tercera que ni ponía el prefijo 57.
 
-// Los emojis de estos dos mensajes son deliberados: son los únicos de la app y van
-// en el saludo por WhatsApp a un socio, no en la interfaz de gestión. No los saques
-// en una limpieza de copy.
+// El texto vive en lib/mensajes.js (y lo puede reescribir el admin desde /mensajes).
+// Acá solo se arma el link y se resuelven las variables.
 const whatsappCumpleanos = (u) =>
-  linkWa(u.telefono,
-    `¡Feliz cumpleaños, ${u.nombre}! 🎉 De parte de todo el equipo de Jain Sport Box. ` +
-    `Pasa hoy por el box y te invitamos un batido. 💪`
-  )
+  linkWa(u.telefono, mensaje('cumpleanos', { nombre: primerNombre(u.nombre) }))
 
 // ── Felicitaciones enviadas ──────────────────────────────────
 // A diferencia de las alertas de vencimiento, los cumpleaños no tienen tabla propia:
@@ -474,20 +490,25 @@ const mostrarBotonManual = (a) => !whatsappAutomatico.value || !!a.error_envio
  *  el backend cuenta como `omitidas` al mandar los recordatorios automáticos. */
 const sinTelefono = (a) => !telefonoWa(a.usuario_telefono)
 
-// Único lugar donde vive el texto del recordatorio de vencimiento.
+// El texto vive en lib/mensajes.js y lo puede reescribir el admin; acá se calculan las
+// variables que ese texto puede usar.
+//
+// `cuando` va SIN los asteriscos de negrita: dónde poner el énfasis es decisión de quien
+// escribe la plantilla (el default lo pone), y meterlo acá le sacaría esa opción sin
+// que se note por qué.
 const whatsappAlerta = (a) => {
   const fecha = new Date(a.fecha_vencimiento + 'T12:00:00')
     .toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })
   // El caso 0 ("vence hoy") hay que contemplarlo: la alerta vive en el panel hasta el
-  // día del vencimiento, y sin esta rama el mensaje decía "en *0 días*".
+  // día del vencimiento, y sin esta rama el mensaje decía "en 0 días".
   const dias = diasParaVencer(a)
-  const cuando = dias <= 0 ? `*hoy* (${fecha})`
-    : dias === 1 ? `*mañana* (${fecha})`
-    : `en *${dias} días* (${fecha})`
-  return linkWa(a.usuario_telefono,
-    `Hola ${a.usuario_nombre}! 👋 Te recordamos que tu membresía en *Jain Sport Box* vence ${cuando}. ` +
-    `Para renovar contáctanos. 💪🔥`
-  )
+  const cuando = dias <= 0 ? 'hoy' : dias === 1 ? 'mañana' : `en ${dias} días`
+  return linkWa(a.usuario_telefono, mensaje('vence', {
+    nombre: primerNombre(a.usuario_nombre),
+    cuando,
+    fecha,
+    dias: Math.max(0, dias),
+  }))
 }
 
 // ── Carga ────────────────────────────────────────────────────
@@ -660,6 +681,7 @@ function alVolverALaPestana() {
 
 onMounted(() => {
   cargarFelicitados()
+  cargarMensajes()
   cargarResumen()
   cargarAlertas()
   cargarSociosMensuales()

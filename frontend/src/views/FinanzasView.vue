@@ -28,21 +28,56 @@
     </div>
 
     <!-- ── Selector de período ── -->
-    <div class="flex flex-wrap gap-2 mb-6">
-      <button v-for="p in periodos" :key="p.key" @click="seleccionarPeriodo(p.key)"
-        class="px-4 py-1.5 rounded-full text-sm font-semibold transition-colors"
-        :class="periodoActivo === p.key
-          ? 'bg-red-600 text-white shadow'
-          : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300 hover:text-red-600'">
-        {{ p.label }}
-      </button>
-      <!-- Rango personalizado -->
-      <div v-if="periodoActivo === 'rango'" class="flex items-center gap-2 ml-2">
-        <input v-model="rangoDesde" type="date" @change="cargarTodo"
-          class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-red-500 outline-none">
-        <span class="text-gray-400 text-sm">→</span>
-        <input v-model="rangoHasta" type="date" @change="cargarTodo"
-          class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-red-500 outline-none">
+    <div class="mb-6 space-y-3">
+      <div class="flex flex-wrap gap-2">
+        <button v-for="p in periodos" :key="p.key" @click="seleccionarPeriodo(p.key)"
+          class="px-4 py-1.5 rounded-full text-sm font-semibold transition-colors"
+          :class="periodoActivo === p.key
+            ? 'bg-red-600 text-white shadow'
+            : 'bg-white text-gray-600 border border-gray-200 hover:border-red-300 hover:text-red-600'">
+          {{ p.label }}
+        </button>
+        <!-- Rango personalizado -->
+        <div v-if="periodoActivo === 'rango'" class="flex items-center gap-2 ml-2">
+          <input v-model="rangoDesde" type="date" @change="cargarTodo"
+            class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-red-500 outline-none">
+          <span class="text-gray-400 text-sm">→</span>
+          <input v-model="rangoHasta" type="date" @change="cargarTodo"
+            class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-red-500 outline-none">
+        </div>
+      </div>
+
+      <!-- Lista de meses del año. Toda la pantalla (tarjetas, qué se vendió, historial
+           y el export) queda apuntando a ese mes: es el mismo período de siempre, solo
+           que elegido de una lista en vez de calculado. Los meses que aún no llegaron
+           van deshabilitados — no hay nada que mirar ahí. -->
+      <div v-if="periodoActivo === 'por_mes'" class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+        <div class="flex items-center justify-center gap-6 mb-4">
+          <button @click="cambiarAnio(-1)"
+            class="p-2 rounded-xl border border-gray-200 hover:border-gray-400 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span class="text-base font-extrabold text-gray-900">{{ anioSel }}</span>
+          <button @click="cambiarAnio(1)" :disabled="anioSel >= anioActual"
+            class="p-2 rounded-xl border border-gray-200 hover:border-gray-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+        <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+          <button v-for="(m, i) in MESES" :key="m" @click="seleccionarMes(i)" :disabled="mesFuturo(i)"
+            class="px-3 py-2 rounded-lg text-sm font-semibold border transition-colors"
+            :class="mesFuturo(i)
+              ? 'border-gray-100 text-gray-300 cursor-not-allowed'
+              : mesSel === i
+                ? 'bg-red-600 border-red-600 text-white shadow'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600'">
+            {{ m }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -582,12 +617,53 @@ const periodos = [
   { key: 'hoy', label: 'Hoy' },
   { key: 'semana', label: 'Esta semana' },
   { key: 'mes', label: 'Este mes' },
+  { key: 'por_mes', label: 'Por mes' },
   { key: 'anio', label: 'Este año' },
   { key: 'todo', label: 'Todo' },
   { key: 'rango', label: 'Rango' },
 ]
 
+// ── Mes puntual ("Por mes") ──
+// Arranca en el mes en curso, así que tocar el chip ya muestra algo y no una lista
+// muerta esperando un click.
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+               'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+const anioActual = new Date().getFullYear()
+const mesActual  = new Date().getMonth()
+const anioSel = ref(anioActual)
+const mesSel  = ref(mesActual)
+
+/** Un mes que todavía no empezó no tiene nada que mostrar. */
+function mesFuturo(i) {
+  return anioSel.value > anioActual || (anioSel.value === anioActual && i > mesActual)
+}
+
+// Hacia atrás sin tope (un mes sin movimientos sale en cero, que es la respuesta
+// correcta); hacia adelante, hasta el año en curso.
+//
+// Cambiar de año recarga con el mismo mes del año nuevo, no espera otro click: si no,
+// el encabezado diría 2025 mientras las tarjetas siguen mostrando 2026, que es la
+// clase de desfasaje que hace desconfiar de una pantalla de plata.
+function cambiarAnio(delta) {
+  const destino = Math.min(anioActual, anioSel.value + delta)
+  if (destino === anioSel.value) return
+  anioSel.value = destino
+  // Al volver al año en curso, el mes que estaba elegido puede caer en el futuro.
+  if (mesFuturo(mesSel.value)) mesSel.value = mesActual
+  cargarTodo()
+}
+
+function seleccionarMes(i) {
+  if (mesFuturo(i)) return
+  mesSel.value = i
+  cargarTodo()
+}
+
 const labelPeriodo = computed(() => {
+  // El chip dice "Por mes", pero debajo del balance neto eso no informa nada: ahí va
+  // el mes elegido.
+  if (periodoActivo.value === 'por_mes') return `${MESES[mesSel.value]} ${anioSel.value}`
   return periodos.find(p => p.key === periodoActivo.value)?.label || ''
 })
 
@@ -611,6 +687,11 @@ function calcularFechas() {
       return {
         desde: fmt(new Date(hoy.getFullYear(), hoy.getMonth(), 1)),
         hasta: fmt(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)),
+      }
+    case 'por_mes':
+      return {
+        desde: fmt(new Date(anioSel.value, mesSel.value, 1)),
+        hasta: fmt(new Date(anioSel.value, mesSel.value + 1, 0)),
       }
     case 'anio':
       return {

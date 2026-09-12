@@ -62,6 +62,7 @@ if engine.url.get_backend_name() == "sqlite":
         "ALTER TABLE alertas_membresia ADD COLUMN wa_message_id VARCHAR(80)",
         "ALTER TABLE alertas_membresia ADD COLUMN error_envio VARCHAR(300)",
         "ALTER TABLE alertas_membresia ADD COLUMN intentos INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN aviso_visto_id INTEGER",
     ]
     with engine.connect() as _conn:
         for _sql in _migraciones:
@@ -234,6 +235,7 @@ if engine.url.get_backend_name() != "sqlite":
         "ALTER TABLE alertas_membresia ADD COLUMN IF NOT EXISTS wa_message_id VARCHAR(80)",
         "ALTER TABLE alertas_membresia ADD COLUMN IF NOT EXISTS error_envio VARCHAR(300)",
         "ALTER TABLE alertas_membresia ADD COLUMN IF NOT EXISTS intentos INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS aviso_visto_id INTEGER",
     ]
     with engine.connect() as _conn:
         for _sql in _cols_pg:
@@ -299,7 +301,7 @@ from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from routers import alertas, asistencia, auth, dashboard, ejercicios, finanzas, marcas, metodos_pago, pagos, planes, productos, salud, usuarios, ventas, wods
+from routers import alertas, asistencia, auth, avisos, dashboard, ejercicios, finanzas, marcas, mensajes, metodos_pago, pagos, planes, productos, salud, usuarios, ventas, wods
 from seed import seed_planes, seed_admin, seed_ejercicios
 
 seed_planes()
@@ -548,5 +550,7 @@ app.include_router(salud.router)
 app.include_router(marcas.router)
 app.include_router(alertas.router)
 app.include_router(metodos_pago.router)
+app.include_router(mensajes.router)
+app.include_router(avisos.router)
 app.include_router(ejercicios.router)
 app.include_router(dashboard.router)

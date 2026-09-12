@@ -120,6 +120,17 @@
         </span>
       </button>
 
+      <!-- El recordatorio de este tab se escribe en /mensajes. El acceso vive acá y no
+           solo en el sidebar porque es mirando esta lista cuando se piensa que el texto
+           quedó frío. -->
+      <router-link v-if="isAdmin && filtroActivo === 'inactivos'" to="/mensajes"
+        class="ml-auto flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        Editar mensaje
+      </router-link>
+
       <!-- Ordenar por -->
       <div v-if="filtroActivo !== 'pendientes'" class="flex items-center gap-2 ml-auto">
         <label for="orden-usuarios" class="text-xs font-semibold text-gray-400 uppercase tracking-widest hidden sm:block">
@@ -1228,6 +1239,8 @@ import { useRoute, useRouter } from 'vue-router'
 import api, { mediaUrl } from '../api'
 import { fotoSrc } from '../lib/avatar'
 import { linkWa } from '../lib/whatsapp'
+import { primerNombre } from '../lib/mensajes'
+import { useMensajes, cargarMensajes } from '../composables/useMensajes'
 import { formatearFecha } from '../lib/fechas'
 import { BADGE_NEUTRO } from '../data/paleta'
 import { useAuth } from '../composables/useAuth'
@@ -1261,6 +1274,10 @@ const planes = ref([])
 const loading = ref(true)
 const loadingPendientes = ref(false)
 const usuarioSeleccionado = ref(null)
+// El texto de los recordatorios es editable desde /mensajes; `mensaje()` cae al
+// default de lib/mensajes.js si el endpoint no respondió.
+const { mensaje } = useMensajes()
+
 const filtroActivo = ref('todos')
 const busqueda = ref('')
 
@@ -1446,22 +1463,14 @@ const motivoInactivo = (u) => {
 // renueve, y a quien gastó el bono, que compre más accesos. Mandarle "renová tu
 // mensualidad" a alguien que tiene fecha de sobra y cero accesos lo confunde, y encima
 // le da la impresión de que en el box no saben en qué situación está.
+// Un texto por motivo, y no uno solo: mandarle "renueva tu mensualidad" a quien tiene
+// fecha de sobra y cero accesos lo confunde y da la impresión de que en el box no saben
+// en qué situación está. Los tres son editables desde /mensajes.
+const CLAVE_MOTIVO = { sin_accesos: 'sin_accesos', vencida: 'vencida', nunca: 'sin_membresia' }
+
 function mensajeInactivo(u) {
-  const nombre = u.nombre?.split(' ')[0] || ''
-  const hola = `Hola${nombre ? ' ' + nombre : ''}!`
-  switch (motivoInactivo(u)) {
-    // Tuteo, como el resto de los mensajes de la app. El de cumpleaños mezclaba voseo
-    // con tuteo en la misma frase y hubo que corregirlo.
-    case 'sin_accesos':
-      return `${hola} Te avisamos que se te acabaron los accesos de tu plan en *Jain Sport Box*. ` +
-             `Pasa por recepción para recargarlo y seguimos entrenando.`
-    case 'vencida':
-      return `${hola} Te recordamos que tu membresía en *Jain Sport Box* ya venció. ` +
-             `Renuévala cuando quieras y te esperamos en el box.`
-    default:
-      return `${hola} Vimos que todavía no tienes una membresía activa en *Jain Sport Box*. ` +
-             `Pasa por recepción y te ayudamos a elegir el plan que mejor te sirva.`
-  }
+  const clave = CLAVE_MOTIVO[motivoInactivo(u)] || 'sin_membresia'
+  return mensaje(clave, { nombre: primerNombre(u.nombre) })
 }
 
 // Condicionado al LINK y no al teléfono: un número incompleto generaría un botón que
@@ -2073,6 +2082,7 @@ onMounted(() => {
   fetchUsuarios()
   fetchPlanes()
   fetchPendientes()
+  cargarMensajes()
   conectarAccesoWS()
   fetchEnGym()
   gymInterval = setInterval(fetchEnGym, 10_000)

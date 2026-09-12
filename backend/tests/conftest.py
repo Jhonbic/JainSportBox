@@ -123,6 +123,8 @@ def _bd_limpia():
             models.WOD,
             models.Pago,
             models.MetodoPago,
+            models.PlantillaMensaje,
+            models.Aviso,
             models.Producto,
             models.Ejercicio,
         ):
@@ -134,6 +136,9 @@ def _bd_limpia():
             models.Plan.nombre.notin_(SEED_PLAN_NOMBRES)
         ).delete(synchronize_session=False)
         db.query(models.Plan).update({"activo": True}, synchronize_session=False)
+        # El admin sobrevive al borrado, así que su puntero de aviso descartado se
+        # filtraría al test siguiente.
+        db.query(models.Usuario).update({"aviso_visto_id": None}, synchronize_session=False)
         db.commit()
     finally:
         db.close()

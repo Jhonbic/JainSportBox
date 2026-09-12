@@ -71,6 +71,12 @@ class Usuario(Base):
     # Solo se llena cuando la membresía se vendió para arrancar en el futuro; hasta
     # ese día `_validar_membresia` niega el acceso. NULL = ya está corriendo.
     membresia_inicio: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    # Último aviso que este usuario marcó como "no volver a mostrar". Un entero y no una
+    # tabla de lecturas: como hay un solo aviso activo por vez (ver routers/avisos.py),
+    # comparar este id contra el del aviso vigente alcanza. Publicar uno nuevo le cambia
+    # el id y todos lo vuelven a ver, sin limpiar nada.
+    aviso_visto_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     esta_en_gym: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     foto_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     genero: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -470,6 +476,55 @@ class MetodoPago(Base):
 
     def __repr__(self) -> str:
         return f"<MetodoPago {self.id} – {self.banco} ({self.tipo_cuenta})>"
+
+# ────────────────────── Avisos en la app ──────────────────────
+
+class Aviso(Base):
+    """Cartel que se le muestra al cliente al entrar a la app.
+
+    **Como mucho uno tiene `activo=True`**: el router apaga los demás al activar uno.
+    De esa regla depende que `Usuario.aviso_visto_id` (un solo entero) alcance para
+    saber a quién mostrarle qué.
+    """
+    __tablename__ = "avisos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    titulo: Mapped[str] = mapped_column(String(120), nullable=False)
+    cuerpo: Mapped[str] = mapped_column(Text, nullable=False)
+    # Botón opcional: sin destino no se dibuja. Sirve para mandar a /planes o a WhatsApp.
+    boton_texto: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    boton_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Fecha de fin opcional: una promo que se apaga sola el día que termina. Sin esto,
+    # el aviso de septiembre sigue saliendo en diciembre porque nadie se acordó.
+    hasta: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self) -> str:
+        return f"<Aviso {self.id} – {self.titulo!r}{' (activo)' if self.activo else ''}>"
+
+
+# ────────────────────── Plantillas de mensajes ──────────────────────
+
+class PlantillaMensaje(Base):
+    """Texto personalizado de un mensaje de WhatsApp (cobro / cumpleaños).
+
+    Solo hay fila para lo que el admin **cambió**: el texto de fábrica vive en
+    `frontend/src/lib/mensajes.js`, que es donde se arma el link de wa.me. Una clave sin
+    fila significa "usá el default", no "mensaje vacío" — por eso restaurar el default
+    borra la fila en vez de escribirle el texto original, que lo congelaría.
+    """
+    __tablename__ = "plantillas_mensaje"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    clave: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
+    texto: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self) -> str:
+        return f"<PlantillaMensaje {self.clave}>"
+
 
 # El esquema lo crea `main.py` al arrancar (`Base.metadata.create_all(bind=engine)`),
 # contra el engine de `database.py` — que es el único que sabe leer DATABASE_URL. Acá

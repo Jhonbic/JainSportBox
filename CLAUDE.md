@@ -131,7 +131,9 @@ Detalles que no son opcionales: `ImageOps.exif_transpose()` (sin eso las fotos v
 - **401 global:** `api.js` tiene un interceptor de respuesta que ante 401 limpia la sesión y redirige a `/login`.
 - **Scheduler y advisory lock:** el Dockerfile corre `--workers 1`; APScheduler igual se protege con un advisory lock de Postgres (`pg_try_advisory_lock`) en `main.py`, por si algún día se sube el número de workers. **El liderazgo se reintenta cada 2 minutos, no se decide una sola vez** — ver "Scheduler: por qué el liderazgo se reintenta".
 
-**Financial movements:** `FinanzasView` tiene **todo lo financiero**: el selector de período (Hoy / Esta semana / Este mes / Este año / Todo / Rango), las **5 tarjetas de balance** (Membresías, Tienda, Total ingresos, Egresos, Balance neto) atadas a ese selector, y el historial de movimientos con alta manual. El Resumen (`/dashboard`) **no** duplica nada de esto.
+**Financial movements:** `FinanzasView` tiene **todo lo financiero**: el selector de período (Hoy / Esta semana / Este mes / **Por mes** / Este año / Todo / Rango), las **5 tarjetas de balance** (Membresías, Tienda, Total ingresos, Egresos, Balance neto) atadas a ese selector, y el historial de movimientos con alta manual. El Resumen (`/dashboard`) **no** duplica nada de esto.
+
+**"Por mes" — la lista de meses del año.** El chip abre un panel con los doce meses y un navegador de año; elegir uno apunta **toda** la pantalla a ese mes (tarjetas, "qué se vendió", historial y el export a Excel), porque no es un modo nuevo sino el mismo `fecha_desde`/`fecha_hasta` de siempre, calculado desde la lista en vez de desde el reloj. **No requirió backend**: los tres endpoints ya reciben el rango. Dos detalles que no son adorno: los meses que todavía no llegaron van deshabilitados (no hay nada que mirar ahí, y ofrecerlos invita a pensar que el sistema perdió datos), y **cambiar de año recarga con el mismo mes del año nuevo** en vez de esperar otro click — si no, el encabezado diría 2025 mientras las tarjetas siguen mostrando 2026. `labelPeriodo` devuelve el mes elegido ("Septiembre 2026") y no el rótulo del chip: es lo que se lee debajo del balance neto, y ahí "Por mes" no informa nada.
 
 El modal de alta registra **ingreso o egreso** (antes solo egresos). Las categorías salen de `CATEGORIAS_POR_TIPO` y cambian con el tipo; un `watch` limpia la categoría al alternar, para no mandar un egreso categorizado como "Membresía". **`venta_tienda` no se ofrece a propósito:** las ventas se leen de la tabla `ventas`, así que cargarlas también como movimiento manual las contaría dos veces (es el mismo motivo del `DELETE … WHERE fuente='venta_tienda'` de `main.py`).
 
@@ -173,6 +175,151 @@ El historial pagina de a 15 **contra el servidor**. **Ojo con los nombres:** `ra
 **Public registration:** `POST /registro` accepts `multipart/form-data` (not JSON) because it supports an optional profile photo. Use `Form(...)` for all text fields and `File(None)` for the photo. The frontend sends a `FormData` object with `Content-Type: multipart/form-data`.
 
 **Términos y condiciones + datos de afiliación (registro):** el registro exige `acepta_terminos=true` (422 si falta) y campos obligatorios `fecha_nacimiento`, `eps`, `barrio`, `contacto_emergencia_nombre/telefono`. Al aceptar se guardan `acepto_terminos`, `terminos_fecha` (hora Bogotá) y `terminos_version` — la constante `TERMINOS_VERSION` vive en `routers/auth.py` y debe mantenerse en sincronía con `frontend/src/components/TerminosModal.vue` (modal con el texto completo del contrato de adhesión). **Menores de edad:** si la fecha de nacimiento da < 18 años, el backend exige `es_menor=true` + `acudiente_nombre/telefono/documento` (cláusula 7 del contrato: quien registra declara ser el acudiente); el frontend muestra la sección de acudiente automáticamente. `GET /usuarios/pendientes` expone `es_menor` y los datos del acudiente — la fila de pendientes en `UsuariosView` marca a los menores con un badge ámbar y muestra el bloque del acudiente (también ámbar) dentro del detalle desplegable, para que el admin confirme antes de activar. La **edad no se almacena** — se calcula de `fecha_nacimiento` (`_calcular_edad` en `auth.py`, computed `edad` en `LoginView`). Los usuarios existentes no se ven afectados (columnas nullable / default false); admin puede completar los datos desde el perfil.
+
+## Avisos en la app
+
+El cartel que se le muestra al cliente al entrar. Es el único canal para hablarle a
+**todos** los clientes desde adentro del sistema; antes solo existía WhatsApp de a uno.
+Se administra en `/mensajes` → pestaña "Aviso en la app".
+
+**Un aviso activo por vez, y de esa regla depende todo el resto.** Activar uno apaga los
+demás (`_apagar_los_demas` en `routers/avisos.py`), así que "el aviso vigente" es siempre
+uno solo y alcanza con guardar en el usuario **cuál fue el último que descartó**:
+`Usuario.aviso_visto_id`, **una columna, sin tabla de lecturas**. Publicar uno nuevo le
+cambia el id y todos lo vuelven a ver, sin ninguna limpieza de por medio.
+
+**"No volver a mostrar" es por aviso, nunca global.** Es la decisión que hace que el
+canal siga sirviendo: con un mute global, el primer aviso lo quema para siempre — alguien
+descarta una promo y ya nunca se entera de que el box cierra el 24. Cubierto por
+`test_un_aviso_nuevo_vuelve_a_mostrarse_al_que_descarto`.
+
+**Y es por usuario, no por dispositivo:** descartarlo en el celular también lo descarta en
+la PC del gym. Es justo la limitación que arrastran los cumpleaños felicitados, que viven
+en localStorage; acá no se repitió a propósito.
+
+**Cerrar sin tildar la casilla no persiste nada** — vuelve a aparecer la próxima vez que
+abra la app, que es lo pedido. Lo único que se guarda ahí es una clave en
+**`sessionStorage`** (`aviso_cerrado:<id>`) para que recargar la página cinco veces no
+traiga el cartel cinco veces. Muere al cerrar la pestaña, que es exactamente esa
+distinción; con `localStorage` el "cerrar" se volvería un "no mostrar más" encubierto.
+
+**El modal vive en el layout (`Dashboard.vue`), no en `HomeView`.** El cliente aterriza en
+`/home` pero el pendiente en `/planes`, y los dos tienen que verlo. Se monta una vez por
+carga de la app, así que navegar entre pantallas no lo vuelve a disparar. `AvisoModal` se
+cuida solo: si no hay nada que mostrar, no dibuja nada, y si el endpoint falla no muestra
+error — un aviso es lo menos importante de la pantalla y no puede ensuciar la entrada a la
+cuenta.
+
+**Destinatarios:** `ROLES_DESTINATARIOS = (CLIENTE, PENDIENTE)`. Al pendiente sí, que es
+quien está a un paso de pagar. Al staff no: ya se enteró de otra forma, y mezclar avisos
+internos con los del cliente en un mismo canal termina en que nadie lee ninguno.
+
+**Fecha de fin (`hasta`) opcional**, comparada contra el día de **Bogotá**: con la fecha
+de UTC un aviso que vence hoy se apagaría a las 19:00 locales, en plena hora pico. Existe
+para que la promo de septiembre no siga saliendo en diciembre porque nadie se acordó de
+apagarla.
+
+**El `boton_url` se valida en el backend** (ruta interna `/…` o `http(s)://`): termina en
+un `href`, así que un `javascript:` sería una inyección que el admin escribe y el cliente
+ejecuta. Y el **cuerpo se renderiza con `whitespace-pre-line`, nunca con `v-html`** — los
+saltos de línea son todo lo que hace falta para separar párrafos, y meterlo como HTML
+abriría markup arbitrario en la pantalla del cliente a cambio de nada.
+
+**Borrar un aviso deja `aviso_visto_id` huérfanos y está bien:** apuntan a un id que ya no
+coincide con ningún aviso vigente, así que el próximo que se publique se muestra igual.
+Limpiarlos sería trabajo para no cambiar nada.
+
+`GET /avisos/` (admin) trae también **cuántos lo descartaron**, con un solo `COUNT`
+agrupado. Ojo con leerlo de más: cuenta a quienes tildaron "no volver a mostrar", **no** a
+quienes lo vieron — la UI lo rotula así ("N lo descartaron") justamente por eso.
+
+**Migración:** `avisos` es tabla nueva y `create_all` la crea en los dos motores, pero
+`usuarios.aviso_visto_id` es una **columna sobre una tabla existente**, así que va en los
+**dos** bloques de `main.py` (SQLite y Postgres). Sin el bloque de Postgres, en producción
+falta la columna y rompe.
+
+## `/mensajes` — lo que el box le dice al cliente
+
+Una sola ruta (`MensajesView`, solo admin, sidebar → Gestión) con **dos pestañas**, y no
+dos entradas de sidebar: son dos canales de lo mismo y el sidebar viene achicándose a
+propósito. El shell tiene el encabezado y las pestañas; cada una es un componente
+(`MensajesWhatsapp.vue`, `AvisosEditor.vue`). `v-show` y no `v-if` — cada pestaña trae
+sus datos al montarse y con `v-if` ir y volver dispararía otro fetch.
+
+| Pestaña | Qué edita |
+|---|---|
+| **WhatsApp** | Los cinco textos de los links manuales (ver abajo) |
+| **Aviso en la app** | El cartel que ve el cliente al entrar (ver "Avisos en la app") |
+
+### Mensajes de WhatsApp editables
+
+Los cinco textos que el box le manda a un socio (la felicitación de cumpleaños y los
+cuatro de cobro) los puede reescribir el admin. El pedido fue poder hacerlos más
+cercanos; el texto de fábrica sigue siendo el que estaba.
+
+**El texto de fábrica vive en `frontend/src/lib/mensajes.js` y en ningún otro lado.** El
+backend (`routers/mensajes.py` + tabla `plantillas_mensaje`) guarda **solo los
+overrides**: una clave sin fila significa "usá el default". Es la decisión central del
+diseño y tiene tres consecuencias que hay que sostener:
+
+1. **No hay copia del copy en la base**, así que mejorar un texto de fábrica le llega a
+   todo el mundo. Si el default se sembrara en la tabla, quedaría congelado en la
+   primera versión para siempre.
+2. **Restaurar borra la fila**, no escribe el default encima — por el mismo motivo.
+3. **El endpoint puede fallar sin romper nada.** `useMensajes()` cae al default y el
+   botón de WhatsApp sigue armando su link. Un panel de cobro que se queda sin botón
+   porque no cargó un texto sería mucho peor que mandar el mensaje de fábrica.
+
+Lo único que el backend sí conoce es la **lista de claves válidas** (`CLAVES`): cinco
+identificadores cortos, no copy. Sin ese filtro, un PUT dejaría filas basura.
+
+| Clave | Dónde se usa |
+|---|---|
+| `cumpleanos` | Panel "Cumpleaños hoy" del Resumen |
+| `vence` | Panel "Por vencer · 7 días" del Resumen |
+| `vencida` / `sin_accesos` / `sin_membresia` | Tab **Inactivos** de Clientes, uno por `motivoInactivo()` |
+
+**Variables:** `{nombre}` en todas; `vence` suma `{cuando}`, `{fecha}` y `{dias}`.
+`renderMensaje()` reemplaza solo las conocidas y **deja literal** cualquier otra —
+borrarla en silencio escondería el error hasta que el socio recibe el WhatsApp; así se
+ve en la vista previa del editor, que además la marca en rojo antes de guardar.
+
+**`{cuando}` viaja sin los asteriscos de negrita.** El default los pone (`*{cuando}*`);
+dónde va el énfasis es decisión de quien escribe la plantilla, y meterlo en el valor le
+sacaría esa opción sin que se note por qué.
+
+**`{nombre}` es el primer nombre** (`primerNombre()`), también en el Resumen, que antes
+mandaba el nombre completo. "Hola Carlos Andrés Restrepo" no es cómo se le habla a
+alguien que va al box todos los días.
+
+**El envío automático NO usa estas plantillas.** El job de las 9:10 manda una plantilla
+aprobada por Meta cuyo cuerpo vive en los servidores de Meta (ver "Envío automático por
+WhatsApp Cloud API"), así que editar `vence` acá cambia el link manual y nada más. Sin
+avisarlo, el admin edita el texto, ve que al socio le llega otra cosa y concluye que el
+sistema está roto.
+
+**Pero el aviso es condicional, y eso importa tanto como el aviso.** `GET /mensajes/`
+devuelve `envio_automatico` (`whatsapp.HABILITADO`) junto con los overrides, y la tarjeta
+de `vence` muestra el cartel ámbar **solo si está prendido**. Con la API de Meta sin
+configurar —el estado real mientras nadie cargue las credenciales— ese cartel manda a
+buscar en WhatsApp Manager un mensaje que no existe, que es peor que no decir nada; en su
+lugar va una línea gris diciendo que ese es el único texto que sale. El día que se prenda,
+el aviso vuelve solo. Por eso el flag viaja en el mismo GET y no en otra llamada: es el
+dato que vuelve verdadera o falsa una advertencia de esa misma pantalla.
+
+**Permisos:** el `GET` es admin **y coach** — el coach no edita, pero manda los mismos
+recordatorios desde el Resumen y con la lista vacía escribiría el texto viejo. `PUT` y
+`DELETE` son solo admin, como Planes y Finanzas.
+
+**El editor se alcanza desde donde se usa el mensaje**, no solo desde el sidebar: hay un
+lápiz en los dos paneles del Resumen y un "Editar mensaje" en el tab Inactivos. Es
+mirando esas listas cuando uno piensa que el texto quedó frío.
+
+**La tabla no necesita migración de columnas.** Es una tabla nueva y `create_all` las
+crea en los dos motores; los bloques 1 y 2 de `main.py` son para columnas nuevas sobre
+tablas que ya existen. Lo que sí hubo que tocar es `conftest.py`, que limpia la BD entre
+tests: sin agregar `PlantillaMensaje` ahí, los overrides de un test se filtran al
+siguiente.
 
 ## Teléfonos de WhatsApp
 
@@ -247,7 +394,7 @@ La fuente única de los colores categóricos es `frontend/src/data/paleta.js`. N
 
 Ruta `/dashboard` (roles `admin`, `coach`), archivo `frontend/src/views/DashboardView.vue`. **Ojo con el nombre:** `components/Dashboard.vue` es el *layout* (sidebar + shell); `views/DashboardView.vue` es la *página*. Es el aterrizaje del admin tras el login (el redirect de `router/index.js`); el coach sigue cayendo en `/home`.
 
-**Dos pestañas y solo dos: Clientes y Asistencia** (`tab` en `DashboardView`, `v-show` y no `v-if` — `SesionesPanel` trae sus datos al montarse, y con `v-if` cada ida y vuelta dispararía otro refetch). **El Resumen no tiene bloque financiero.** Se probó meter acá las 5 tarjetas de balance + una gráfica de 12 meses, en una pestaña "Finanzas", y se revirtió: lo financiero vive entero en `/finanzas`, que tiene su propio selector de período (Hoy / Semana / Mes / Año / Todo / Rango) y por lo tanto contesta cosas que un bloque fijo al mes en curso no puede. **No volver a duplicarlo acá.**
+**Dos pestañas y solo dos: Clientes y Asistencia** (`tab` en `DashboardView`, `v-show` y no `v-if` — `SesionesPanel` trae sus datos al montarse, y con `v-if` cada ida y vuelta dispararía otro refetch). **El Resumen no tiene bloque financiero.** Se probó meter acá las 5 tarjetas de balance + una gráfica de 12 meses, en una pestaña "Finanzas", y se revirtió: lo financiero vive entero en `/finanzas`, que tiene su propio selector de período (Hoy / Semana / Mes / Por mes / Año / Todo / Rango) y por lo tanto contesta cosas que un bloque fijo al mes en curso no puede. **No volver a duplicarlo acá.**
 
 | Bloque | Contenido | Fuente |
 |---|---|---|
@@ -266,7 +413,7 @@ Cada bloque carga por separado con su propio skeleton: si un endpoint falla, el 
 
 **Tarjetas navegables:** en el bloque Usuarios, *Activos* y *Pendientes* son `router-link` (a `/usuarios` y a `/usuarios?tab=pendientes`) y lo señalan con una flecha → en el encabezado que se acenta y se desplaza en hover. `UsuariosView` lee `route.query.tab` al montar y preselecciona esa pestaña si la clave existe en `tabs`; cualquier otro valor cae en el default `todos`. Las otras dos tarjetas (Recuperables, Renovación) no navegan y por eso no llevan flecha — la flecha es la señal de que la tarjeta es un enlace, no decoración.
 
-Las dos listas accionables (cumpleaños y por vencer) llevan botón de WhatsApp con mensaje pregenerado, vía `linkWa()` de `frontend/src/lib/whatsapp.js` (ver "Teléfonos de WhatsApp" más abajo). Los botones se condicionan al **link**, no al teléfono (`v-if="whatsappAlerta(a) && …"`): un número cargado incompleto generaba un botón que llevaba a un error de WhatsApp. Las dos tienen la misma estructura: pestañas *pendientes* / *enviados* y tope de 4 filas visibles con scroll (`max-h-[12.5rem]` para cumpleaños, `max-h-[14rem]` para vencimientos — las filas de vencimiento llevan dos líneas y por eso son más altas).
+Las dos listas accionables (cumpleaños y por vencer) llevan botón de WhatsApp con mensaje pregenerado, vía `linkWa()` de `frontend/src/lib/whatsapp.js` (ver "Teléfonos de WhatsApp" más abajo). **El texto sale de `mensaje()` de `useMensajes`, no de un literal en el `.vue`**: es editable desde `/mensajes` (ver "Mensajes de WhatsApp editables"), y cada panel lleva un lápiz que lleva ahí. Los botones se condicionan al **link**, no al teléfono (`v-if="whatsappAlerta(a) && …"`): un número cargado incompleto generaba un botón que llevaba a un error de WhatsApp. Las dos tienen la misma estructura: pestañas *pendientes* / *enviados* y tope de 4 filas visibles con scroll (`max-h-[12.5rem]` para cumpleaños, `max-h-[14rem]` para vencimientos — las filas de vencimiento llevan dos líneas y por eso son más altas).
 
 **Cumpleaños felicitados — se guardan en `localStorage`, no en la BD.** A diferencia de las alertas de vencimiento, los cumpleaños no tienen tabla propia: no hay dónde persistir "ya lo felicité". Se usa la clave `felicitados:YYYY-MM-DD`, que incluye la fecha para vaciarse sola al día siguiente; al montar se borran las claves de días anteriores para que no se acumulen. **Limitación conocida:** el registro es por dispositivo, así que felicitar desde el celular no se refleja en la PC del gym. Si eso llega a molestar, la solución es una tabla o una columna, no más localStorage.
 
@@ -354,7 +501,7 @@ El sidebar está dividido en secciones semánticas según el rol:
 
 **Sección "Gestión"** (`canManage` = admin + coach):
 - Resumen (`/dashboard`), Usuarios, Acceso Manual, Ejercicios (admin + coach). **Sesiones y Alertas WhatsApp ya no están**: los recordatorios se atienden desde el panel "Por vencer · 7 días" del Resumen, y `/alertas` queda solo para el historial, enlazada desde ahí.
-- Planes, Finanzas (solo admin)
+- Planes, Finanzas, **Mensajes** (solo admin). Mensajes va último: es configuración de copy, no algo que se mire todos los días. Adentro tiene las dos pestañas (WhatsApp y el aviso de la app).
 
 **Sección "Contenido"** (todos los roles no pendientes):
 - WODs (siempre, si membresía vigente)
@@ -403,7 +550,7 @@ El router `backend/routers/alertas.py` sigue igual y es lo que alimenta ese pane
 
 **`backend/whatsapp.py`** — sigue el patrón de `storage.py`: env vars a nivel de módulo, flag `HABILITADO`, cliente `httpx` perezoso y **degradación segura**. Si faltan `WA_PHONE_NUMBER_ID`/`WA_ACCESS_TOKEN` o `WA_ENVIO_AUTOMATICO=0`, todo sigue funcionando en modo manual. **Ninguna función levanta excepciones**: todo error vuelve en `Resultado`, porque el llamador recorre una lista de socios y reventar a la mitad dejaría media tanda sin enviar y sin registro. `normalizar_telefono()` espeja a `telefonoWa()` de `frontend/src/lib/whatsapp.js` — **mantener las dos en sincronía**, si no el link manual y el automático escriben a números distintos (ver "Teléfonos de WhatsApp").
 
-**La ventana de 24 h de WhatsApp:** solo se puede mandar texto libre si el cliente le escribió al negocio en las últimas 24 h. Los socios nunca escriben primero, así que **el único mensaje enviable es una plantilla aprobada por Meta** (texto libre → error 131047). El cuerpo aprobado vive en los servidores de Meta y el fallback manual en `whatsappAlerta()` del `.vue`: **cambiar uno obliga a revisar el otro**, y editar la plantilla en Meta la manda de nuevo a aprobación. Los tres parámetros son posicionales (`{{1}}` nombre, `{{2}}` cuándo, `{{3}}` fecha); cruzarlos no da error, solo manda el mensaje mal.
+**La ventana de 24 h de WhatsApp:** solo se puede mandar texto libre si el cliente le escribió al negocio en las últimas 24 h. Los socios nunca escriben primero, así que **el único mensaje enviable es una plantilla aprobada por Meta** (texto libre → error 131047). El cuerpo aprobado vive en los servidores de Meta y el del link manual en la plantilla `vence` (default en `lib/mensajes.js`, editable desde `/mensajes`): **son dos textos independientes y ninguno de los dos cambia al otro** — editar el manual desde la app no toca lo que manda el job, y editar la plantilla en Meta la manda de nuevo a aprobación. La tarjeta de `vence` en `/mensajes` avisa de esto, porque el admin razonablemente supone lo contrario. Los tres parámetros son posicionales (`{{1}}` nombre, `{{2}}` cuándo, `{{3}}` fecha); cruzarlos no da error, solo manda el mensaje mal.
 
 **Job separado, sin trigger de arranque.** `_job_envio_whatsapp` corre a las **9:10** (10 min después de `_job_alertas`, para que las alertas del día existan). **No se engancha al trigger `"date"`**: `_job_alertas` sí corre en cada arranque, y Render redespliega varias veces al día — meter el envío ahí sería un WhatsApp a cada socio por cada push. Separarlos además aísla las fallas: si Meta responde 500, la generación de alertas (de la que depende el panel) no se ve afectada. **No mover el envío dentro de `_job_alertas` ni de `POST /alertas/generar`** — ese endpoint lo llama el frontend en cada montaje del dashboard.
 
@@ -543,7 +690,7 @@ La vista tiene un `vista = ref('clientes')` que alterna dos listados sobre el mi
 
 **`tieneMembresia` mira los DOS ejes**, igual que `_validar_membresia` en el backend: `fechaVigente(u) && !sinAccesos(u)`. Antes solo miraba la fecha, así que el socio con el bono agotado aparecía en **Activos** mientras la palanquera lo rechazaba — y era justo el que más cerca estaba de volver a comprar, pero no había forma de mandarle el recordatorio desde acá. Los tres motivos los da `motivoInactivo(u)` (`vencida` / `sin_accesos` / `nunca`), que alimenta el chip rojo **"Sin accesos"** de la columna Membresía: sin él, la línea de días dice "23 días restantes" y sola haría creer que puede entrar.
 
-**Recordatorio por WhatsApp a los inactivos.** Botón verde en la fila (tabla y card móvil) que abre el chat con el mensaje ya escrito. **Solo aparece en el tab Inactivos** (`mostrarRecordatorio` pregunta por `filtroActivo`, no solo por el estado de la fila): en "Todos" o en "En el box" un vencido también califica, pero ahí el admin está buscando a alguien o mirando quién entrena, y un botón de "se te acabó" mezclado entre socios al día es ruido. La acción de cobrar tiene su pestaña. `mensajeInactivo(u)` cambia el texto según el motivo — mandarle "renueva tu mensualidad" a quien tiene fecha de sobra y cero accesos lo confunde y da la impresión de que en el box no saben en qué situación está. Va condicionado al **link** y no al teléfono (`linkWa` de `lib/whatsapp.js`); sin número utilizable se muestra un ícono de teléfono tachado en gris, para que el hueco tenga explicación. Emerald como el resto de los botones de WhatsApp — la excepción documentada en "Paleta de colores".
+**Recordatorio por WhatsApp a los inactivos.** Botón verde en la fila (tabla y card móvil) que abre el chat con el mensaje ya escrito. **Solo aparece en el tab Inactivos** (`mostrarRecordatorio` pregunta por `filtroActivo`, no solo por el estado de la fila): en "Todos" o en "En el box" un vencido también califica, pero ahí el admin está buscando a alguien o mirando quién entrena, y un botón de "se te acabó" mezclado entre socios al día es ruido. La acción de cobrar tiene su pestaña. `mensajeInactivo(u)` cambia el texto según el motivo — mandarle "renueva tu mensualidad" a quien tiene fecha de sobra y cero accesos lo confunde y da la impresión de que en el box no saben en qué situación está. Los tres textos son plantillas editables (`vencida` / `sin_accesos` / `sin_membresia`, ver "Mensajes de WhatsApp editables"); el tab lleva un enlace "Editar mensaje" al editor. Va condicionado al **link** y no al teléfono (`linkWa` de `lib/whatsapp.js`); sin número utilizable se muestra un ícono de teléfono tachado en gris, para que el hueco tenga explicación. Emerald como el resto de los botones de WhatsApp — la excepción documentada en "Paleta de colores".
 
 Ojo con las claves, porque "activo" significa dos cosas distintas en esta pantalla: `key: 'activos'` filtra por **membresía usable** (`tieneMembresia`), mientras que el que está físicamente en el gym es `key: 'en_box'` (`esta_en_gym`). La clave `'activos'` antes era la del box y `'membresia'` la de vigencia — se intercambiaron para que el nombre del tab y el del dashboard coincidan. La columna Estado de la tabla sigue rotulando `esta_en_gym` como "Activo/Fuera", que es otro eje.
 
