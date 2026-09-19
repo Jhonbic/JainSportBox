@@ -63,6 +63,7 @@ if engine.url.get_backend_name() == "sqlite":
         "ALTER TABLE alertas_membresia ADD COLUMN error_envio VARCHAR(300)",
         "ALTER TABLE alertas_membresia ADD COLUMN intentos INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE usuarios ADD COLUMN aviso_visto_id INTEGER",
+        "ALTER TABLE ejercicios ADD COLUMN tipo_marca VARCHAR(20)",
     ]
     with engine.connect() as _conn:
         for _sql in _migraciones:
@@ -227,6 +228,7 @@ if engine.url.get_backend_name() != "sqlite":
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acudiente_telefono VARCHAR(20)",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acudiente_documento VARCHAR(20)",
         "ALTER TABLE planes ADD COLUMN IF NOT EXISTS numero_ingresos INTEGER",
+        "ALTER TABLE ejercicios ADD COLUMN IF NOT EXISTS tipo_marca VARCHAR(20)",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ingresos_restantes INTEGER",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS acepto_terminos BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS terminos_fecha TIMESTAMP",
@@ -302,11 +304,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from routers import alertas, asistencia, auth, avisos, dashboard, ejercicios, finanzas, marcas, mensajes, metodos_pago, pagos, planes, productos, salud, usuarios, ventas, wods
-from seed import seed_planes, seed_admin, seed_ejercicios
+from seed import seed_planes, seed_admin, seed_ejercicios, seed_tipos_marca
 
 seed_planes()
 seed_admin()
 seed_ejercicios()
+seed_tipos_marca()
 
 app = FastAPI(
     title="Jain Sport Box System",

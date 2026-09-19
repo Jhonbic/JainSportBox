@@ -8,7 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from routers.marcas import TIPOS_EJERCICIO, _calcular_1rm, _tipo_de
+from marcas_tipos import TIPOS_MARCA, TIPOS_MARCA_DEFAULT
+from models import Ejercicio
+from routers.marcas import _calcular_1rm, _tipo_de
 
 
 def _payload(ejercicio, **kw):
@@ -45,9 +47,31 @@ def test_1rm_reps_altas_no_revienta():
     assert _calcular_1rm(100, 100) > 0
 
 
-def test_tipo_de_desconocido_default_barra():
+def test_tipo_de_desconocido_default_barra(db_session):
     # comportamiento actual: ejercicio no catalogado se trata como 'barra'
-    assert _tipo_de("Ejercicio Inventado") == "barra"
+    assert _tipo_de("Ejercicio Inventado", db_session) == "barra"
+
+
+def test_tipo_de_lee_el_catalogo(db_session):
+    """El tipo sale de lo que configuró el staff, no de una lista fija."""
+    db_session.add(Ejercicio(nombre="Sentadilla Búlgara", tipo_marca="reps"))
+    db_session.commit()
+    assert _tipo_de("Sentadilla Búlgara", db_session) == "reps"
+
+
+def test_el_catalogo_le_gana_al_default(db_session):
+    """Si el staff le cambia el tipo a un ejercicio histórico, manda el catálogo."""
+    assert TIPOS_MARCA_DEFAULT["Back Squat"] == "barra"
+    db_session.add(Ejercicio(nombre="Back Squat", tipo_marca="reps"))
+    db_session.commit()
+    assert _tipo_de("Back Squat", db_session) == "reps"
+
+
+def test_ejercicio_sin_tipo_no_cuenta_como_catalogado(db_session):
+    """Un ejercicio que es solo video para WODs cae al default, no rompe."""
+    db_session.add(Ejercicio(nombre="Thruster", video_url="https://x", tipo_marca=None))
+    db_session.commit()
+    assert _tipo_de("Thruster", db_session) == "barra"
 
 
 # ── Tipo barra ─────────────────────────────────────────────────
@@ -188,13 +212,120 @@ def test_marcas_sin_token_401(client):
 # ── Sincronía backend ↔ frontend ───────────────────────────────
 
 
-def test_tipos_ejercicio_en_sync_con_frontend():
-    """TIPOS_EJERCICIO (marcas.py) debe coincidir con ejerciciosMarcas.js."""
+def test_tipos_marca_en_sync_con_frontend():
+    """TIPOS_MARCA (marcas_tipos.py) debe coincidir con data/tiposMarca.js.
+
+    La LISTA de ejercicios ya no se duplica —vive en la base—, pero los cuatro
+    tipos sí: cada uno tiene su UI en el frontend y su validación en el backend.
+    """
     js = (
         Path(__file__).resolve().parents[2]
-        / "frontend" / "src" / "data" / "ejerciciosMarcas.js"
+        / "frontend" / "src" / "data" / "tiposMarca.js"
     ).read_text(encoding="utf-8")
-    pares = re.findall(r"nombre:\s*['\"]([^'\"]+)['\"]\s*,\s*tipo:\s*['\"]([^'\"]+)['\"]", js)
-    assert pares, "no se pudo parsear ejerciciosMarcas.js"
-    frontend = dict(pares)
-    assert frontend == TIPOS_EJERCICIO
+    valores = re.findall(r"valor:\s*['\"]([^'\"]+)['\"]", js)
+    assert valores, "no se pudo parsear tiposMarca.js"
+    assert set(valores) == set(TIPOS_MARCA)
+
+
+# ── Catálogo administrable (GET /marcas/catalogo) ──────────────
+
+
+def test_catalogo_solo_trae_los_medibles(client, cliente, db_session):
+    db_session.add_all([
+        Ejercicio(nombre="Back Squat", video_url="https://v/bs", tipo_marca="barra"),
+        Ejercicio(nombre="Thruster", video_url="https://v/th"),          # solo video
+        Ejercicio(nombre="Push Up", tipo_marca="reps"),
+    ])
+    db_session.commit()
+
+    r = client.get("/marcas/catalogo", headers=cliente.headers)
+    assert r.status_code == 200
+    nombres = [e["nombre"] for e in r.json()]
+    assert nombres == ["Back Squat", "Push Up"]          # alfabético, sin Thruster
+    assert r.json()[0]["tipo"] == "barra"
+    # El video viaja: la página de la marca lo muestra como "Ver técnica".
+    assert r.json()[0]["video_url"] == "https://v/bs"
+
+
+def test_catalogo_no_lo_tapa_la_ruta_dinamica(client, cliente, db_session):
+    """/marcas/catalogo va antes que /marcas/{ejercicio}, o la dinámica se lo come."""
+    db_session.add(Ejercicio(nombre="Deadlift", tipo_marca="barra"))
+    db_session.commit()
+    r = client.get("/marcas/catalogo", headers=cliente.headers)
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+    assert r.json() and "tipo" in r.json()[0]            # no es una lista de marcas
+
+
+def test_catalogo_sin_token_401(client):
+    assert client.get("/marcas/catalogo").status_code == 401
+
+
+def test_marca_sobre_ejercicio_creado_por_el_staff(client, admin_headers, cliente):
+    """El flujo completo: el admin crea un ejercicio medible y el socio lo registra."""
+    r = client.post(
+        "/ejercicios/",
+        json={"nombre": "Sentadilla Búlgara", "tipo_marca": "reps"},
+        headers=admin_headers,
+    )
+    assert r.status_code == 201
+
+    assert "Sentadilla Búlgara" in [
+        e["nombre"] for e in client.get("/marcas/catalogo", headers=cliente.headers).json()
+    ]
+
+    # Se valida como 'reps': el peso se ignora y no hay 1RM.
+    r = client.post(
+        "/marcas/",
+        json=_payload("Sentadilla Búlgara", peso=100, repeticiones=20),
+        headers=cliente.headers,
+    )
+    assert r.status_code == 201
+    assert r.json()["repeticiones"] == 20
+    assert r.json()["rm_calculado"] is None
+    assert r.json()["peso"] is None
+
+
+def test_quitarle_el_tipo_no_borra_las_marcas(client, admin_headers, cliente):
+    """Sacar un ejercicio de Mis Marcas lo esconde, no destruye el historial."""
+    ej_id = client.post(
+        "/ejercicios/", json={"nombre": "Remo Pendlay", "tipo_marca": "barra"},
+        headers=admin_headers,
+    ).json()["id"]
+    client.post(
+        "/marcas/", json=_payload("Remo Pendlay", peso=80, repeticiones=5),
+        headers=cliente.headers,
+    )
+
+    r = client.put(f"/ejercicios/{ej_id}", json={"tipo_marca": ""}, headers=admin_headers)
+    assert r.status_code == 200
+    assert r.json()["tipo_marca"] is None
+
+    assert client.get("/marcas/catalogo", headers=cliente.headers).json() == []
+    # La marca sigue ahí y se puede consultar.
+    assert len(client.get("/marcas/Remo Pendlay", headers=cliente.headers).json()) == 1
+
+
+def test_tipo_marca_invalido_422(client, admin_headers):
+    r = client.post(
+        "/ejercicios/", json={"nombre": "Algo", "tipo_marca": "peso_corporal"},
+        headers=admin_headers,
+    )
+    assert r.status_code == 422
+
+
+def test_coach_puede_marcar_medible(client, coach):
+    r = client.post(
+        "/ejercicios/", json={"nombre": "Wall Walk", "tipo_marca": "reps"},
+        headers=coach.headers,
+    )
+    assert r.status_code == 201
+    assert r.json()["tipo_marca"] == "reps"
+
+
+def test_cliente_no_puede_tocar_el_catalogo(client, cliente):
+    r = client.post(
+        "/ejercicios/", json={"nombre": "Lo Que Sea", "tipo_marca": "reps"},
+        headers=cliente.headers,
+    )
+    assert r.status_code == 403

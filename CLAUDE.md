@@ -84,7 +84,7 @@ La suite (`backend/tests/`) cubre todos los routers; el plan completo y los hall
 - `frontend/src/components/Dashboard.vue` — Main layout shell (sidebar + navigation). Does NOT show membership status in the sidebar — that info lives in `HomeView`. Sidebar organizado en tres secciones: **Gestión** (admin+coach), **Contenido** (todos), **Mi Box** (coach+cliente). Ver sección de sidebar más abajo.
 - `frontend/src/components/InputPassword.vue` — Input de contraseña con ojito para mostrarla. **Los 7 campos de contraseña de la app lo usan**: login, registro, crear/editar cliente, Mi Perfil, perfil de cliente y el desbloqueo del kiosco. Es un componente y no markup repetido porque el SVG del ojo son 6 líneas por campo. Las clases del input las pasa quien lo usa (`input-class`): cada pantalla tiene su estilo de borde y focus. Expone `focus()` — un `ref` sobre el componente apunta a la instancia, no al `<input>`, y el modal del kiosco necesita enfocarlo al abrirse. Arranca siempre oculta.
 - `frontend/src/components/BloqueCard.vue` — Acordeón reutilizable de bloque horario (usado por `SesionesPanel`). Header clicable muestra hora del bloque + badge de personas; al expandir muestra la lista completa de asistentes con hora exacta de entrada.
-- `frontend/src/data/` — Shared config files: `saludTipos.js` (6 measurement configs), `ejerciciosMarcas.js` (12 fixed exercises)
+- `frontend/src/data/` — Shared config files: `saludTipos.js` (6 measurement configs), `tiposMarca.js` (las 4 formas de medir una marca; la *lista* de ejercicios ya no vive acá, ver "El catálogo de marcas lo administra el staff")
 - `frontend/src/lib/avatar.js` — `fotoSrc(u)`: la foto del usuario, o `AVATAR_FALLBACK` si no tiene. El fallback es una silueta blanca sobre `#dc2626` como **data: URI de SVG inline**. Reemplazó a `ui-avatars.com` (iniciales), que exigía internet —la PC del gym no siempre lo tiene y el avatar quedaba roto— y le mandaba el nombre de cada socio a un tercero. No re-introducir un servicio externo de avatares. Lo usan `UsuariosView`, `UsuarioPerfilView` y `MiPerfilView`; `AccesoView` es la excepción a propósito: sin foto muestra el check verde de "acceso permitido", que ahí es la información que importa.
 
 ## Key Patterns
@@ -374,7 +374,7 @@ La fuente única de los colores categóricos es `frontend/src/data/paleta.js`. N
 | Neutro | `gray` | 900/800 superficies oscuras · 700/600 texto · 400 muted · 200/100 bordes · 50 fondos |
 | Marca / acción primaria / destructivo | `red` | CTA, nav activo, focus ring, eliminar, **huella/enrolamiento** |
 | Éxito / vigente | `emerald` | membresía activa, en el box, ingresos, asistencia |
-| Alerta / por vencer | `amber` | vence pronto, menores de edad, PR destacado, IMC fuera de rango |
+| Alerta / por vencer | `amber` | vence pronto, menores de edad, IMC fuera de rango |
 
 `green` no se usa: es `emerald`. `red` cubre marca y destructivo (no hay una quinta familia para "peligro").
 
@@ -388,7 +388,9 @@ La fuente única de los colores categóricos es `frontend/src/data/paleta.js`. N
 
 **Excepción consciente:** los botones de WhatsApp del dashboard (felicitar cumpleaños y recordar vencimiento) van en `emerald` — es el color de marca de un tercero y `emerald-500` es prácticamente el verde de WhatsApp.
 
-**Gráficas (Chart.js):** serie principal `#f87171` (red-400), highlight de PR `#f59e0b` (amber-500), serie secundaria `#0ea5e9` (sky-500), grid `#f3f4f6` (gray-100).
+**Gráficas (Chart.js):** serie principal `#f87171` (red-400), highlight de PR `#dc2626` (red-600), serie secundaria `#0ea5e9` (sky-500), grid `#f3f4f6` (gray-100).
+
+**El PR va en rojo, no en ámbar.** Toda la señalética de récord personal en Mis Marcas —tarjeta "Mejor 1RM (PR)", badge "PR Actual", el "PR" del historial, el "¡Nuevo PR!" del modal, la mejor serie y el punto/barra destacado de las gráficas— usa la familia `red`. El ámbar que tenían antes se leía como advertencia, que es justo lo contrario de lo que un PR significa; el contraste sigue existiendo porque lo *último* va en gris/negro y solo el récord se pinta. En las gráficas el highlight es `red-600` y no `red-400`, que es el color de la serie.
 
 ## DashboardView — resumen del box
 
@@ -777,14 +779,34 @@ Per-exercise routing: each exercise has its own page at `/marcas/:ejercicio`. **
 
 ### Tipos de ejercicio
 
-No todo se mide igual. La lista en `frontend/src/data/ejerciciosMarcas.js` etiqueta cada ejercicio con un `tipo`, y tanto el frontend como el backend bifurcan la lógica según ese tipo. La fuente de verdad es ese archivo del frontend; el backend duplica la clasificación en `TIPOS_EJERCICIO` dentro de `routers/marcas.py` — **mantener ambos en sincronía**.
+No todo se mide igual: el `tipo` de cada ejercicio decide la UI del formulario, la gráfica y qué valida el backend. **Los cuatro tipos son código, no configuración** — agregar uno toca las dos puntas. Viven en `backend/marcas_tipos.py` (`TIPOS_MARCA`) y en `frontend/src/data/tiposMarca.js`; `test_tipos_marca_en_sync_con_frontend` exige que coincidan.
+
+Lo que **sí** es configuración es qué ejercicio usa cada tipo: eso lo asigna el staff (ver la sección siguiente).
+
+**`barra` no es solo barra, y el nombre engaña.** El tipo es "peso externo + reps → 1RM" y sirve igual para mancuerna, kettlebell o máquina; se llamó `barra` cuando la lista eran 7 levantamientos fijos que casualmente eran todos con barra. En pantalla se rotula **"Peso levantado"** y el valor guardado sigue siendo `barra` — está en la columna `tipo_marca` y renombrarlo sería migrar datos para no ganar nada. Mismo precedente que "accesos" vs `ingresos` y "cliente" vs `usuario`. **Las ayudas del select explican "1RM" en castellano** ("lo máximo que levantaría en una sola repetición"): es jerga que el resto de la app ya usa, pero el admin la ve por primera vez ahí.
 
 | Tipo | Ejercicios | Métrica | Campos usados |
 |---|---|---|---|
-| `barra` | Back Squat, Deadlift, Clean, Clean and Jerk, Snatch, Bench Press, Press Militar | 1RM (fórmulas) | `peso`, `unidad`, `repeticiones`, `rm_calculado` |
+| `barra` | cualquier peso externo (barra, mancuerna, kettlebell, máquina) | 1RM (fórmulas) | `peso`, `unidad`, `repeticiones`, `rm_calculado` |
 | `corporal_lastre` | Dominadas | 1RM (fórmulas) sobre peso total | `peso` (corporal + lastre, snapshot), `peso_adicional` (lastre opcional), `repeticiones`, `rm_calculado` |
 | `reps` | Push Up, Air Squat, Sit Up | Max reps | solo `repeticiones` |
 | `leger` | Test de Léger | Mayor nivel (desempate por palier) | `nivel`, `palier` |
+
+### El catálogo de marcas lo administra el staff
+
+La lista de ejercicios medibles **ya no está hardcodeada**: sale de la columna `ejercicios.tipo_marca`, que admin y coach editan desde `/ejercicios` (select "Se mide en Mis Marcas"). Vacío → el ejercicio es solo un video para armar WODs; con un tipo → aparece en Mis Marcas medido así.
+
+**Es el mismo catálogo que el de los videos de WODs, a propósito.** Se evaluó una tabla aparte y se descartó: **11 de los 12 ejercicios de marcas ya existían en `ejercicios` con el nombre idéntico** (`Back Squat`, `Deadlift`, `Clean`, `Snatch`, `Dominadas`, `Push Up`…), y como `marcas_rm.ejercicio` guarda el **nombre** y no un id, unificar no necesitó migrar una sola marca. Dos catálogos habrían obligado al admin a mantener "Back Squat" en dos lugares. El bonus es que la página de la marca muestra el video de técnica (`videoUrl`), que ya estaba cargado.
+
+**`GET /marcas/catalogo` va declarado ANTES de `GET /marcas/{ejercicio}`.** Al revés la ruta dinámica se traga `catalogo` y devuelve las marcas de un ejercicio inexistente (lista vacía, sin error) — un test lo fija.
+
+**`_tipo_de(ejercicio, db)` consulta la base, con dos capas de fallback: el catálogo, después `TIPOS_MARCA_DEFAULT`, después `'barra'`.** Y **no rechaza un ejercicio desconocido**: si el staff borra un ejercicio del catálogo, las marcas históricas siguen en `marcas_rm` y tienen que poder verse y editarse. Validar contra el catálogo las volvería inmodificables. Por lo mismo, quitarle el tipo a un ejercicio lo esconde de Mis Marcas pero **no borra ninguna marca** — reponerle el tipo las devuelve (`test_quitarle_el_tipo_no_borra_las_marcas`).
+
+**`seed_tipos_marca()` corre en el arranque y es la excepción a la regla de `backfill_videos.py`.** Aplica `TIPOS_MARCA_DEFAULT` (los 12 de la lista vieja) sobre el catálogo y crea `Test de Léger`, que nunca estuvo en el de videos porque no es un movimiento de WOD. Va en `main.py` y no en un script porque sin eso el primer deploy dejaría Mis Marcas **vacío** y las marcas ya cargadas sin dónde verse. Lo que lo hace seguro es el corte: **si algún ejercicio ya tiene `tipo_marca`, no hace nada**. Sin ese corte, un ejercicio al que el coach le quitó el tipo a propósito volvería a ser medible en el próximo arranque.
+
+**Limitación conocida — renombrar un ejercicio huérfana sus marcas.** `marcas_rm.ejercicio` guarda el nombre, así que cambiarle el nombre a un ejercicio medible deja sus registros apuntando al nombre viejo: siguen en la base, pero no aparecen en Mis Marcas porque el listado recorre el catálogo. `PUT /ejercicios/{id}` **no cascadea** el rename sobre `marcas_rm` a propósito — es una escritura sobre los datos de todos los socios disparada por un cambio de texto. Si llega a molestar, la salida es cascadear en el `PUT` (o migrar la columna a un FK), no que el listado adivine.
+
+**Frontend:** `frontend/src/lib/catalogoMarcas.js` cachea el catálogo a nivel de módulo y expone `tipoDe()`, `ejercicioDe()` y `cargarCatalogo()` (que deduplica la petición en vuelo). Las dos vistas **esperan el catálogo antes de bajar el skeleton**: `tipo` sale de ahí, y con el default `'barra'` en pantalla un ejercicio de `reps` mostraría por un instante el formulario equivocado. Por el mismo motivo `cargarPesoCorporal()` va **encadenado** después de `cargar()` y no en paralelo — sale temprano si el tipo no es `corporal_lastre`.
 
 **Corporal+lastre (Dominadas):** el frontend jala el último `peso_kg` de Mi Salud (`GET /salud/peso`) como peso corporal automático. Si el usuario no tiene registros de salud, lo pide manual. El total `peso_corporal + peso_adicional` se guarda en `peso` como snapshot (no se recalcula a futuro si el usuario cambia de peso). 1RM se calcula sobre ese total.
 
@@ -805,9 +827,11 @@ No todo se mide igual. La lista en `frontend/src/data/ejerciciosMarcas.js` etiqu
 
 ### Frontend
 
-**`MarcasView.vue`** — listado de los 12 ejercicios: **tabla en desktop, cards en móvil** (`sm:hidden` / `hidden sm:block`), mismo patrón que `EjerciciosView` y el listado de Clientes. Era un grid de cards grandes; con 12 filas fijas que nunca cambian eran tres pantallas de scroll para lo que entra en una. **No devolverlo a grid.** Columnas: Ejercicio · Mejor marca · Registros · Última. La fila entera es clicable (`@click` → `irA()`), pero el nombre va como `RouterLink` con `@click.stop` — así sigue siendo un enlace real (teclado, abrir en pestaña nueva) y el `.stop` evita la navegación duplicada.
+**`MarcasView.vue`** — listado de los ejercicios medibles del catálogo: **tabla en desktop, cards en móvil** (`sm:hidden` / `hidden sm:block`), mismo patrón que `EjerciciosView` y el listado de Clientes. Era un grid de cards grandes; con una docena de filas eran tres pantallas de scroll para lo que entra en una. **No devolverlo a grid.** Columnas: Ejercicio · Mejor marca · Registros · Última. La fila entera es clicable (`@click` → `irA()`), pero el nombre va como `RouterLink` con `@click.stop` — así sigue siendo un enlace real (teclado, abrir en pestaña nueva) y el `.stop` evita la navegación duplicada.
 
-Buscador por nombre, **sin chips de filtro por tipo**: con 12 ejercicios los chips solo esconderían filas. Los ejercicios sin registros muestran `—` en las tres columnas de datos.
+Buscador por nombre, **sin chips de filtro por tipo**: con una docena de ejercicios los chips solo esconderían filas. Los ejercicios sin registros muestran `—` en las tres columnas de datos.
+
+**El vacío son dos casos distintos y se distinguen**: buscar algo que no está, o un catálogo sin ningún ejercicio medible. Lo segundo es una tarea pendiente del staff, no un error del socio — al coach se le ofrece el enlace a `/ejercicios`, al cliente se le dice que se lo pida.
 
 El "Mejor marca" sale del computed `resumen`, **un solo recorrido de `/marcas/`** que arma un `Map` por ejercicio con `{ valor, unidad, conteo, ultima }` (antes eran funciones que filtraban la lista entera 3 veces por card):
 - `barra`/`corporal_lastre`: 1RM + unidad (normalizado a kg para comparar entre kg/lbs, pero se muestra en la unidad del registro)
@@ -819,13 +843,13 @@ El "Mejor marca" sale del computed `resumen`, **un solo recorrido de `/marcas/`*
 **`MarcasEjercicioView.vue`** — UI condicional según `tipo`:
 - Resumen: muestra "Último vs PR" según tipo (1RM, max reps, o nivel.palier). "Último 1RM" refleja el mejor del día más reciente (via `registrosPorDia`).
 - Gráfica: evolución del 1RM, repeticiones, o nivel (puntos PR resaltados en oro). Para `barra`/`corporal_lastre` usa `registrosPorDia` — un punto por día con el mejor 1RM de ese día.
-- Tabla rep-max y comparación de fórmulas: solo para `barra`/`corporal_lastre`
+- **Tabla rep-max (1RM–20RM): solo para `barra`/`corporal_lastre`.** Es una grilla **fija** de 4 columnas, no un acordeón — con 20 valores que el atleta consulta antes de cada serie, esconderlos detrás de un clic sobraba. Sale de `calcPesoParaReps()` (promedio de las mismas 7 fórmulas, invertidas) sobre `rmBase`, que es el último 1RM convertido a la unidad de la tabla. **`unidadTabla` es un computed escribible**: por defecto sigue a `ultimaUnidad` (la del último registro) y pasa a mandar la elección del usuario recién cuando toca el toggle kg/lbs — con un `ref` sincronizado por `watch` la unidad se congelaba antes de que llegaran los registros. Es solo de presentación: **no toca lo guardado**, la conversión va por `toKg`/`fromKg` como el resto de la vista.
 - Historial: encabezados y formato de celda cambian por tipo. Botones **editar** (lápiz azul) y **eliminar** (basurero rojo) siempre visibles en cada fila. En móvil se oculta la columna Notas.
 - **Registro para `barra`/`corporal_lastre`:** panel de adición directa (ver sección abajo).
 - **Registro para `reps`/`leger`:** modal con campos específicos (`reps`: solo repeticiones; `leger`: nivel + palier).
 - **Editar registro:** botón lápiz en historial abre el modal precargado con los datos del registro. `guardar()` llama `PATCH /marcas/{id}` si edita, `POST /marcas/` si es nuevo.
 
-**Helper compartido:** `tipoDe(nombre)` en `ejerciciosMarcas.js`.
+**Helper compartido:** `tipoDe(nombre)` en `lib/catalogoMarcas.js` (antes en `data/ejerciciosMarcas.js`, que se eliminó).
 
 ### Registro directo por serie (`barra` / `corporal_lastre`)
 
@@ -904,16 +928,18 @@ Campos del form: `titulo`, `fecha`, **`tipo`** (select con 6 opciones, opcional)
 
 ### Catálogo de ejercicios
 
-**Modelo `Ejercicio` — dos campos y nada más: `nombre` y `video_url`.**
+**Modelo `Ejercicio` — tres campos: `nombre`, `video_url` y `tipo_marca`.**
+
+`tipo_marca` (nullable) es lo que hace medible al ejercicio: con un valor aparece en Mis Marcas, vacío es solo un video para armar WODs. Ver "El catálogo de marcas lo administra el staff" — **el catálogo es uno solo**, y esa decisión está justificada ahí.
 
 Tuvo también `categoria` (`Cardio`/`Fuerza`/`Gimnasia`/`Olímpico`/`Otro`) y `descripcion`, y se eliminaron: lo que el coach necesita al armar un WOD es encontrar el ejercicio por nombre y tener el video a mano. **Las columnas NO se dropearon de la base** — siguen ahí con sus datos, el modelo simplemente no las mapea, así que volver atrás es re-agregar dos líneas en `models.py`. Por eso tampoco están en los bloques de migración de `main.py`: en una base nueva no se crean, y en una existente no se tocan.
 
 Lo que se fue con ellas: el filtro `?categoria=` de `GET /ejercicios/`, la property `WODEjercicio.descripcion` y su campo en `WODEjercicioResponse`, los chips de filtro de `EjerciciosView` y `WodEjerciciosEditor`, y la escala categórica entera de `paleta.js` (ver "Paleta de colores").
 
 **`EjerciciosView.vue`** (admin/coach):
-- **Tabla** (desktop) + cards (móvil), mismo patrón responsive que el listado de Clientes. Columnas: Ejercicio · Video · Acciones. Era un grid de cards de 3 columnas; con el catálogo pasando de 27 ejercicios se volvió scroll inútil, y esta pantalla se usa para *buscar* uno y editarlo, no para explorar.
+- **Tabla** (desktop) + cards (móvil), mismo patrón responsive que el listado de Clientes. Columnas: Ejercicio · Video · **Marca** · Acciones. Era un grid de cards de 3 columnas; con el catálogo pasando de 27 ejercicios se volvió scroll inútil, y esta pantalla se usa para *buscar* uno y editarlo, no para explorar.
 - **Sin paginación ni selector de orden**: el buscador ya acota, y `GET /ejercicios/` devuelve ordenado por nombre (alfabético es el orden correcto para buscar). No replicar acá el `ORDENES`/paginación de `UsuariosView`.
-- Sin video, la celda muestra `—`. El modal de crear/editar tiene dos campos: nombre y link del video.
+- Sin video, la celda muestra `—`; la columna Marca usa el mismo guion cuando el ejercicio no se mide. El modal de crear/editar tiene tres campos: nombre, link del video y el select **"Se mide en Mis Marcas"**, cuya opción vacía (`""`) es cómo el formulario dice "no se mide" — un `<select>` no puede mandar `None`, así que el validador del schema la normaliza a `NULL`. Debajo del select va la ayuda del tipo elegido: "Corporal + lastre" no explica solo de dónde sale el peso corporal.
 
 **Videos del catálogo sembrado:** `EJERCICIOS_DEFAULT` en `seed.py` son tuplas de 2 (`nombre, video_url`) con demos del canal oficial de CrossFit. Los comentarios de sección (`# ── Olímpico ──`) son solo para leer la lista cómodo; ya no hay una columna detrás. **Las URLs se obtienen buscando en la web y verificando cada una** (que la página cargue y el título corresponda al movimiento); nunca de memoria — los IDs de YouTube son el caso típico de dato que se alucina y termina en link muerto o en otro ejercicio.
 

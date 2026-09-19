@@ -25,7 +25,9 @@
       <div v-for="i in 6" :key="i" class="h-12 bg-gray-100 rounded-lg animate-pulse" />
     </div>
 
-    <!-- Vacío: la lista base son 12 ejercicios fijos, así que esto solo pasa al buscar -->
+    <!-- Vacío. Son dos casos distintos y conviene separarlos: buscar algo que no
+         está no es lo mismo que un catálogo sin ningún ejercicio medible, que es
+         una tarea pendiente del staff y no un error del socio. -->
     <div
       v-else-if="ejerciciosFiltrados.length === 0"
       class="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-14 text-center"
@@ -33,7 +35,17 @@
       <svg xmlns="http://www.w3.org/2000/svg" class="h-14 w-14 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
-      <p class="text-gray-500 font-medium">No se encontraron ejercicios.</p>
+      <template v-if="catalogo.length">
+        <p class="text-gray-500 font-medium">No se encontraron ejercicios.</p>
+      </template>
+      <template v-else>
+        <p class="text-gray-500 font-medium">Todavía no hay ejercicios para registrar marcas.</p>
+        <RouterLink v-if="canManage" to="/ejercicios"
+          class="inline-block mt-3 text-sm font-semibold text-red-600 hover:text-red-700">
+          Configurarlos en el catálogo →
+        </RouterLink>
+        <p v-else class="text-sm text-gray-400 mt-1">Pídele a tu coach que los configure.</p>
+      </template>
     </div>
 
     <!-- Listado: cards en móvil, tabla en desktop (mismo patrón que Ejercicios) -->
@@ -121,13 +133,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import api from '../api'
-import { EJERCICIOS_MARCAS } from '../data/ejerciciosMarcas'
+import { usarCatalogoMarcas, cargarCatalogo } from '../lib/catalogoMarcas'
+import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
 
-const marcas   = ref([])
-const busqueda = ref('')
-const cargando = ref(true)
+const marcas    = ref([])
+const busqueda  = ref('')
+const cargando  = ref(true)
+const catalogo  = usarCatalogoMarcas()
+const { canManage } = useAuth()
 
 const KG_PER_LB = 2.20462
 const toKg = (v, u) => u === 'lbs' ? v / KG_PER_LB : v
@@ -137,8 +152,8 @@ const formatFecha = (f) =>
 
 const ejerciciosFiltrados = computed(() => {
   const q = busqueda.value.trim().toLowerCase()
-  if (!q) return EJERCICIOS_MARCAS
-  return EJERCICIOS_MARCAS.filter(e => e.nombre.toLowerCase().includes(q))
+  if (!q) return catalogo.value
+  return catalogo.value.filter(e => e.nombre.toLowerCase().includes(q))
 })
 
 /**
@@ -153,7 +168,7 @@ const resumen = computed(() => {
   }
 
   const out = new Map()
-  for (const ej of EJERCICIOS_MARCAS) {
+  for (const ej of catalogo.value) {
     const lista = porEjercicio.get(ej.nombre)
     if (!lista?.length) continue
     out.set(ej.nombre, {
@@ -190,7 +205,10 @@ const irA = (ejercicio) => router.push({ name: 'MarcasEjercicio', params: { ejer
 async function cargar() {
   cargando.value = true
   try {
-    const { data } = await api.get('/marcas/')
+    // En paralelo: el catálogo dice QUÉ ejercicios se listan y /marcas/ trae los
+    // registros. Esperar a los dos antes de bajar el skeleton evita que la tabla
+    // aparezca vacía un instante mientras llega el catálogo.
+    const [{ data }] = await Promise.all([api.get('/marcas/'), cargarCatalogo()])
     marcas.value = data
   } finally {
     cargando.value = false

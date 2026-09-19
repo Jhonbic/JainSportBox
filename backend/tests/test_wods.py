@@ -239,11 +239,12 @@ def test_ejercicios_crud(client, admin_headers, cliente):
     assert client.post("/ejercicios/", json={"nombre": "Otro"}, headers=cliente.headers).status_code == 403
 
 
-def test_ejercicio_solo_tiene_nombre_y_video(client, admin_headers):
-    """El catálogo quedó en dos campos: `categoria` y `descripcion` se eliminaron.
+def test_ejercicio_no_revive_categoria_ni_descripcion(client, admin_headers):
+    """`categoria` y `descripcion` se eliminaron del catálogo y no deben volver.
 
     Pydantic ignora las claves de más en vez de rechazarlas, así que mandarlas no da
     error — lo que se verifica es que no vuelvan en la respuesta ni se guarden.
+    `tipo_marca` sí es parte del catálogo: dice si el ejercicio se mide en Mis Marcas.
     """
     r = client.post(
         "/ejercicios/",
@@ -251,7 +252,8 @@ def test_ejercicio_solo_tiene_nombre_y_video(client, admin_headers):
         headers=admin_headers,
     )
     assert r.status_code == 201
-    assert set(r.json()) == {"id", "nombre", "video_url", "created_at"}
+    assert set(r.json()) == {"id", "nombre", "video_url", "tipo_marca", "created_at"}
+    assert r.json()["tipo_marca"] is None
 
 
 def test_eliminar_ejercicio_usado_en_wod_409(client, admin_headers, db_session):

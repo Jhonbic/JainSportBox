@@ -40,6 +40,7 @@ def crear_ejercicio(
     ej = Ejercicio(
         nombre=payload.nombre.strip(),
         video_url=(payload.video_url or None),
+        tipo_marca=payload.tipo_marca,
     )
     db.add(ej)
     db.commit()
@@ -70,6 +71,11 @@ def actualizar_ejercicio(
         ej.nombre = nuevo
     if "video_url" in data:
         ej.video_url = data["video_url"] or None
+    if "tipo_marca" in data:
+        # El validador del schema ya convirtió "" a None, así que quitarle el tipo a
+        # un ejercicio pasa por acá y lo saca de Mis Marcas. Las marcas ya cargadas
+        # NO se borran: siguen en `marcas_rm` y vuelven a verse si se le repone el tipo.
+        ej.tipo_marca = data["tipo_marca"]
     db.commit()
     db.refresh(ej)
     return ej

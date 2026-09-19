@@ -12,6 +12,17 @@
       </RouterLink>
       <span class="text-gray-200">/</span>
       <h2 class="text-2xl font-extrabold text-gray-900 truncate">{{ ejercicio }}</h2>
+      <!-- El video del catálogo de ejercicios, si el staff le cargó uno. -->
+      <a v-if="videoUrl" :href="videoUrl" target="_blank" rel="noopener"
+        class="shrink-0 flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Ver técnica
+      </a>
     </div>
 
     <!-- Skeleton -->
@@ -37,14 +48,14 @@
               <p v-else class="text-4xl font-black text-gray-300">—</p>
             </div>
             <div v-if="mejorRM && !ultimoEsPR">
-              <p class="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">Mejor 1RM (PR)</p>
-              <p class="text-4xl font-black text-amber-600 leading-none">
-                {{ mejorRM }}<span class="text-lg font-semibold text-amber-400 ml-1">{{ ultimaUnidad }}</span>
+              <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">Mejor 1RM (PR)</p>
+              <p class="text-4xl font-black text-red-600 leading-none">
+                {{ mejorRM }}<span class="text-lg font-semibold text-red-400 ml-1">{{ ultimaUnidad }}</span>
               </p>
             </div>
             <div v-if="ultimoEsPR && registros.length > 0">
-              <p class="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">Estado</p>
-              <span class="inline-block text-xs font-black px-3 py-1.5 rounded-full bg-amber-100 text-amber-700">PR Actual</span>
+              <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">Estado</p>
+              <span class="inline-block text-xs font-black px-3 py-1.5 rounded-full bg-red-100 text-red-700">PR Actual</span>
             </div>
           </template>
 
@@ -58,14 +69,14 @@
               <p v-else class="text-4xl font-black text-gray-300">—</p>
             </div>
             <div v-if="mejorReps && mejorReps !== ultimaReps">
-              <p class="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">PR (max reps)</p>
-              <p class="text-4xl font-black text-amber-600 leading-none">
-                {{ mejorReps }}<span class="text-lg font-semibold text-amber-400 ml-1">reps</span>
+              <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">PR (max reps)</p>
+              <p class="text-4xl font-black text-red-600 leading-none">
+                {{ mejorReps }}<span class="text-lg font-semibold text-red-400 ml-1">reps</span>
               </p>
             </div>
             <div v-if="mejorReps === ultimaReps && registros.length > 0">
-              <p class="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">Estado</p>
-              <span class="inline-block text-xs font-black px-3 py-1.5 rounded-full bg-amber-100 text-amber-700">PR Actual</span>
+              <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">Estado</p>
+              <span class="inline-block text-xs font-black px-3 py-1.5 rounded-full bg-red-100 text-red-700">PR Actual</span>
             </div>
           </template>
 
@@ -79,14 +90,14 @@
               <p v-else class="text-4xl font-black text-gray-300">—</p>
             </div>
             <div v-if="mejorLeger && (mejorLeger.nivel !== ultimoLeger?.nivel || mejorLeger.palier !== ultimoLeger?.palier)">
-              <p class="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">PR</p>
-              <p class="text-4xl font-black text-amber-600 leading-none">
-                {{ mejorLeger.nivel }}<span class="text-lg font-semibold text-amber-400">.{{ mejorLeger.palier }}</span>
+              <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">PR</p>
+              <p class="text-4xl font-black text-red-600 leading-none">
+                {{ mejorLeger.nivel }}<span class="text-lg font-semibold text-red-400">.{{ mejorLeger.palier }}</span>
               </p>
             </div>
             <div v-if="mejorLeger && ultimoLeger && mejorLeger.nivel === ultimoLeger.nivel && mejorLeger.palier === ultimoLeger.palier">
-              <p class="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">Estado</p>
-              <span class="inline-block text-xs font-black px-3 py-1.5 rounded-full bg-amber-100 text-amber-700">PR Actual</span>
+              <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-1">Estado</p>
+              <span class="inline-block text-xs font-black px-3 py-1.5 rounded-full bg-red-100 text-red-700">PR Actual</span>
             </div>
           </template>
 
@@ -219,7 +230,7 @@
           </template>
           <template v-else>
             <p class="text-xs font-semibold text-gray-700">Volumen por sesión</p>
-            <p class="text-xs text-gray-400 mt-0.5">Peso × Repeticiones de cada sesión. Refleja el esfuerzo total: puedes hacer menos peso con más reps y aun así tener más volumen. La barra dorada es tu máximo.</p>
+            <p class="text-xs text-gray-400 mt-0.5">Peso × Repeticiones de cada sesión. Refleja el esfuerzo total: puedes hacer menos peso con más reps y aun así tener más volumen. La barra más oscura es tu máximo.</p>
           </template>
         </div>
 
@@ -235,48 +246,32 @@
         </div>
       </div>
 
-      <!-- Acordeón: Peso por reps -->
-      <template v-if="esTipoPeso && registros.length > 0">
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
-          <button @click="mostrarRepMax = !mostrarRepMax"
-            class="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
-            <div class="text-left">
+      <!-- Peso máximo por repeticiones -->
+      <template v-if="esTipoPeso && tablaRepMax.length">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
               <p class="text-sm font-semibold text-gray-700">Peso máximo por repeticiones</p>
-              <p class="text-xs text-gray-400 mt-0.5">¿Cuánto puedo levantar si hago N reps?</p>
+              <p class="text-xs text-gray-400 mt-0.5">
+                Basado en tu último 1RM: <strong>{{ rmBase }} {{ unidadTabla }}</strong>
+              </p>
             </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 transition-transform shrink-0 ml-3"
-              :class="mostrarRepMax ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-            </svg>
-          </button>
-          <template v-if="mostrarRepMax">
-            <div class="border-t border-gray-100 px-5 py-2 text-xs text-gray-400">
-              Basado en tu último 1RM: <strong>{{ ultimoRM }} {{ ultimaUnidad }}</strong>. Si entrenas a cierto número de reps, este es el peso aproximado que deberías manejar.
+            <div class="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
+              <button v-for="u in ['kg', 'lbs']" :key="u" @click="unidadTabla = u"
+                class="px-3 py-1.5 text-xs font-bold transition-colors"
+                :class="unidadTabla === u ? 'bg-gray-800 text-white' : 'text-gray-500 hover:bg-gray-50'">
+                {{ u }}
+              </button>
             </div>
-            <table class="min-w-full">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-5 py-2.5 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Reps</th>
-                  <th class="px-5 py-2.5 text-right text-xs font-bold text-red-500 uppercase tracking-wider">Peso estimado</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-50">
-                <tr v-for="fila in tablaRepMax" :key="fila.reps"
-                  :class="fila.reps === 1 ? 'bg-red-50' : 'hover:bg-gray-50'" class="transition-colors">
-                  <td class="px-5 py-2.5">
-                    <span class="flex items-center gap-1.5">
-                      <span class="text-sm font-black text-gray-900">{{ fila.reps }}</span>
-                      <span v-if="fila.reps === 1" class="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">1RM</span>
-                    </span>
-                  </td>
-                  <td class="px-5 py-2.5 text-right">
-                    <span class="text-sm font-black text-red-600">{{ fila.promedio }}</span>
-                    <span class="text-xs text-gray-400 ml-1">{{ ultimaUnidad }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
+          </div>
+
+          <div class="grid grid-cols-4 gap-x-2 gap-y-5">
+            <div v-for="fila in tablaRepMax" :key="fila.reps" class="text-center">
+              <p class="text-[11px] font-bold text-red-400 tracking-wide">{{ fila.reps }}RM</p>
+              <p class="text-xl sm:text-2xl font-semibold text-gray-900 leading-tight">{{ fila.peso }}</p>
+              <p class="text-[10px] text-gray-400">{{ unidadTabla }}</p>
+            </div>
+          </div>
         </div>
       </template>
 
@@ -353,7 +348,7 @@
                 <td v-if="esTipoPeso" class="px-3 py-2.5 sm:px-5 sm:py-3.5 whitespace-nowrap">
                   <span class="text-sm font-black text-red-600">{{ r.rm_calculado }} {{ r.unidad }}</span>
                   <span v-if="esRegistroPR(r)"
-                    class="ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">PR</span>
+                    class="ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">PR</span>
                 </td>
                 <td class="hidden sm:table-cell px-5 py-3.5 text-sm text-gray-400 max-w-[180px] truncate">{{ r.notas || '—' }}</td>
                 <td class="px-2 py-2.5 sm:px-5 sm:py-3.5 text-right whitespace-nowrap">
@@ -436,7 +431,7 @@
               <p class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Series de la sesión</p>
               <div class="space-y-1.5">
                 <div v-for="(s, i) in seriesConRM" :key="i"
-                  :class="mejorSerie && s.rm !== null && s.rm === mejorSerie.rm ? 'border-amber-300 bg-amber-50' : 'border-gray-100 bg-gray-50'"
+                  :class="mejorSerie && s.rm !== null && s.rm === mejorSerie.rm ? 'border-red-300 bg-red-50' : 'border-gray-100 bg-gray-50'"
                   class="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm">
                   <span class="text-xs font-bold text-gray-400 w-4">{{ i + 1 }}</span>
                   <span class="flex-1 font-semibold text-gray-800">
@@ -445,7 +440,7 @@
                     {{ s.reps }} reps
                   </span>
                   <span v-if="s.rm" class="text-xs font-bold text-red-500 shrink-0">{{ s.rm }} 1RM</span>
-                  <span v-if="mejorSerie && s.rm !== null && s.rm === mejorSerie.rm" class="text-amber-500 shrink-0">★</span>
+                  <span v-if="mejorSerie && s.rm !== null && s.rm === mejorSerie.rm" class="text-red-500 shrink-0">★</span>
                   <button type="button" @click="modalQuitarSerie(i)" class="p-1 text-gray-300 hover:text-red-400 transition-colors shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
@@ -485,7 +480,7 @@
                 <p class="text-xs font-bold uppercase tracking-widest text-red-400">Mejor 1RM de la sesión</p>
                 <p class="text-2xl font-black text-red-600 mt-0.5">{{ mejorSerie.rm }} {{ formUnidad }}</p>
               </div>
-              <span v-if="esPR" class="text-xs font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700">¡Nuevo PR!</span>
+              <span v-if="esPR" class="text-xs font-black px-2 py-1 rounded-full bg-red-100 text-red-700">¡Nuevo PR!</span>
             </div>
 
           </template>
@@ -555,7 +550,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { getChart } from '../lib/chart'
 import api from '../api'
-import { tipoDe } from '../data/ejerciciosMarcas'
+import { tipoDe, ejercicioDe, cargarCatalogo } from '../lib/catalogoMarcas'
 
 const route  = useRoute()
 const router = useRouter()
@@ -588,6 +583,9 @@ const corporalBaseEdit  = ref(null)
 
 const ejercicio = computed(() => route.params.ejercicio || null)
 const tipo      = computed(() => ejercicio.value ? tipoDe(ejercicio.value) : 'barra')
+// El video de técnica del catálogo: salió gratis al unificar el catálogo de
+// marcas con el de los WODs, y es justo lo que el socio quiere mirar acá.
+const videoUrl  = computed(() => ejercicio.value ? ejercicioDe(ejercicio.value)?.video_url || null : null)
 const esTipoPeso = computed(() => tipo.value === 'barra' || tipo.value === 'corporal_lastre')
 
 // ── Quick add (barra / corporal_lastre) ───────────────────────
@@ -658,7 +656,6 @@ const encabezadoMedicion = computed(() => {
 const chartCanvas    = ref(null)
 const chartUnit      = ref('kg')
 const activeChartTab = ref('rm')   // 'rm' | 'peso' | 'volumen'
-const mostrarRepMax = ref(false)
 let instanciaChart   = null
 let ChartCls         = null  // clase Chart resuelta perezosamente (ver lib/chart.js)
 
@@ -677,7 +674,7 @@ function _lineChart(canvas, labels, valores, label, suffix, color, highlights) {
         borderColor: color,
         backgroundColor: color + '18',
         borderWidth: 2.5,
-        pointBackgroundColor: highlights.map(h => h ? '#f59e0b' : color),
+        pointBackgroundColor: highlights.map(h => h ? '#dc2626' : color),
         pointBorderColor: '#fff',
         pointBorderWidth: 2,
         pointRadius: 5,
@@ -780,8 +777,8 @@ async function renderChart() {
         datasets: [{
           label: `Volumen (${chartUnit.value})`,
           data: valores,
-          backgroundColor: valores.map(v => Math.abs(v - maxVal) < 0.01 ? '#f59e0bcc' : '#f87171aa'),
-          borderColor:     valores.map(v => Math.abs(v - maxVal) < 0.01 ? '#d97706' : '#f87171'),
+          backgroundColor: valores.map(v => Math.abs(v - maxVal) < 0.01 ? '#dc2626cc' : '#f87171aa'),
+          borderColor:     valores.map(v => Math.abs(v - maxVal) < 0.01 ? '#dc2626' : '#f87171'),
           borderWidth: 1.5,
           borderRadius: 6,
         }],
@@ -850,6 +847,15 @@ const registrosPorDia = computed(() => {
 
 const ultimoRM     = computed(() => registrosPorDia.value.length && registrosPorDia.value[registrosPorDia.value.length - 1].rm_calculado)
 const ultimaUnidad = computed(() => registrosPorDia.value.length ? registrosPorDia.value[registrosPorDia.value.length - 1].unidad : 'kg')
+
+// Unidad de la tabla de rep-max. Por defecto sigue a la del último registro; en
+// cuanto el usuario toca el toggle manda su elección. Es solo de presentación:
+// no toca los datos guardados.
+const unidadElegida = ref(null)
+const unidadTabla = computed({
+  get: () => unidadElegida.value ?? ultimaUnidad.value,
+  set: u => { unidadElegida.value = u },
+})
 
 const mejorRMkg = computed(() =>
   registros.value.length
@@ -920,14 +926,21 @@ function calcPesoParaReps(rm, r) {
   return vals.map(v => Math.round(v * 10) / 10)
 }
 
+const MAX_REPS_TABLA = 20
+
+// El 1RM de referencia, convertido a la unidad elegida en la tabla.
+const rmBase = computed(() => {
+  if (!esTipoPeso.value || !ultimoRM.value) return null
+  return round1(fromKg(toKg(ultimoRM.value, ultimaUnidad.value), unidadTabla.value))
+})
+
 const tablaRepMax = computed(() => {
-  if (!esTipoPeso.value || !ultimoRM.value) return []
-  const rm = ultimoRM.value
-  return Array.from({ length: 10 }, (_, i) => {
+  if (rmBase.value === null) return []
+  return Array.from({ length: MAX_REPS_TABLA }, (_, i) => {
     const r = i + 1
-    const vals = calcPesoParaReps(rm, r)
-    const promedio = Math.round(vals.reduce((a, b) => a + b) / vals.length * 10) / 10
-    return { reps: r, promedio }
+    const vals = calcPesoParaReps(rmBase.value, r)
+    const peso = Math.round(vals.reduce((a, b) => a + b) / vals.length * 10) / 10
+    return { reps: r, peso }
   })
 })
 
@@ -989,7 +1002,13 @@ async function cargar() {
   if (!ejercicio.value) return
   cargando.value = true
   try {
-    const { data } = await api.get(`/marcas/${encodeURIComponent(ejercicio.value)}`)
+    // El catálogo PRIMERO: de él sale `tipo`, y de `tipo` dependen el formulario,
+    // la gráfica y si hace falta el peso corporal. Bajar el skeleton antes de
+    // tenerlo mostraría la UI de 'barra' (el default) para un ejercicio de reps.
+    const [{ data }] = await Promise.all([
+      api.get(`/marcas/${encodeURIComponent(ejercicio.value)}`),
+      cargarCatalogo(),
+    ])
     registros.value = data
   } finally {
     cargando.value = false
@@ -1128,15 +1147,17 @@ async function eliminar(r) {
 }
 
 // ── Ciclo de vida ──────────────────────────────────────────────
-onMounted(() => {
+onMounted(async () => {
   if (!ejercicio.value) { router.replace({ name: 'Marcas' }); return }
-  cargar()
+  // Encadenados y no en paralelo: `cargarPesoCorporal` sale temprano si el tipo no
+  // es corporal_lastre, y el tipo no se conoce hasta que llega el catálogo.
+  await cargar()
   cargarPesoCorporal()
 })
 
 watch(
   () => route.params.ejercicio,
-  () => {
+  async () => {
     destruirChart()
     registros.value = []
     pesoCorporalAuto.value = null
@@ -1144,7 +1165,7 @@ watch(
     quickPeso.value = ''
     quickReps.value = ''
     quickError.value = ''
-    cargar()
+    await cargar()
     cargarPesoCorporal()
   }
 )

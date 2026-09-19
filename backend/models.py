@@ -228,6 +228,11 @@ class Ejercicio(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(150), nullable=False, unique=True)
     video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Si está cargado, el ejercicio es MEDIBLE: aparece en Mis Marcas y el valor dice
+    # cómo se mide (ver marcas_tipos.TIPOS_MARCA). NULL = solo video para los WODs.
+    # `marcas_rm.ejercicio` guarda el NOMBRE, no un id, así que unificar este catálogo
+    # con el de marcas no necesitó migrar ninguna marca: los nombres ya coincidían.
+    tipo_marca: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self) -> str:

@@ -5,6 +5,7 @@ load_dotenv()
 
 from database import SessionLocal
 from models import Ejercicio, Plan, Usuario, RolUsuario
+from marcas_tipos import TIPOS_MARCA_DEFAULT
 from security import get_password_hash
 
 import json as _json
@@ -122,6 +123,44 @@ def seed_ejercicios():
         )
         db.commit()
         print(f"  + {len(EJERCICIOS_DEFAULT)} ejercicios sembrados")
+    finally:
+        db.close()
+
+
+def seed_tipos_marca():
+    """Marca como medibles los ejercicios que antes eran la lista fija de Mis Marcas.
+
+    Corre UNA sola vez: si algún ejercicio ya tiene `tipo_marca`, significa que
+    esto ya se aplicó (o que el staff configuró el catálogo) y no se toca nada.
+    Sin ese corte, un ejercicio al que el coach le quitó el tipo a propósito
+    volvería a ser medible en el próximo arranque — el mismo motivo por el que
+    `backfill_videos.py` no vive acá.
+
+    El pase por arranque y no por script existe por continuidad: la lista de
+    marcas vivía hardcodeada en el frontend, así que sin esto el primer deploy
+    dejaría Mis Marcas vacío y las marcas ya cargadas sin dónde verse.
+    """
+    db = SessionLocal()
+    try:
+        ya_configurado = db.query(Ejercicio).filter(Ejercicio.tipo_marca.isnot(None)).first()
+        if ya_configurado:
+            print("  · Tipos de marca ya configurados, se omite")
+            return
+
+        aplicados = 0
+        creados = 0
+        for nombre, tipo in TIPOS_MARCA_DEFAULT.items():
+            ej = db.query(Ejercicio).filter(Ejercicio.nombre.ilike(nombre)).first()
+            if ej is None:
+                # Solo pasa con "Test de Léger", que nunca estuvo en el catálogo de
+                # videos porque no es un movimiento de WOD.
+                db.add(Ejercicio(nombre=nombre, tipo_marca=tipo))
+                creados += 1
+                continue
+            ej.tipo_marca = tipo
+            aplicados += 1
+        db.commit()
+        print(f"  + {aplicados} ejercicios marcados como medibles ({creados} creados)")
     finally:
         db.close()
 

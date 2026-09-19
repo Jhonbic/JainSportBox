@@ -6,32 +6,32 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import MarcaRM, Usuario
+from marcas_tipos import TIPOS_MARCA_DEFAULT
+from models import Ejercicio, MarcaRM, Usuario
+from schemas.ejercicio import EjercicioMedibleResponse
 from schemas.marcas import MarcaRMCreate, MarcaRMResponse
 from security import get_current_user
 
 router = APIRouter(prefix="/marcas", tags=["Marcas RM"])
 
 
-# Clasificación por ejercicio (debe coincidir con frontend/src/data/ejerciciosMarcas.js)
-TIPOS_EJERCICIO = {
-    "Back Squat": "barra",
-    "Deadlift": "barra",
-    "Clean": "barra",
-    "Clean and Jerk": "barra",
-    "Snatch": "barra",
-    "Bench Press": "barra",
-    "Press Militar": "barra",
-    "Dominadas": "corporal_lastre",
-    "Push Up": "reps",
-    "Air Squat": "reps",
-    "Sit Up": "reps",
-    "Test de Léger": "leger",
-}
+def _tipo_de(ejercicio: str, db: Session) -> str:
+    """Cómo se mide este ejercicio, según lo que configuró el staff.
 
-
-def _tipo_de(ejercicio: str) -> str:
-    return TIPOS_EJERCICIO.get(ejercicio.strip(), "barra")
+    El fallback a `TIPOS_MARCA_DEFAULT` cubre a las marcas huérfanas: si el
+    ejercicio se borró del catálogo, sus registros históricos siguen en
+    `marcas_rm` y hay que poder verlos y editarlos. Por eso tampoco se rechaza
+    un ejercicio desconocido — hacerlo dejaría esas marcas inmodificables.
+    """
+    nombre = ejercicio.strip()
+    ej = (
+        db.query(Ejercicio.tipo_marca)
+        .filter(Ejercicio.nombre.ilike(nombre), Ejercicio.tipo_marca.isnot(None))
+        .first()
+    )
+    if ej:
+        return ej[0]
+    return TIPOS_MARCA_DEFAULT.get(nombre, "barra")
 
 
 def _calcular_1rm(peso: float, reps: int) -> float:
@@ -68,6 +68,28 @@ def listar_todas(
     )
 
 
+@router.get("/catalogo", response_model=List[EjercicioMedibleResponse])
+def catalogo_medible(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """Los ejercicios que el staff marcó como medibles, para el listado de Mis Marcas.
+
+    Va declarado ANTES de `/{ejercicio}`: al revés, la ruta dinámica se traga
+    "catalogo" y devuelve las marcas de un ejercicio que no existe.
+    """
+    filas = (
+        db.query(Ejercicio)
+        .filter(Ejercicio.tipo_marca.isnot(None))
+        .order_by(Ejercicio.nombre.asc())
+        .all()
+    )
+    return [
+        EjercicioMedibleResponse(nombre=e.nombre, tipo=e.tipo_marca, video_url=e.video_url)
+        for e in filas
+    ]
+
+
 @router.get("/{ejercicio}", response_model=List[MarcaRMResponse])
 def listar_por_ejercicio(
     ejercicio: str,
@@ -89,7 +111,7 @@ def crear_marca(
     current_user: Usuario = Depends(get_current_user),
 ):
     ejercicio = payload.ejercicio.strip()
-    tipo = _tipo_de(ejercicio)
+    tipo = _tipo_de(ejercicio, db)
 
     peso = None
     unidad = payload.unidad
@@ -181,7 +203,7 @@ def editar_marca(
         raise HTTPException(status_code=404, detail="Marca no encontrada.")
 
     ejercicio = payload.ejercicio.strip()
-    tipo = _tipo_de(ejercicio)
+    tipo = _tipo_de(ejercicio, db)
 
     if tipo in ("barra", "corporal_lastre"):
         if tipo == "corporal_lastre":

@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-8">
       <div>
         <h2 class="text-3xl font-black text-gray-800 tracking-tight">Ejercicios</h2>
-        <p class="text-gray-500 mt-1">Catálogo reutilizable para armar los WODs</p>
+        <p class="text-gray-500 mt-1">Videos para los WODs · marca cuáles se miden en Mis Marcas</p>
       </div>
       <button
         v-if="puedeEditar"
@@ -61,6 +61,10 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-gray-900 truncate">{{ ej.nombre }}</h3>
+              <span v-if="ej.tipo_marca"
+                class="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                {{ labelTipo(ej.tipo_marca) }}
+              </span>
             </div>
             <div v-if="puedeEditar" class="flex gap-1 flex-shrink-0">
               <button @click="abrirFormulario(ej)" title="Editar"
@@ -95,6 +99,7 @@
               <tr>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ejercicio</th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Video</th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Marca</th>
                 <th v-if="puedeEditar" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -111,6 +116,15 @@
                     </svg>
                     Ver
                   </a>
+                  <span v-else class="text-sm text-gray-300">—</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <!-- Sin tipo el ejercicio solo sirve de video para los WODs; el guion
+                       es la misma señal que usa la columna Video. -->
+                  <span v-if="ej.tipo_marca"
+                    class="text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700">
+                    {{ labelTipo(ej.tipo_marca) }}
+                  </span>
                   <span v-else class="text-sm text-gray-300">—</span>
                 </td>
                 <td v-if="puedeEditar" class="px-6 py-4 whitespace-nowrap">
@@ -166,6 +180,19 @@
               class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
             />
           </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+              Se mide en Mis Marcas <span class="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <select
+              v-model="form.tipo_marca"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all bg-white"
+            >
+              <option value="">No aplica</option>
+              <option v-for="t in TIPOS_MARCA" :key="t.valor" :value="t.valor">{{ t.label }}</option>
+            </select>
+            <p v-if="ayudaTipo" class="text-xs text-gray-400 mt-1.5">{{ ayudaTipo }}</p>
+          </div>
           <div v-if="errorForm" class="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100">
             {{ errorForm }}
           </div>
@@ -187,6 +214,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '../api'
+import { TIPOS_MARCA, labelTipo } from '../data/tiposMarca'
 
 const ejercicios      = ref([])
 const cargando        = ref(true)
@@ -195,7 +223,14 @@ const mostrarModal    = ref(false)
 const editando        = ref(null)
 const guardando       = ref(false)
 const errorForm       = ref('')
-const form            = ref({ nombre: '', video_url: '' })
+const form            = ref({ nombre: '', video_url: '', tipo_marca: '' })
+
+// La ayuda del tipo elegido. El select solo dice el nombre del tipo, y "Corporal +
+// lastre" no explica solo de dónde sale el peso corporal. Con "No aplica" no hay
+// nada que aclarar, así que devuelve vacío y la línea no se renderiza.
+const ayudaTipo = computed(() =>
+  TIPOS_MARCA.find(t => t.valor === form.value.tipo_marca)?.ayuda || ''
+)
 
 const userRol     = computed(() => localStorage.getItem('userRol') || 'cliente')
 const puedeEditar = computed(() => ['admin', 'coach'].includes(userRol.value))
@@ -221,8 +256,8 @@ function abrirFormulario(ej = null) {
   editando.value = ej
   errorForm.value = ''
   form.value = ej
-    ? { nombre: ej.nombre, video_url: ej.video_url || '' }
-    : { nombre: '', video_url: '' }
+    ? { nombre: ej.nombre, video_url: ej.video_url || '', tipo_marca: ej.tipo_marca || '' }
+    : { nombre: '', video_url: '', tipo_marca: '' }
   mostrarModal.value = true
 }
 
@@ -238,6 +273,9 @@ async function guardar() {
     const payload = {
       nombre: form.value.nombre.trim(),
       video_url: form.value.video_url.trim() || null,
+      // La cadena vacía viaja tal cual: el backend la normaliza a NULL. Mandar null
+      // desde acá también sirve, pero `""` es lo que un <select> puede representar.
+      tipo_marca: form.value.tipo_marca,
     }
     if (editando.value) {
       await api.put(`/ejercicios/${editando.value.id}`, payload)
