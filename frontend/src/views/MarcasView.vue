@@ -63,8 +63,7 @@
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-gray-900 truncate">{{ ej.nombre }}</h3>
               <p v-if="resumen.get(ej.nombre)" class="text-xs text-gray-500 mt-0.5">
-                {{ resumen.get(ej.nombre).conteo }} registro{{ resumen.get(ej.nombre).conteo !== 1 ? 's' : '' }}
-                · última {{ formatFecha(resumen.get(ej.nombre).ultima) }}
+                Última: {{ formatFecha(resumen.get(ej.nombre).ultima) }}
               </p>
               <p v-else class="text-xs text-gray-400 mt-0.5">Sin registros · toca para empezar</p>
             </div>
@@ -73,6 +72,14 @@
             </p>
             <span v-else class="shrink-0 text-lg text-gray-300">—</span>
           </div>
+          <a v-if="ej.video_url" :href="ej.video_url" target="_blank" rel="noopener noreferrer"
+            @click.stop.prevent="abrirVideo(ej.video_url)"
+            class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-red-600">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            Ver video
+          </a>
         </RouterLink>
       </div>
 
@@ -84,7 +91,7 @@
               <tr>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ejercicio</th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Mejor marca</th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Registros</th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Video</th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Última</th>
               </tr>
             </thead>
@@ -111,7 +118,16 @@
                   <span v-else class="text-sm text-gray-300">—</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span v-if="resumen.get(ej.nombre)" class="text-sm text-gray-600">{{ resumen.get(ej.nombre).conteo }}</span>
+                  <!-- @click.stop: la fila entera navega al ejercicio, y sin esto
+                       abrir el video dispararía además la navegación. -->
+                  <a v-if="ej.video_url" :href="ej.video_url" target="_blank" rel="noopener noreferrer"
+                    @click.stop
+                    class="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Ver
+                  </a>
                   <span v-else class="text-sm text-gray-300">—</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -201,6 +217,9 @@ function mejorDe(tipo, lista) {
 }
 
 const irA = (ejercicio) => router.push({ name: 'MarcasEjercicio', params: { ejercicio } })
+// En móvil la card entera es un <RouterLink>, así que un <a> anidado no puede
+// navegar solo: el .prevent frena al padre y hay que abrir la pestaña a mano.
+const abrirVideo = (url) => window.open(url, '_blank', 'noopener')
 
 async function cargar() {
   cargando.value = true

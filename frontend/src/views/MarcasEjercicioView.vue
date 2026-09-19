@@ -12,17 +12,6 @@
       </RouterLink>
       <span class="text-gray-200">/</span>
       <h2 class="text-2xl font-extrabold text-gray-900 truncate">{{ ejercicio }}</h2>
-      <!-- El video del catálogo de ejercicios, si el staff le cargó uno. -->
-      <a v-if="videoUrl" :href="videoUrl" target="_blank" rel="noopener"
-        class="shrink-0 flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        Ver técnica
-      </a>
     </div>
 
     <!-- Skeleton -->
@@ -550,7 +539,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { getChart } from '../lib/chart'
 import api from '../api'
-import { tipoDe, ejercicioDe, cargarCatalogo } from '../lib/catalogoMarcas'
+import { tipoDe, cargarCatalogo } from '../lib/catalogoMarcas'
 
 const route  = useRoute()
 const router = useRouter()
@@ -583,9 +572,6 @@ const corporalBaseEdit  = ref(null)
 
 const ejercicio = computed(() => route.params.ejercicio || null)
 const tipo      = computed(() => ejercicio.value ? tipoDe(ejercicio.value) : 'barra')
-// El video de técnica del catálogo: salió gratis al unificar el catálogo de
-// marcas con el de los WODs, y es justo lo que el socio quiere mirar acá.
-const videoUrl  = computed(() => ejercicio.value ? ejercicioDe(ejercicio.value)?.video_url || null : null)
 const esTipoPeso = computed(() => tipo.value === 'barra' || tipo.value === 'corporal_lastre')
 
 // ── Quick add (barra / corporal_lastre) ───────────────────────
